@@ -1,0 +1,20 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.atomgo.android.androidApp-mergeDebugResources-29:/values-hdpi-v4/values-hdpi-v4.xml",
+            "map": [
+                {
+                    "source": "/Users/motoricallc/.gradle/caches/9.4.1/transforms/1b48cd7122574d1e03cf734a2aaccfb8/transformed/appcompat-1.7.0/res/values-hdpi-v4/values-hdpi-v4.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endLines": "6",
+                        "endColumns": "13",
+                        "endOffsets": "327"
+                    }
+                }
+            ]
+        }
+    ]
+}

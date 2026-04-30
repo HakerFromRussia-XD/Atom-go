@@ -1,0 +1,87 @@
+[
+  {
+    "moduleId": "module org.jetbrains.kotlin:kotlin-stdlib:2.1.21",
+    "file": "/Users/motoricallc/Documents/Codex prod/Atom go/Atom go mob/mobile/shared/build/kotlinTransformedMetadataLibraries/commonMain/org.jetbrains.kotlin-kotlin-stdlib-2.1.21-commonMain-uBNgdg.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1",
+    "file": "/Users/motoricallc/Documents/Codex prod/Atom go/Atom go mob/mobile/shared/build/kotlinTransformedMetadataLibraries/commonMain/org.jetbrains.kotlinx-kotlinx-coroutines-core-1.8.1-concurrentMain-XanZ2w.klib",
+    "sourceSetName": "concurrentMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1",
+    "file": "/Users/motoricallc/Documents/Codex prod/Atom go/Atom go mob/mobile/shared/build/kotlinTransformedMetadataLibraries/commonMain/org.jetbrains.kotlinx-kotlinx-coroutines-core-1.8.1-commonMain-XanZ2w.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.kotlinx:kotlinx-datetime:0.6.0",
+    "file": "/Users/motoricallc/Documents/Codex prod/Atom go/Atom go mob/mobile/shared/build/kotlinTransformedMetadataLibraries/commonMain/org.jetbrains.kotlinx-kotlinx-datetime-0.6.0-commonMain-v1Leig.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.1",
+    "file": "/Users/motoricallc/Documents/Codex prod/Atom go/Atom go mob/mobile/shared/build/kotlinTransformedMetadataLibraries/commonMain/org.jetbrains.kotlinx-kotlinx-serialization-json-1.7.1-commonMain-Ii3AMw.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module io.ktor:ktor-client-core:2.3.12",
+    "file": "/Users/motoricallc/Documents/Codex prod/Atom go/Atom go mob/mobile/shared/build/kotlinTransformedMetadataLibraries/commonMain/io.ktor-ktor-client-core-2.3.12-commonMain-FU-9lg.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module io.ktor:ktor-client-content-negotiation:2.3.12",
+    "file": "/Users/motoricallc/Documents/Codex prod/Atom go/Atom go mob/mobile/shared/build/kotlinTransformedMetadataLibraries/commonMain/io.ktor-ktor-client-content-negotiation-2.3.12-commonMain-jI37cw.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module io.ktor:ktor-serialization-kotlinx-json:2.3.12",
+    "file": "/Users/motoricallc/Documents/Codex prod/Atom go/Atom go mob/mobile/shared/build/kotlinTransformedMetadataLibraries/commonMain/io.ktor-ktor-serialization-kotlinx-json-2.3.12-commonMain-sJ8SDA.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module org.jetbrains.kotlinx:kotlinx-serialization-core:1.7.1",
+    "file": "/Users/motoricallc/Documents/Codex prod/Atom go/Atom go mob/mobile/shared/build/kotlinTransformedMetadataLibraries/commonMain/org.jetbrains.kotlinx-kotlinx-serialization-core-1.7.1-commonMain-8gwKMQ.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module io.ktor:ktor-http:2.3.12",
+    "file": "/Users/motoricallc/Documents/Codex prod/Atom go/Atom go mob/mobile/shared/build/kotlinTransformedMetadataLibraries/commonMain/io.ktor-ktor-http-2.3.12-commonMain-W5sIeA.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module io.ktor:ktor-events:2.3.12",
+    "file": "/Users/motoricallc/Documents/Codex prod/Atom go/Atom go mob/mobile/shared/build/kotlinTransformedMetadataLibraries/commonMain/io.ktor-ktor-events-2.3.12-commonMain-Q6-xkw.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module io.ktor:ktor-websocket-serialization:2.3.12",
+    "file": "/Users/motoricallc/Documents/Codex prod/Atom go/Atom go mob/mobile/shared/build/kotlinTransformedMetadataLibraries/commonMain/io.ktor-ktor-websocket-serialization-2.3.12-commonMain-8xBQEg.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module io.ktor:ktor-serialization:2.3.12",
+    "file": "/Users/motoricallc/Documents/Codex prod/Atom go/Atom go mob/mobile/shared/build/kotlinTransformedMetadataLibraries/commonMain/io.ktor-ktor-serialization-2.3.12-commonMain-NxrIfg.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module io.ktor:ktor-serialization-kotlinx:2.3.12",
+    "file": "/Users/motoricallc/Documents/Codex prod/Atom go/Atom go mob/mobile/shared/build/kotlinTransformedMetadataLibraries/commonMain/io.ktor-ktor-serialization-kotlinx-2.3.12-commonMain-s53Slg.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module io.ktor:ktor-utils:2.3.12",
+    "file": "/Users/motoricallc/Documents/Codex prod/Atom go/Atom go mob/mobile/shared/build/kotlinTransformedMetadataLibraries/commonMain/io.ktor-ktor-utils-2.3.12-commonMain-kEcFvw.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module io.ktor:ktor-websockets:2.3.12",
+    "file": "/Users/motoricallc/Documents/Codex prod/Atom go/Atom go mob/mobile/shared/build/kotlinTransformedMetadataLibraries/commonMain/io.ktor-ktor-websockets-2.3.12-commonMain-8-9-_g.klib",
+    "sourceSetName": "commonMain"
+  },
+  {
+    "moduleId": "module io.ktor:ktor-io:2.3.12",
+    "file": "/Users/motoricallc/Documents/Codex prod/Atom go/Atom go mob/mobile/shared/build/kotlinTransformedMetadataLibraries/commonMain/io.ktor-ktor-io-2.3.12-commonMain-3YsjwQ.klib",
+    "sourceSetName": "commonMain"
+  }
+]

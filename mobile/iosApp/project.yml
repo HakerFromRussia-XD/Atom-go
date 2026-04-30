@@ -1,0 +1,100 @@
+name: AtomGoIOS
+options:
+  minimumXcodeGenVersion: 2.38.0
+  deploymentTarget:
+    iOS: "16.0"
+configs:
+  Debug: debug
+  Release: release
+targets:
+  AtomGoIOS:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: AtomGoIOS
+    info:
+      path: AtomGoIOS/Info.plist
+      properties:
+        CFBundleDisplayName: AtomGo
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UILaunchScreen: {}
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.atomgo.ios
+        SWIFT_VERSION: "5.0"
+        IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        FRAMEWORK_SEARCH_PATHS:
+          - "$(inherited)"
+          - "$(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)"
+        OTHER_LDFLAGS:
+          - "$(inherited)"
+          - "-framework"
+          - "shared"
+    preBuildScripts:
+      - name: Compile Kotlin
+        shell: /bin/sh
+        inputFiles:
+          - "$(SRCROOT)/../../build.gradle.kts"
+          - "$(SRCROOT)/../../settings.gradle.kts"
+          - "$(SRCROOT)/../../gradle.properties"
+          - "$(SRCROOT)/../../gradlew"
+          - "$(SRCROOT)/../../gradle/wrapper/gradle-wrapper.properties"
+          - "$(SRCROOT)/../shared/build.gradle.kts"
+          - "$(SRCROOT)/../shared/src/commonMain"
+          - "$(SRCROOT)/../shared/src/iosMain"
+        outputFiles:
+          - "$(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)/shared.framework"
+          - "$(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)/shared.framework/Info.plist"
+          - "$(TARGET_BUILD_DIR)/$(FRAMEWORKS_FOLDER_PATH)/shared.framework"
+          - "$(TARGET_BUILD_DIR)/$(FRAMEWORKS_FOLDER_PATH)/shared.framework/shared"
+        script: |
+          set -euo pipefail
+          JAVA_HOME_17="$(/usr/libexec/java_home -v 17 2>/dev/null || true)"
+          if [ -z "$JAVA_HOME_17" ]; then
+            echo "ERROR: JDK 17 is required for Kotlin/Gradle iOS build script."
+            exit 1
+          fi
+          export JAVA_HOME="$JAVA_HOME_17"
+          export ORG_GRADLE_JAVA_HOME="$JAVA_HOME"
+          export PATH="$JAVA_HOME/bin:$PATH"
+
+          export CONFIGURATION="${CONFIGURATION:-Debug}"
+          export SDK_NAME="${SDK_NAME:-iphonesimulator}"
+
+          if [ -z "${PLATFORM_NAME:-}" ]; then
+            case "$SDK_NAME" in
+              iphoneos*) PLATFORM_NAME="iphoneos" ;;
+              iphonesimulator*) PLATFORM_NAME="iphonesimulator" ;;
+              *) PLATFORM_NAME="iphonesimulator" ;;
+            esac
+            export PLATFORM_NAME
+          fi
+
+          if [ -z "${ARCHS:-}" ]; then
+            export ARCHS="${NATIVE_ARCH_ACTUAL:-arm64}"
+          fi
+
+          cd "$SRCROOT/../.."
+          ./gradlew -Dorg.gradle.java.home="$JAVA_HOME" :mobile:shared:embedAndSignAppleFrameworkForXcode
+
+          FRAMEWORK_BINARY_PATH="${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/shared.framework/shared"
+          if [ ! -f "$FRAMEWORK_BINARY_PATH" ]; then
+            echo "ERROR: shared.framework is missing in app bundle after Gradle embed step."
+            echo "Expected: $FRAMEWORK_BINARY_PATH"
+            exit 1
+          fi
+
+schemes:
+  AtomGoIOS:
+    build:
+      targets:
+        AtomGoIOS: all
+    run:
+      config: Debug
+    archive:
+      config: Release

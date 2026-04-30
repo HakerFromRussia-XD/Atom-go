@@ -1,0 +1,88 @@
+openapi: 3.0.3
+info:
+  title: Atom Go API
+  version: 0.1.0
+servers:
+  - url: /api/v1
+paths:
+  /auth/login:
+    post:
+      summary: Login by login/password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [login, password]
+              properties:
+                login:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Unauthorized
+  /client/me/dashboard:
+    get:
+      summary: Client dashboard
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Unauthorized
+  /admin/clients:
+    get:
+      summary: Admin clients list
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Unauthorized
+  /payments/create:
+    post:
+      summary: Create YooKassa payment request
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [payment_type]
+              properties:
+                payment_type:
+                  type: string
+                  enum: [day, week, two_weeks, month, debt_exact]
+      responses:
+        '200':
+          description: OK
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+  /payments/yookassa/webhook:
+    post:
+      summary: YooKassa webhook callback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: OK
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: token

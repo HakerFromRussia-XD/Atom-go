@@ -1,0 +1,9 @@
+abi_version=1.201.0
+builtins_platform=NATIVE
+compiler_version=2.1.21
+depends=stdlib io.ktor\:ktor-utils-cinterop-threadUtils org.jetbrains.kotlinx\:atomicfu-cinterop-interop org.jetbrains.kotlinx\:atomicfu org.jetbrains.kotlinx\:kotlinx-coroutines-core io.ktor\:ktor-io io.ktor\:ktor-utils io.ktor\:ktor-http io.ktor\:ktor-events io.ktor\:ktor-websockets io.ktor\:ktor-serialization io.ktor\:ktor-websocket-serialization io.ktor\:ktor-client-core io.ktor\:ktor-client-content-negotiation io.ktor\:ktor-client-darwin org.jetbrains.kotlinx\:kotlinx-serialization-core io.ktor\:ktor-serialization-kotlinx org.jetbrains.kotlinx\:kotlinx-serialization-json io.ktor\:ktor-serialization-kotlinx-json org.jetbrains.kotlinx\:kotlinx-datetime
+ir_signature_versions=1,2
+metadata_version=1.4.1
+native_targets=ios_simulator_arm64
+short_name=shared
+unique_name=atom-go.mobile\:shared

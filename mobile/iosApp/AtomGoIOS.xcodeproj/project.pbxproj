@@ -1,0 +1,357 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		209D8C09CC0BC7D48D1053F0 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B06085DBE1F31C40421BAE8 /* ContentView.swift */; };
+		A4D883E98FA3D8D41487CA8C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FCBDF83548DFF94997E4BEF3 /* Assets.xcassets */; };
+		E634E16917E922877ED8E481 /* AtomGoIOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8681599C5E052529E85B8A40 /* AtomGoIOSApp.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0B06085DBE1F31C40421BAE8 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		8681599C5E052529E85B8A40 /* AtomGoIOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtomGoIOSApp.swift; sourceTree = "<group>"; };
+		D57A96027742B435A96FA584 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		E4C794ADC216803E9818CD47 /* AtomGoIOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AtomGoIOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		FCBDF83548DFF94997E4BEF3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		38D07F174B12CC14467BFCCF /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				E4C794ADC216803E9818CD47 /* AtomGoIOS.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		4B665547D2AC90ABD5BDBCF1 /* AtomGoIOS */ = {
+			isa = PBXGroup;
+			children = (
+				FCBDF83548DFF94997E4BEF3 /* Assets.xcassets */,
+				8681599C5E052529E85B8A40 /* AtomGoIOSApp.swift */,
+				0B06085DBE1F31C40421BAE8 /* ContentView.swift */,
+				D57A96027742B435A96FA584 /* Info.plist */,
+			);
+			path = AtomGoIOS;
+			sourceTree = "<group>";
+		};
+		EFA5AF8D242224573BB9BC79 = {
+			isa = PBXGroup;
+			children = (
+				4B665547D2AC90ABD5BDBCF1 /* AtomGoIOS */,
+				38D07F174B12CC14467BFCCF /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		094D0E5ABF2B5CD38BAD77FF /* AtomGoIOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 48067B002791DBF529F3BB6D /* Build configuration list for PBXNativeTarget "AtomGoIOS" */;
+			buildPhases = (
+				D601402AD5F256CEDCCD95C1 /* Compile Kotlin */,
+				DEA4613BAC09CBD6E8B5C14A /* Sources */,
+				84A37D9E0FCE615CB9FF3B5F /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AtomGoIOS;
+			packageProductDependencies = (
+			);
+			productName = AtomGoIOS;
+			productReference = E4C794ADC216803E9818CD47 /* AtomGoIOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		C933F713EC20934ED23859C7 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+			};
+			buildConfigurationList = 69A60547B6124E63F64CD011 /* Build configuration list for PBXProject "AtomGoIOS" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = EFA5AF8D242224573BB9BC79;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 38D07F174B12CC14467BFCCF /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				094D0E5ABF2B5CD38BAD77FF /* AtomGoIOS */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		84A37D9E0FCE615CB9FF3B5F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A4D883E98FA3D8D41487CA8C /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		D601402AD5F256CEDCCD95C1 /* Compile Kotlin */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/../../build.gradle.kts",
+				"$(SRCROOT)/../../settings.gradle.kts",
+				"$(SRCROOT)/../../gradle.properties",
+				"$(SRCROOT)/../../gradlew",
+				"$(SRCROOT)/../../gradle/wrapper/gradle-wrapper.properties",
+				"$(SRCROOT)/../shared/build.gradle.kts",
+				"$(SRCROOT)/../shared/src/commonMain",
+				"$(SRCROOT)/../shared/src/iosMain",
+			);
+			name = "Compile Kotlin";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)/shared.framework",
+				"$(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)/shared.framework/Info.plist",
+				"$(TARGET_BUILD_DIR)/$(FRAMEWORKS_FOLDER_PATH)/shared.framework",
+				"$(TARGET_BUILD_DIR)/$(FRAMEWORKS_FOLDER_PATH)/shared.framework/shared",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -euo pipefail\nJAVA_HOME_17=\"$(/usr/libexec/java_home -v 17 2>/dev/null || true)\"\nif [ -z \"$JAVA_HOME_17\" ]; then\n  echo \"ERROR: JDK 17 is required for Kotlin/Gradle iOS build script.\"\n  exit 1\nfi\nexport JAVA_HOME=\"$JAVA_HOME_17\"\nexport ORG_GRADLE_JAVA_HOME=\"$JAVA_HOME\"\nexport PATH=\"$JAVA_HOME/bin:$PATH\"\n\nexport CONFIGURATION=\"${CONFIGURATION:-Debug}\"\nexport SDK_NAME=\"${SDK_NAME:-iphonesimulator}\"\n\nif [ -z \"${PLATFORM_NAME:-}\" ]; then\n  case \"$SDK_NAME\" in\n    iphoneos*) PLATFORM_NAME=\"iphoneos\" ;;\n    iphonesimulator*) PLATFORM_NAME=\"iphonesimulator\" ;;\n    *) PLATFORM_NAME=\"iphonesimulator\" ;;\n  esac\n  export PLATFORM_NAME\nfi\n\nif [ -z \"${ARCHS:-}\" ]; then\n  export ARCHS=\"${NATIVE_ARCH_ACTUAL:-arm64}\"\nfi\n\ncd \"$SRCROOT/../..\"\n./gradlew -Dorg.gradle.java.home=\"$JAVA_HOME\" :mobile:shared:embedAndSignAppleFrameworkForXcode\n\nFRAMEWORK_BINARY_PATH=\"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/shared.framework/shared\"\nif [ ! -f \"$FRAMEWORK_BINARY_PATH\" ]; then\n  echo \"ERROR: shared.framework is missing in app bundle after Gradle embed step.\"\n  echo \"Expected: $FRAMEWORK_BINARY_PATH\"\n  exit 1\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		DEA4613BAC09CBD6E8B5C14A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E634E16917E922877ED8E481 /* AtomGoIOSApp.swift in Sources */,
+				209D8C09CC0BC7D48D1053F0 /* ContentView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		6BF1AA33D21AAF4B423E0641 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = R7K637DW83;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)",
+				);
+				INFOPLIST_FILE = AtomGoIOS/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-framework",
+					shared,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.atom.go;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		9EEFC1F1909108F082BAAF56 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = R7K637DW83;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)",
+				);
+				INFOPLIST_FILE = AtomGoIOS/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-framework",
+					shared,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.atom.go;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		C4DF2E1C6B2417C628635BBB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		E0FD124FA06726B1314A81D7 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		48067B002791DBF529F3BB6D /* Build configuration list for PBXNativeTarget "AtomGoIOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6BF1AA33D21AAF4B423E0641 /* Debug */,
+				9EEFC1F1909108F082BAAF56 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		69A60547B6124E63F64CD011 /* Build configuration list for PBXProject "AtomGoIOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C4DF2E1C6B2417C628635BBB /* Debug */,
+				E0FD124FA06726B1314A81D7 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = C933F713EC20934ED23859C7 /* Project object */;
+}
