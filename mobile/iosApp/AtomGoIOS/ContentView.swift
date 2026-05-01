@@ -1,139 +1,216 @@
-import Foundation
 import SwiftUI
 
-private struct LoginResponse: Decodable {
-    let role: String
-    let accessToken: String
-
-    enum CodingKeys: String, CodingKey {
-        case role
-        case accessToken = "access_token"
-    }
-}
-
-private enum LoginRequestError: Error {
-    case httpError(code: Int, body: String)
-    case invalidPayload
-    case invalidUrl
-}
-
 struct ContentView: View {
-    @State private var login = ""
-    @State private var password = ""
-    @State private var statusText = "Статус: ожидание"
-    @State private var isLoading = false
-
-    private let backendBaseUrl = "http://127.0.0.1:8080/api/v1"
+    @ObservedObject var viewModel: LoginViewModel
+    @StateObject private var keyboardState = KeyboardState()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Atom Go Login")
-                .font(.system(size: 24, weight: .bold))
-                .padding(.bottom, 4)
+        GeometryReader { geometry in
+            let screenBounds = UIScreen.main.bounds
+            let layoutWidth = max(geometry.size.width, screenBounds.width)
+            let layoutHeight = max(geometry.size.height, screenBounds.height)
+            let safeTop = geometry.safeAreaInsets.top
+            let xScale = layoutWidth / 600
+            let yScale = layoutHeight / 1260
+            let textScale = min(xScale, yScale)
+            let fieldWidth = 481 * xScale
+            let loginButtonBottom = safeTop + (730 + 91) * yScale
+            let keyboardGap: CGFloat = 16
+            let keyboardTop = min(keyboardState.topY, layoutHeight)
+            let keyboardLift = max(0, loginButtonBottom + keyboardGap - keyboardTop)
 
-            TextField("Login", text: $login)
+            ZStack(alignment: .topLeading) {
+                AppDesign.pageBackground.ignoresSafeArea()
+
+                RoundedRectangle(cornerRadius: 42 * textScale, style: .continuous)
+                    .fill(AppDesign.surfaceBackground)
+                    .frame(width: 588 * xScale, height: 1244 * yScale)
+                    .offset(x: 6 * xScale, y: 8 * yScale)
+
+                Button(action: {}) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 30 * textScale, weight: .semibold))
+                        .foregroundStyle(AppDesign.accent)
+                        .frame(width: 63 * xScale, height: 62 * yScale)
+                        .background(
+                            RoundedRectangle(cornerRadius: 18 * textScale, style: .continuous)
+                                .fill(AppDesign.cardBackground)
+                        )
+                }
+                .buttonStyle(.plain)
+                .offset(x: 54 * xScale, y: 69 * yScale)
+
+                Text("Login Your\nAccount")
+                    .font(.system(size: 78 * textScale, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppDesign.titleText)
+                    .lineSpacing(-9 * textScale)
+                    .offset(x: 54 * xScale, y: 245 * yScale)
+
+                loginField(
+                    xScale: xScale,
+                    yScale: yScale,
+                    textScale: textScale,
+                    iconName: "Email Icon",
+                    placeholder: "Enter Your Email",
+                    text: $viewModel.login
+                )
+                .frame(width: fieldWidth, height: 92 * yScale)
+                .offset(x: 54 * xScale, y: 436 * yScale)
+
+                passwordField(xScale: xScale, yScale: yScale, textScale: textScale)
+                    .frame(width: fieldWidth, height: 92 * yScale)
+                    .offset(x: 54 * xScale, y: 555 * yScale)
+
+                Text("Forget Password ?")
+                    .font(.system(size: 16 * textScale, weight: .semibold))
+                    .foregroundStyle(AppDesign.subtleText)
+                    .frame(width: fieldWidth, alignment: .trailing)
+                    .offset(x: 54 * xScale, y: 673 * yScale)
+
+                Button(action: viewModel.signIn) {
+                    Text(viewModel.isLoading ? "Logging in..." : "Login")
+                        .font(.system(size: 22 * textScale, weight: .semibold, design: .rounded))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 91 * yScale)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.white)
+                .background(AppDesign.accent)
+                .clipShape(RoundedRectangle(cornerRadius: 22 * textScale, style: .continuous))
+                .disabled(viewModel.isLoading)
+                .frame(width: fieldWidth)
+                .offset(x: 54 * xScale, y: 730 * yScale)
+
+                if viewModel.statusText != "Статус: ожидание" {
+                    Text(viewModel.statusText)
+                        .font(.system(size: 14 * textScale, weight: .regular))
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(width: fieldWidth, alignment: .leading)
+                        .offset(x: 54 * xScale, y: 840 * yScale)
+                }
+            }
+            .offset(y: -keyboardLift)
+            .animation(.easeOut(duration: 0.2), value: keyboardTop)
+        }
+    }
+
+    private func loginField(
+        xScale: CGFloat,
+        yScale: CGFloat,
+        textScale: CGFloat,
+        iconName: String,
+        placeholder: String,
+        text: Binding<String>
+    ) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 18 * textScale, style: .continuous)
+                .fill(AppDesign.cardBackground)
+
+            HStack(spacing: 26 * xScale) {
+                Image(iconName)
+                    .resizable()
+                    .renderingMode(.original)
+                    .scaledToFit()
+                    .frame(width: 30 * textScale)
+
+                TextField(
+                    "",
+                    text: text,
+                    prompt: Text(placeholder)
+                        .foregroundColor(AppDesign.iconSoft)
+                )
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled(true)
-                .padding(12)
-                .background(Color(.secondarySystemBackground))
-                .cornerRadius(10)
+                .font(.system(size: 20 * textScale, weight: .semibold))
+                .foregroundStyle(AppDesign.titleText)
 
-            SecureField("Password", text: $password)
+                Spacer(minLength: 0)
+            }
+            .padding(.leading, 31 * xScale)
+            .padding(.trailing, 24 * xScale)
+        }
+    }
+
+    private func passwordField(xScale: CGFloat, yScale: CGFloat, textScale: CGFloat) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 18 * textScale, style: .continuous)
+                .fill(AppDesign.cardBackground)
+
+            HStack(spacing: 26 * xScale) {
+                Image("Lock Icon")
+                    .resizable()
+                    .renderingMode(.original)
+                    .scaledToFit()
+                    .frame(width: 30 * textScale)
+
+                SecureField(
+                    "",
+                    text: $viewModel.password,
+                    prompt: Text("Password")
+                        .foregroundColor(AppDesign.iconSoft)
+                )
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled(true)
-                .padding(12)
-                .background(Color(.secondarySystemBackground))
-                .cornerRadius(10)
+                .font(.system(size: 20 * textScale, weight: .semibold))
+                .foregroundStyle(AppDesign.titleText)
 
-            Button(action: signInTapped) {
-                Text("Sign in")
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
+                Spacer(minLength: 0)
+
+                Image("Eye Off Icon")
+                    .resizable()
+                    .renderingMode(.original)
+                    .scaledToFit()
+                    .frame(width: 30 * textScale)
             }
-            .buttonStyle(.borderedProminent)
-            .disabled(isLoading)
-            .padding(.top, 4)
-            .padding(.bottom, 4)
-
-            Text(statusText)
-                .font(.system(size: 16))
-                .foregroundStyle(.primary)
-
-            Spacer(minLength: 0)
-        }
-        .padding(24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color(.systemBackground))
-    }
-
-    private func signInTapped() {
-        let normalizedLogin = login.trimmingCharacters(in: .whitespacesAndNewlines)
-        if normalizedLogin.isEmpty || password.isEmpty {
-            statusText = "Статус: введите логин и пароль"
-            return
-        }
-
-        statusText = "Статус: выполняю вход..."
-        isLoading = true
-
-        Task {
-            do {
-                let result = try await doLogin(login: normalizedLogin, password: password)
-                statusText = "Статус: вход выполнен, роль: \(result.role)\nToken: \(String(result.accessToken.prefix(12)))..."
-            } catch {
-                statusText = "Статус: ошибка входа: \(error.localizedDescription)"
-            }
-            isLoading = false
-        }
-    }
-
-    private func doLogin(login: String, password: String) async throws -> LoginResponse {
-        guard let url = URL(string: "\(backendBaseUrl)/auth/login") else {
-            throw LoginRequestError.invalidUrl
-        }
-
-        let requestBody: [String: String] = [
-            "login": login,
-            "password": password
-        ]
-
-        guard let bodyData = try? JSONSerialization.data(withJSONObject: requestBody) else {
-            throw LoginRequestError.invalidPayload
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.timeoutInterval = 7
-        request.httpBody = bodyData
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw LoginRequestError.invalidPayload
-        }
-
-        let rawBody = String(data: data, encoding: .utf8) ?? ""
-        guard (200...299).contains(httpResponse.statusCode) else {
-            throw LoginRequestError.httpError(code: httpResponse.statusCode, body: rawBody)
-        }
-
-        return try JSONDecoder().decode(LoginResponse.self, from: data)
-    }
-}
-
-extension LoginRequestError: LocalizedError {
-    var errorDescription: String? {
-        switch self {
-        case let .httpError(code, body):
-            return "HTTP \(code): \(body)"
-        case .invalidPayload:
-            return "Некорректный ответ backend"
-        case .invalidUrl:
-            return "Некорректный URL backend"
+            .padding(.leading, 31 * xScale)
+            .padding(.trailing, 24 * xScale)
         }
     }
 }
 
 #Preview {
-    ContentView()
+    ContentView(viewModel: LoginViewModel(apiService: BackendService()))
+}
+
+private final class KeyboardState: ObservableObject {
+    @Published var topY: CGFloat = .greatestFiniteMagnitude
+
+    private var observers: [NSObjectProtocol] = []
+
+    init() {
+        let names: [Notification.Name] = [
+            UIResponder.keyboardWillShowNotification,
+            UIResponder.keyboardDidShowNotification,
+            UIResponder.keyboardWillChangeFrameNotification,
+            UIResponder.keyboardDidChangeFrameNotification,
+            UIResponder.keyboardWillHideNotification,
+            UIResponder.keyboardDidHideNotification
+        ]
+
+        observers = names.map { name in
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] notification in
+                self?.handle(notification: notification)
+            }
+        }
+    }
+
+    deinit {
+        observers.forEach(NotificationCenter.default.removeObserver)
+    }
+
+    private func handle(notification: Notification) {
+        guard
+            let userInfo = notification.userInfo,
+            let keyboardFrame = userInfo[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect
+        else {
+            return
+        }
+
+        if notification.name == UIResponder.keyboardWillHideNotification || notification.name == UIResponder.keyboardDidHideNotification {
+            topY = .greatestFiniteMagnitude
+        } else {
+            topY = keyboardFrame.minY
+        }
+    }
 }

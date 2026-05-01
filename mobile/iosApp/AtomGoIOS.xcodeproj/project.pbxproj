@@ -8,19 +8,72 @@
 
 /* Begin PBXBuildFile section */
 		209D8C09CC0BC7D48D1053F0 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B06085DBE1F31C40421BAE8 /* ContentView.swift */; };
+		5A6A9FF068D7DBE94CE1923B /* AdminHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B437D964BE5A9D2150A1714A /* AdminHomeView.swift */; };
+		8A04768463F13609EC51AE7D /* ClientHomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46CAAFE892071E531ECD6B41 /* ClientHomeViewModel.swift */; };
+		9B33C85F7DD3AD0DC22BC7A9 /* AppDesign.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67DD284CB85AC16F87BA0F13 /* AppDesign.swift */; };
+		A01BE496BEF06FA4CA205127 /* ClientHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2AE583E4DEB4F7AC777CC5 /* ClientHomeView.swift */; };
 		A4D883E98FA3D8D41487CA8C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FCBDF83548DFF94997E4BEF3 /* Assets.xcassets */; };
+		AF45D347D006E922A45BC4A7 /* AppModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31F93C8EF3C90D4012005AAE /* AppModels.swift */; };
+		B7D05449E1D1732C82744DB6 /* AppViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2477B38675A2682D5677B0C9 /* AppViewModel.swift */; };
+		CFAE120B547EF0DA8409971B /* LoginViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0F3CCB189006AB76FED0B0E /* LoginViewModel.swift */; };
+		D6389B61599B0095B34D0554 /* AdminHomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F7F44A56F9F7489B50CE778 /* AdminHomeViewModel.swift */; };
 		E634E16917E922877ED8E481 /* AtomGoIOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8681599C5E052529E85B8A40 /* AtomGoIOSApp.swift */; };
+		F4256BA19F2E9D32986F2729 /* BackendService.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB3B9A5EAA9656DCF8860E27 /* BackendService.swift */; };
+		FD4CEB41FCE99FEEAFD15476 /* AppRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79D264019B2B70A0B9CC22C2 /* AppRootView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		0B06085DBE1F31C40421BAE8 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		0F7F44A56F9F7489B50CE778 /* AdminHomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminHomeViewModel.swift; sourceTree = "<group>"; };
+		2477B38675A2682D5677B0C9 /* AppViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppViewModel.swift; sourceTree = "<group>"; };
+		31F93C8EF3C90D4012005AAE /* AppModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModels.swift; sourceTree = "<group>"; };
+		46CAAFE892071E531ECD6B41 /* ClientHomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientHomeViewModel.swift; sourceTree = "<group>"; };
+		67DD284CB85AC16F87BA0F13 /* AppDesign.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDesign.swift; sourceTree = "<group>"; };
+		79D264019B2B70A0B9CC22C2 /* AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
+		7E2AE583E4DEB4F7AC777CC5 /* ClientHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientHomeView.swift; sourceTree = "<group>"; };
 		8681599C5E052529E85B8A40 /* AtomGoIOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtomGoIOSApp.swift; sourceTree = "<group>"; };
+		B437D964BE5A9D2150A1714A /* AdminHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminHomeView.swift; sourceTree = "<group>"; };
 		D57A96027742B435A96FA584 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		E0F3CCB189006AB76FED0B0E /* LoginViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginViewModel.swift; sourceTree = "<group>"; };
 		E4C794ADC216803E9818CD47 /* AtomGoIOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AtomGoIOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		EB3B9A5EAA9656DCF8860E27 /* BackendService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendService.swift; sourceTree = "<group>"; };
 		FCBDF83548DFF94997E4BEF3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
+		137DAA9B1223BBF6567C66E9 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				79D264019B2B70A0B9CC22C2 /* AppRootView.swift */,
+				2477B38675A2682D5677B0C9 /* AppViewModel.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		18634C44D7E91A500200DE99 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				31F93C8EF3C90D4012005AAE /* AppModels.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		2AB3177D6878ED7B5FEF26A1 /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				67DD284CB85AC16F87BA0F13 /* AppDesign.swift */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		2AE8E978118D623970BFEB2F /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				E0F3CCB189006AB76FED0B0E /* LoginViewModel.swift */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
 		38D07F174B12CC14467BFCCF /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -36,8 +89,49 @@
 				8681599C5E052529E85B8A40 /* AtomGoIOSApp.swift */,
 				0B06085DBE1F31C40421BAE8 /* ContentView.swift */,
 				D57A96027742B435A96FA584 /* Info.plist */,
+				137DAA9B1223BBF6567C66E9 /* App */,
+				5CB821C12EA44722444A331A /* Core */,
+				5B904D5E657AE06DBF777D3D /* Features */,
 			);
 			path = AtomGoIOS;
+			sourceTree = "<group>";
+		};
+		5B904D5E657AE06DBF777D3D /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				75015D99B5E4606B15465002 /* AdminHome */,
+				2AE8E978118D623970BFEB2F /* Auth */,
+				E0CE4B3C39247E3446CBB7B3 /* ClientHome */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		5CB821C12EA44722444A331A /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				18634C44D7E91A500200DE99 /* Models */,
+				F0F92BBBBEEFA02CC19F0691 /* Networking */,
+				2AB3177D6878ED7B5FEF26A1 /* UI */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		75015D99B5E4606B15465002 /* AdminHome */ = {
+			isa = PBXGroup;
+			children = (
+				B437D964BE5A9D2150A1714A /* AdminHomeView.swift */,
+				0F7F44A56F9F7489B50CE778 /* AdminHomeViewModel.swift */,
+			);
+			path = AdminHome;
+			sourceTree = "<group>";
+		};
+		E0CE4B3C39247E3446CBB7B3 /* ClientHome */ = {
+			isa = PBXGroup;
+			children = (
+				7E2AE583E4DEB4F7AC777CC5 /* ClientHomeView.swift */,
+				46CAAFE892071E531ECD6B41 /* ClientHomeViewModel.swift */,
+			);
+			path = ClientHome;
 			sourceTree = "<group>";
 		};
 		EFA5AF8D242224573BB9BC79 = {
@@ -46,6 +140,14 @@
 				4B665547D2AC90ABD5BDBCF1 /* AtomGoIOS */,
 				38D07F174B12CC14467BFCCF /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		F0F92BBBBEEFA02CC19F0691 /* Networking */ = {
+			isa = PBXGroup;
+			children = (
+				EB3B9A5EAA9656DCF8860E27 /* BackendService.swift */,
+			);
+			path = Networking;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -147,8 +249,18 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5A6A9FF068D7DBE94CE1923B /* AdminHomeView.swift in Sources */,
+				D6389B61599B0095B34D0554 /* AdminHomeViewModel.swift in Sources */,
+				9B33C85F7DD3AD0DC22BC7A9 /* AppDesign.swift in Sources */,
+				AF45D347D006E922A45BC4A7 /* AppModels.swift in Sources */,
+				FD4CEB41FCE99FEEAFD15476 /* AppRootView.swift in Sources */,
+				B7D05449E1D1732C82744DB6 /* AppViewModel.swift in Sources */,
 				E634E16917E922877ED8E481 /* AtomGoIOSApp.swift in Sources */,
+				F4256BA19F2E9D32986F2729 /* BackendService.swift in Sources */,
+				A01BE496BEF06FA4CA205127 /* ClientHomeView.swift in Sources */,
+				8A04768463F13609EC51AE7D /* ClientHomeViewModel.swift in Sources */,
 				209D8C09CC0BC7D48D1053F0 /* ContentView.swift in Sources */,
+				CFAE120B547EF0DA8409971B /* LoginViewModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
