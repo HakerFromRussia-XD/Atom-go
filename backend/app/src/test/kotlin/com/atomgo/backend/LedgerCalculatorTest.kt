@@ -19,7 +19,9 @@ class LedgerCalculatorTest {
             weeklyRateRub = 3000,
             rentalStartDate = LocalDate.parse("2026-01-01"),
             bikeModel = "Bike",
-            bikeAvatarUrl = ""
+            bikeAvatarUrl = "",
+            address = "Test address",
+            passportData = "Test passport"
         )
 
         val entries = listOf(

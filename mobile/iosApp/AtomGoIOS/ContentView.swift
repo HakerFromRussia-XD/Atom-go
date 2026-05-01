@@ -67,6 +67,25 @@ struct ContentView: View {
                     .frame(width: fieldWidth, alignment: .trailing)
                     .offset(x: 54 * xScale, y: 673 * yScale)
 
+                HStack(spacing: 10 * xScale) {
+                    quickFillButton(
+                        title: "Клиент",
+                        xScale: xScale,
+                        yScale: yScale,
+                        textScale: textScale,
+                        action: viewModel.fillClientCredentials
+                    )
+                    quickFillButton(
+                        title: "Админ",
+                        xScale: xScale,
+                        yScale: yScale,
+                        textScale: textScale,
+                        action: viewModel.fillAdminCredentials
+                    )
+                }
+                .frame(width: fieldWidth)
+                .offset(x: 54 * xScale, y: 696 * yScale)
+
                 Button(action: viewModel.signIn) {
                     Text(viewModel.isLoading ? "Logging in..." : "Login")
                         .font(.system(size: 22 * textScale, weight: .semibold, design: .rounded))
@@ -81,10 +100,10 @@ struct ContentView: View {
                 .frame(width: fieldWidth)
                 .offset(x: 54 * xScale, y: 730 * yScale)
 
-                if viewModel.statusText != "Статус: ожидание" {
+                if viewModel.statusText != LoginViewModel.waitingStatusText {
                     Text(viewModel.statusText)
                         .font(.system(size: 14 * textScale, weight: .regular))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(statusColor)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(width: fieldWidth, alignment: .leading)
                         .offset(x: 54 * xScale, y: 840 * yScale)
@@ -167,13 +186,48 @@ struct ContentView: View {
             .padding(.trailing, 24 * xScale)
         }
     }
+
+    private func quickFillButton(
+        title: String,
+        xScale: CGFloat,
+        yScale: CGFloat,
+        textScale: CGFloat,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 14 * textScale, weight: .semibold, design: .rounded))
+                .foregroundStyle(AppDesign.titleText)
+                .frame(maxWidth: .infinity)
+                .frame(height: 30 * yScale)
+                .background(AppDesign.cardBackground)
+                .clipShape(RoundedRectangle(cornerRadius: 12 * textScale, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
 }
 
 #Preview {
     ContentView(viewModel: LoginViewModel(apiService: BackendService()))
 }
 
+private extension ContentView {
+    var statusColor: Color {
+        switch viewModel.statusKind {
+        case .error:
+            return AppDesign.danger
+        case .success:
+            return AppDesign.success
+        case .info, .idle:
+            return .primary
+        }
+    }
+}
+
 private final class KeyboardState: ObservableObject {
+    private static let hiddenY = CGFloat.greatestFiniteMagnitude
+    private static let hiddenThreshold = CGFloat.greatestFiniteMagnitude / 2
+
     @Published var topY: CGFloat = .greatestFiniteMagnitude
 
     private var observers: [NSObjectProtocol] = []
@@ -207,10 +261,27 @@ private final class KeyboardState: ObservableObject {
             return
         }
 
+        let nextTopY: CGFloat
         if notification.name == UIResponder.keyboardWillHideNotification || notification.name == UIResponder.keyboardDidHideNotification {
-            topY = .greatestFiniteMagnitude
+            nextTopY = Self.hiddenY
         } else {
-            topY = keyboardFrame.minY
+            nextTopY = keyboardFrame.minY
         }
+
+        if shouldPublishTopYChange(from: topY, to: nextTopY) {
+            topY = nextTopY
+        }
+    }
+
+    private func shouldPublishTopYChange(from oldValue: CGFloat, to newValue: CGFloat) -> Bool {
+        let oldHidden = oldValue > Self.hiddenThreshold
+        let newHidden = newValue > Self.hiddenThreshold
+        if oldHidden && newHidden {
+            return false
+        }
+        if oldHidden != newHidden {
+            return true
+        }
+        return abs(oldValue - newValue) > 0.5
     }
 }

@@ -1,12 +1,13 @@
 package com.atomgo.backend
 
 import io.ktor.client.request.bearerAuth
-import io.ktor.client.request.contentType
 import io.ktor.client.request.get
 import io.ktor.client.request.post
+import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.contentType
 import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
@@ -109,5 +110,46 @@ class ApiIntegrationTest {
             ?.content
             ?.toBoolean()
         assertTrue(secondApplied == false)
+    }
+
+    @Test
+    fun `admin should update rental links`() = testApplication {
+        application { module() }
+
+        val login = client.post("/api/v1/auth/login") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"login":"admin","password":"admin123"}""")
+        }
+        assertEquals(HttpStatusCode.OK, login.status)
+
+        val token = json.parseToJsonElement(login.bodyAsText())
+            .jsonObject["access_token"]
+            ?.jsonPrimitive
+            ?.content
+            ?: error("No token")
+
+        val updateLinks = client.post("/api/v1/admin/rentals/rental-001/links") {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "video_url":"https://youtube.com/watch?v=updated-demo",
+                  "contract_url":"https://drive.google.com/file/d/updated-contract/view"
+                }
+                """.trimIndent()
+            )
+        }
+        assertEquals(HttpStatusCode.OK, updateLinks.status)
+
+        val updateBody = json.parseToJsonElement(updateLinks.bodyAsText()).jsonObject
+        assertEquals(
+            "https://youtube.com/watch?v=updated-demo",
+            updateBody["video_url"]?.jsonPrimitive?.content
+        )
+        assertEquals(
+            "https://drive.google.com/file/d/updated-contract/view",
+            updateBody["contract_url"]?.jsonPrimitive?.content
+        )
     }
 }

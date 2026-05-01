@@ -55,7 +55,27 @@ data class ClientAccount(
     val rentalStartDate: LocalDate,
     val bikeModel: String,
     val bikeAvatarUrl: String,
+    val address: String,
+    val passportData: String,
+    val phones: MutableList<ClientPhone> = mutableListOf(),
     var totalAdjustmentRub: Int = 0
+)
+
+data class ClientPhone(
+    val label: String,
+    val number: String
+)
+
+data class RentalRecord(
+    val id: String,
+    val clientId: String,
+    val bikeAvatarUrl: String,
+    val bikeModel: String,
+    val startDate: LocalDate,
+    val endDate: LocalDate?,
+    var videoUrl: String?,
+    var contractUrl: String?,
+    var comment: String?
 )
 
 data class LedgerEntry(

@@ -5,6 +5,7 @@ import com.atomgo.backend.domain.ClientAccount
 import com.atomgo.backend.domain.LedgerEntry
 import com.atomgo.backend.domain.LedgerType
 import com.atomgo.backend.domain.PaymentRecord
+import com.atomgo.backend.domain.RentalRecord
 import com.atomgo.backend.domain.Role
 import com.atomgo.backend.domain.UserSession
 import java.time.Instant
@@ -13,6 +14,7 @@ import java.time.LocalDate
 class InMemoryStore(
     val users: MutableList<AppUser>,
     val clients: MutableList<ClientAccount>,
+    val rentals: MutableList<RentalRecord>,
     val ledger: MutableList<LedgerEntry>,
     val payments: MutableList<PaymentRecord>,
     val sessions: MutableMap<String, UserSession>,
@@ -21,8 +23,10 @@ class InMemoryStore(
     companion object {
         fun seed(): InMemoryStore {
             val clientId = "client-001"
+            val clientId2 = "client-002"
             val adminId = "admin-001"
             val clientUserId = "user-client-001"
+            val clientUserId2 = "user-client-002"
 
             val users = mutableListOf(
                 AppUser(
@@ -38,6 +42,13 @@ class InMemoryStore(
                     password = "client123",
                     role = Role.CLIENT,
                     clientId = clientId
+                ),
+                AppUser(
+                    id = clientUserId2,
+                    login = "client2",
+                    password = "client234",
+                    role = Role.CLIENT,
+                    clientId = clientId2
                 )
             )
 
@@ -49,7 +60,63 @@ class InMemoryStore(
                     rentalStartDate = LocalDate.now().minusDays(17),
                     bikeModel = "Ninebot E-Bike Pro",
                     bikeAvatarUrl = "https://example.com/bikes/ninebot-pro.png",
+                    address = "Москва, ул. Тверская, 12",
+                    passportData = "45 11 234567, выдан 12.05.2019",
+                    phones = mutableListOf(
+                        com.atomgo.backend.domain.ClientPhone(label = "Рабочий (TG)", number = "+7 900 123-45-67"),
+                        com.atomgo.backend.domain.ClientPhone(label = "Домашний", number = "+7 495 222-33-44")
+                    ),
                     totalAdjustmentRub = -1500
+                ),
+                ClientAccount(
+                    id = clientId2,
+                    fullName = "Алексей Смирнов",
+                    weeklyRateRub = 2600,
+                    rentalStartDate = LocalDate.now().minusDays(4),
+                    bikeModel = "Aventon Level 2",
+                    bikeAvatarUrl = "https://example.com/bikes/aventon-level2.png",
+                    address = "Санкт-Петербург, Невский пр., 41",
+                    passportData = "40 22 987654, выдан 01.02.2020",
+                    phones = mutableListOf(
+                        com.atomgo.backend.domain.ClientPhone(label = "Рабочий", number = "+7 911 333-22-11")
+                    ),
+                    totalAdjustmentRub = 0
+                )
+            )
+
+            val rentals = mutableListOf(
+                RentalRecord(
+                    id = "rental-001",
+                    clientId = clientId,
+                    bikeAvatarUrl = "https://example.com/bikes/ninebot-pro.png",
+                    bikeModel = "Ninebot E-Bike Pro",
+                    startDate = LocalDate.now().minusDays(17),
+                    endDate = null,
+                    videoUrl = "https://youtube.com/watch?v=demo-acceptance-1",
+                    contractUrl = "https://drive.google.com/file/d/contract-1/view",
+                    comment = "Передан с новым аккумулятором"
+                ),
+                RentalRecord(
+                    id = "rental-000",
+                    clientId = clientId,
+                    bikeAvatarUrl = "https://example.com/bikes/ninebot-pro.png",
+                    bikeModel = "Ninebot E-Bike Pro",
+                    startDate = LocalDate.now().minusDays(120),
+                    endDate = LocalDate.now().minusDays(48),
+                    videoUrl = "https://youtube.com/watch?v=demo-acceptance-old",
+                    contractUrl = "https://drive.google.com/file/d/contract-old/view",
+                    comment = "Возврат по апгрейду на новую модель"
+                ),
+                RentalRecord(
+                    id = "rental-002",
+                    clientId = clientId2,
+                    bikeAvatarUrl = "https://example.com/bikes/aventon-level2.png",
+                    bikeModel = "Aventon Level 2",
+                    startDate = LocalDate.now().minusDays(4),
+                    endDate = null,
+                    videoUrl = "https://youtube.com/watch?v=demo-acceptance-2",
+                    contractUrl = "https://drive.google.com/file/d/contract-2/view",
+                    comment = null
                 )
             )
 
@@ -98,12 +165,22 @@ class InMemoryStore(
                     amountRub = 500,
                     createdAt = Instant.now().minusSeconds(12L * 3600),
                     note = "Скидка"
+                ),
+                LedgerEntry(
+                    id = "pay-4",
+                    clientId = clientId2,
+                    type = LedgerType.PAYMENT,
+                    direction = -1,
+                    amountRub = 2600,
+                    createdAt = Instant.now().minusSeconds(4L * 24 * 3600),
+                    sourceId = "manual"
                 )
             )
 
             return InMemoryStore(
                 users = users,
                 clients = clients,
+                rentals = rentals,
                 ledger = ledger,
                 payments = mutableListOf(),
                 sessions = mutableMapOf(),

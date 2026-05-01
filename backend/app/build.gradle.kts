@@ -1,5 +1,6 @@
 plugins {
     id("org.jetbrains.kotlin.jvm")
+    id("org.jetbrains.kotlin.plugin.serialization")
     application
 }
 
@@ -20,6 +21,7 @@ dependencies {
 
     testImplementation(kotlin("test"))
     testImplementation("io.ktor:ktor-server-test-host-jvm:3.0.0")
+    testImplementation("io.ktor:ktor-client-core-jvm:3.0.0")
     testImplementation("io.ktor:ktor-client-content-negotiation:3.0.0")
     testImplementation("io.ktor:ktor-serialization-kotlinx-json:3.0.0")
 }

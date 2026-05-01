@@ -19,6 +19,11 @@ targets:
         CFBundleDisplayName: AtomGo
         CFBundleShortVersionString: "0.1.0"
         CFBundleVersion: "1"
+        BackendBaseURLSimulator: "http://127.0.0.1:8080/api/v1"
+        BackendBaseURLDevice: "http://192.168.1.234:8080/api/v1"
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        NSLocalNetworkUsageDescription: AtomGo uses your local network to connect to a development backend on your Mac.
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         UILaunchScreen: {}

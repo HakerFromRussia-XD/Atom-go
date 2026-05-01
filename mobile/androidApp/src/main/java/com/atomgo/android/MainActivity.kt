@@ -1,19 +1,18 @@
 package com.atomgo.android
 
 import android.os.Bundle
+import android.content.Intent
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import org.json.JSONObject
-import java.io.BufferedReader
-import java.io.OutputStreamWriter
-import java.net.HttpURLConnection
-import java.net.URL
+import com.atomgo.shared.api.AtomGoApiClient
+import com.atomgo.shared.api.UserRole
+import kotlinx.coroutines.runBlocking
 
 class MainActivity : AppCompatActivity() {
 
-    private val backendBaseUrl = "http://10.0.2.2:8080/api/v1"
+    private val apiClient = AtomGoApiClient(BackendConfig.BASE_URL)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -23,6 +22,9 @@ class MainActivity : AppCompatActivity() {
         val passwordInput = findViewById<EditText>(R.id.passwordInput)
         val loginButton = findViewById<Button>(R.id.loginButton)
         val statusText = findViewById<TextView>(R.id.statusText)
+
+        loginInput.setText(BackendConfig.DEFAULT_CLIENT_LOGIN)
+        passwordInput.setText(BackendConfig.DEFAULT_CLIENT_PASSWORD)
 
         loginButton.setOnClickListener {
             val login = loginInput.text.toString().trim()
@@ -34,12 +36,14 @@ class MainActivity : AppCompatActivity() {
             }
 
             statusText.text = "Статус: выполняю вход..."
-
             Thread {
                 try {
-                    val (role, token) = doLogin(login, password)
+                    val session = runBlocking {
+                        apiClient.login(login, password)
+                    }
                     runOnUiThread {
-                        statusText.text = "Статус: вход выполнен, роль: $role\nToken: ${token.take(12)}..."
+                        statusText.text = "Статус: вход выполнен, роль: ${session.role.name.lowercase()}\nToken: ${session.accessToken.take(12)}..."
+                        routeByRole(session.role, session.accessToken)
                     }
                 } catch (error: Exception) {
                     runOnUiThread {
@@ -50,40 +54,22 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun doLogin(login: String, password: String): Pair<String, String> {
-        val body = JSONObject().apply {
-            put("login", login)
-            put("password", password)
-        }.toString()
+    override fun onDestroy() {
+        super.onDestroy()
+        apiClient.close()
+    }
 
-        val url = URL("$backendBaseUrl/auth/login")
-        val connection = (url.openConnection() as HttpURLConnection).apply {
-            requestMethod = "POST"
-            connectTimeout = 7000
-            readTimeout = 7000
-            doOutput = true
-            setRequestProperty("Content-Type", "application/json")
+    private fun routeByRole(role: UserRole, accessToken: String) {
+        val target = when (role) {
+            UserRole.CLIENT -> Intent(this, ClientHomeActivity::class.java)
+            UserRole.ADMIN -> Intent(this, AdminHomeActivity::class.java)
         }
 
-        OutputStreamWriter(connection.outputStream).use { writer ->
-            writer.write(body)
-            writer.flush()
-        }
+        target.putExtra(EXTRA_ACCESS_TOKEN, accessToken)
+        startActivity(target)
+    }
 
-        val status = connection.responseCode
-        val stream = if (status in 200..299) connection.inputStream else connection.errorStream
-        val response = stream.bufferedReader().use(BufferedReader::readText)
-
-        if (status !in 200..299) {
-            throw IllegalStateException("HTTP $status: $response")
-        }
-
-        val json = JSONObject(response)
-        val role = json.optString("role")
-        val token = json.optString("access_token")
-        if (role.isBlank() || token.isBlank()) {
-            throw IllegalStateException("Некорректный ответ backend")
-        }
-        return role to token
+    companion object {
+        const val EXTRA_ACCESS_TOKEN = "extra_access_token"
     }
 }

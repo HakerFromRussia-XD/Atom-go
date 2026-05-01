@@ -7,6 +7,7 @@ struct AtomGoIOSApp: App {
     var body: some Scene {
         WindowGroup {
             AppRootView(viewModel: appViewModel)
+                .preferredColorScheme(.light)
         }
     }
 }
