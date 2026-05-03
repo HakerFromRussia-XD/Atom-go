@@ -22,12 +22,29 @@
 	<string>1</string>
 	<key>BackendBaseURLDevice</key>
 	<string>http://192.168.1.234:8080/api/v1</string>
+	<key>BackendBaseURLDeviceHostname</key>
+	<string>http://MacBook-Pro-2.local:8080/api/v1</string>
 	<key>BackendBaseURLSimulator</key>
 	<string>http://127.0.0.1:8080/api/v1</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
+		<key>NSExceptionDomains</key>
+		<dict>
+			<key>192.168.1.234</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+			</dict>
+			<key>MacBook-Pro-2.local</key>
+			<dict>
+				<key>NSExceptionAllowsInsecureHTTPLoads</key>
+				<true/>
+				<key>NSIncludesSubdomains</key>
+				<true/>
+			</dict>
+		</dict>
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>AtomGo uses your local network to connect to a development backend on your Mac.</string>

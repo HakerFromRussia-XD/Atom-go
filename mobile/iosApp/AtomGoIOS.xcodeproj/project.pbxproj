@@ -7,8 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1B0785ABA9A78EF21187CE08 /* BackendReachabilityPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAC50F2B0DB149A43363072E /* BackendReachabilityPolicyTests.swift */; };
 		209D8C09CC0BC7D48D1053F0 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B06085DBE1F31C40421BAE8 /* ContentView.swift */; };
 		5A6A9FF068D7DBE94CE1923B /* AdminHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B437D964BE5A9D2150A1714A /* AdminHomeView.swift */; };
+		7A7CD243D4383880B31466ED /* BackendReachabilityPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E8130A756790E47154B7493 /* BackendReachabilityPolicy.swift */; };
 		8A04768463F13609EC51AE7D /* ClientHomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46CAAFE892071E531ECD6B41 /* ClientHomeViewModel.swift */; };
 		9B33C85F7DD3AD0DC22BC7A9 /* AppDesign.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67DD284CB85AC16F87BA0F13 /* AppDesign.swift */; };
 		A01BE496BEF06FA4CA205127 /* ClientHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2AE583E4DEB4F7AC777CC5 /* ClientHomeView.swift */; };
@@ -22,17 +24,30 @@
 		FD4CEB41FCE99FEEAFD15476 /* AppRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79D264019B2B70A0B9CC22C2 /* AppRootView.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		5B085E4E0EF95C8B273EF913 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C933F713EC20934ED23859C7 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 094D0E5ABF2B5CD38BAD77FF;
+			remoteInfo = AtomGoIOS;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		0B06085DBE1F31C40421BAE8 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		0F7F44A56F9F7489B50CE778 /* AdminHomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminHomeViewModel.swift; sourceTree = "<group>"; };
 		2477B38675A2682D5677B0C9 /* AppViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppViewModel.swift; sourceTree = "<group>"; };
+		2E8130A756790E47154B7493 /* BackendReachabilityPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendReachabilityPolicy.swift; sourceTree = "<group>"; };
 		31F93C8EF3C90D4012005AAE /* AppModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModels.swift; sourceTree = "<group>"; };
 		46CAAFE892071E531ECD6B41 /* ClientHomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientHomeViewModel.swift; sourceTree = "<group>"; };
 		67DD284CB85AC16F87BA0F13 /* AppDesign.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDesign.swift; sourceTree = "<group>"; };
+		74660CFC406DEDBAEEF45C6B /* AtomGoIOSTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = AtomGoIOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		79D264019B2B70A0B9CC22C2 /* AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
 		7E2AE583E4DEB4F7AC777CC5 /* ClientHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientHomeView.swift; sourceTree = "<group>"; };
 		8681599C5E052529E85B8A40 /* AtomGoIOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtomGoIOSApp.swift; sourceTree = "<group>"; };
 		B437D964BE5A9D2150A1714A /* AdminHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminHomeView.swift; sourceTree = "<group>"; };
+		BAC50F2B0DB149A43363072E /* BackendReachabilityPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendReachabilityPolicyTests.swift; sourceTree = "<group>"; };
 		D57A96027742B435A96FA584 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		E0F3CCB189006AB76FED0B0E /* LoginViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginViewModel.swift; sourceTree = "<group>"; };
 		E4C794ADC216803E9818CD47 /* AtomGoIOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AtomGoIOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -78,8 +93,17 @@
 			isa = PBXGroup;
 			children = (
 				E4C794ADC216803E9818CD47 /* AtomGoIOS.app */,
+				74660CFC406DEDBAEEF45C6B /* AtomGoIOSTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		3F8CD795034D4E424207B81E /* AtomGoIOSTests */ = {
+			isa = PBXGroup;
+			children = (
+				BAC50F2B0DB149A43363072E /* BackendReachabilityPolicyTests.swift */,
+			);
+			path = AtomGoIOSTests;
 			sourceTree = "<group>";
 		};
 		4B665547D2AC90ABD5BDBCF1 /* AtomGoIOS */ = {
@@ -138,6 +162,7 @@
 			isa = PBXGroup;
 			children = (
 				4B665547D2AC90ABD5BDBCF1 /* AtomGoIOS */,
+				3F8CD795034D4E424207B81E /* AtomGoIOSTests */,
 				38D07F174B12CC14467BFCCF /* Products */,
 			);
 			sourceTree = "<group>";
@@ -145,6 +170,7 @@
 		F0F92BBBBEEFA02CC19F0691 /* Networking */ = {
 			isa = PBXGroup;
 			children = (
+				2E8130A756790E47154B7493 /* BackendReachabilityPolicy.swift */,
 				EB3B9A5EAA9656DCF8860E27 /* BackendService.swift */,
 			);
 			path = Networking;
@@ -172,6 +198,24 @@
 			productReference = E4C794ADC216803E9818CD47 /* AtomGoIOS.app */;
 			productType = "com.apple.product-type.application";
 		};
+		89D6B021508C0343B2F19975 /* AtomGoIOSTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 757856BC72D3336C4AA505B4 /* Build configuration list for PBXNativeTarget "AtomGoIOSTests" */;
+			buildPhases = (
+				09ED3430C5E59C7415DC486C /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				6E420C369B75A9BF1156AA0D /* PBXTargetDependency */,
+			);
+			name = AtomGoIOSTests;
+			packageProductDependencies = (
+			);
+			productName = AtomGoIOSTests;
+			productReference = 74660CFC406DEDBAEEF45C6B /* AtomGoIOSTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -196,6 +240,7 @@
 			projectRoot = "";
 			targets = (
 				094D0E5ABF2B5CD38BAD77FF /* AtomGoIOS */,
+				89D6B021508C0343B2F19975 /* AtomGoIOSTests */,
 			);
 		};
 /* End PBXProject section */
@@ -245,6 +290,14 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		09ED3430C5E59C7415DC486C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1B0785ABA9A78EF21187CE08 /* BackendReachabilityPolicyTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		DEA4613BAC09CBD6E8B5C14A /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -256,6 +309,7 @@
 				FD4CEB41FCE99FEEAFD15476 /* AppRootView.swift in Sources */,
 				B7D05449E1D1732C82744DB6 /* AppViewModel.swift in Sources */,
 				E634E16917E922877ED8E481 /* AtomGoIOSApp.swift in Sources */,
+				7A7CD243D4383880B31466ED /* BackendReachabilityPolicy.swift in Sources */,
 				F4256BA19F2E9D32986F2729 /* BackendService.swift in Sources */,
 				A01BE496BEF06FA4CA205127 /* ClientHomeView.swift in Sources */,
 				8A04768463F13609EC51AE7D /* ClientHomeViewModel.swift in Sources */,
@@ -266,23 +320,72 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		6E420C369B75A9BF1156AA0D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 094D0E5ABF2B5CD38BAD77FF /* AtomGoIOS */;
+			targetProxy = 5B085E4E0EF95C8B273EF913 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		0CDAF31AEF82139B066DCD31 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.atom.go.tests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AtomGoIOS.app/AtomGoIOS";
+			};
+			name = Debug;
+		};
+		35B8A2DFAF29191A2EE44F1C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.atom.go.tests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AtomGoIOS.app/AtomGoIOS";
+			};
+			name = Release;
+		};
 		6BF1AA33D21AAF4B423E0641 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				DEVELOPMENT_TEAM = R7K637DW83;
+				ENABLE_TESTABILITY = NO;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)",
 				);
+				GCC_OPTIMIZATION_LEVEL = s;
 				INFOPLIST_FILE = AtomGoIOS/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MTL_ENABLE_DEBUG_INFO = NO;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-framework",
@@ -290,6 +393,7 @@
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.atom.go;
 				SDKROOT = iphoneos;
+				SWIFT_OPTIMIZATION_LEVEL = "-Osize";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -459,6 +563,15 @@
 			buildConfigurations = (
 				C4DF2E1C6B2417C628635BBB /* Debug */,
 				E0FD124FA06726B1314A81D7 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		757856BC72D3336C4AA505B4 /* Build configuration list for PBXNativeTarget "AtomGoIOSTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				0CDAF31AEF82139B066DCD31 /* Debug */,
+				35B8A2DFAF29191A2EE44F1C /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

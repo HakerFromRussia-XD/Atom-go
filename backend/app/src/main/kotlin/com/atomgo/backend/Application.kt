@@ -13,6 +13,7 @@ import com.atomgo.backend.domain.RentalRecord
 import com.atomgo.backend.infra.AuthService
 import com.atomgo.backend.infra.InMemoryStore
 import com.atomgo.backend.infra.PaymentService
+import com.atomgo.backend.infra.PostgresStateStore
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
@@ -356,7 +357,18 @@ fun Application.module() {
         })
     }
 
-    val store = InMemoryStore.seed()
+    val useInMemory = System.getenv("ATOMGO_USE_INMEMORY")?.equals("true", ignoreCase = true) == true
+    val stateStore = if (useInMemory) null else PostgresStateStore.fromEnvironment()
+    val store = stateStore?.loadOrInitialize(InMemoryStore.seed()) ?: InMemoryStore.seed()
+    val stateLock = Any()
+    val persistState: () -> Unit = {
+        stateStore?.save(store)
+    }
+    if (useInMemory) {
+        println("AtomGo backend storage mode: IN-MEMORY (tests/dev override)")
+    } else {
+        println("AtomGo backend storage mode: POSTGRESQL")
+    }
     val authService = AuthService(store)
     val paymentService = PaymentService(store)
 
@@ -382,7 +394,11 @@ fun Application.module() {
                     return@post
                 }
 
-                val auth = authService.login(login, password)
+                val auth = synchronized(stateLock) {
+                    authService.login(login, password)?.also {
+                        persistState()
+                    }
+                }
                 if (auth == null) {
                     call.respond(HttpStatusCode.Unauthorized, ApiErrorResponse(message = "Неверный логин или пароль"))
                     return@post
@@ -494,10 +510,6 @@ fun Application.module() {
                     call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "weekly_rate_rub must be positive"))
                     return@post
                 }
-                if (store.users.any { it.login.equals(login, ignoreCase = true) }) {
-                    call.respond(HttpStatusCode.Conflict, ApiErrorResponse(message = "login is already used"))
-                    return@post
-                }
 
                 val rentalStartDate = try {
                     LocalDate.parse(request.rentalStart)
@@ -513,41 +525,54 @@ fun Application.module() {
                     .filter { it.label.isNotBlank() && it.number.isNotBlank() }
                     .toMutableList()
 
-                val client = ClientAccount(
-                    id = clientId,
-                    fullName = fullName,
-                    weeklyRateRub = request.weeklyRateRub,
-                    rentalStartDate = rentalStartDate,
-                    bikeModel = bikeModel,
-                    bikeAvatarUrl = bikeAvatarUrl,
-                    address = address,
-                    passportData = passportData,
-                    phones = normalizedPhones,
-                    totalAdjustmentRub = 0
-                )
-                val user = AppUser(
-                    id = userId,
-                    login = login,
-                    password = password,
-                    role = Role.CLIENT,
-                    clientId = clientId
-                )
+                val created = synchronized(stateLock) {
+                    if (store.users.any { it.login.equals(login, ignoreCase = true) }) {
+                        null
+                    } else {
+                        val client = ClientAccount(
+                            id = clientId,
+                            fullName = fullName,
+                            weeklyRateRub = request.weeklyRateRub,
+                            rentalStartDate = rentalStartDate,
+                            bikeModel = bikeModel,
+                            bikeAvatarUrl = bikeAvatarUrl,
+                            address = address,
+                            passportData = passportData,
+                            phones = normalizedPhones,
+                            totalAdjustmentRub = 0
+                        )
+                        val user = AppUser(
+                            id = userId,
+                            login = login,
+                            password = password,
+                            role = Role.CLIENT,
+                            clientId = clientId
+                        )
 
-                store.clients += client
-                store.users += user
-                store.rentals += RentalRecord(
-                    id = "rental-${UUID.randomUUID().toString().take(8)}",
-                    clientId = clientId,
-                    bikeAvatarUrl = bikeAvatarUrl,
-                    bikeModel = bikeModel,
-                    startDate = rentalStartDate,
-                    endDate = null,
-                    videoUrl = request.videoUrl?.trim()?.ifBlank { null },
-                    contractUrl = request.contractUrl?.trim()?.ifBlank { null },
-                    comment = request.comment?.trim()?.ifBlank { null }
-                )
+                        store.clients += client
+                        store.users += user
+                        store.rentals += RentalRecord(
+                            id = "rental-${UUID.randomUUID().toString().take(8)}",
+                            clientId = clientId,
+                            bikeAvatarUrl = bikeAvatarUrl,
+                            bikeModel = bikeModel,
+                            startDate = rentalStartDate,
+                            endDate = null,
+                            videoUrl = request.videoUrl?.trim()?.ifBlank { null },
+                            contractUrl = request.contractUrl?.trim()?.ifBlank { null },
+                            comment = request.comment?.trim()?.ifBlank { null }
+                        )
+                        persistState()
+                        buildAdminClientDetails(client, store, LocalDate.now())
+                    }
+                }
 
-                call.respond(HttpStatusCode.Created, buildAdminClientDetails(client, store, LocalDate.now()))
+                if (created == null) {
+                    call.respond(HttpStatusCode.Conflict, ApiErrorResponse(message = "login is already used"))
+                    return@post
+                }
+
+                call.respond(HttpStatusCode.Created, created)
             }
 
             post("/admin/clients/{clientId}/adjustments") {
@@ -585,24 +610,29 @@ fun Application.module() {
                     return@post
                 }
 
-                store.ledger += LedgerEntry(
-                    id = "adj-${UUID.randomUUID().toString().take(8)}",
-                    clientId = client.id,
-                    type = LedgerType.ADJUSTMENT,
-                    direction = direction,
-                    amountRub = request.amountRub,
-                    createdAt = java.time.Instant.now(),
-                    note = request.comment?.trim()?.ifBlank { null }
-                )
+                val response = synchronized(stateLock) {
+                    store.ledger += LedgerEntry(
+                        id = "adj-${UUID.randomUUID().toString().take(8)}",
+                        clientId = client.id,
+                        type = LedgerType.ADJUSTMENT,
+                        direction = direction,
+                        amountRub = request.amountRub,
+                        createdAt = java.time.Instant.now(),
+                        note = request.comment?.trim()?.ifBlank { null }
+                    )
 
-                val debt = LedgerCalculator.debtRub(client, store.ledger, LocalDate.now())
-                val totalAdjustment = LedgerCalculator.totalAdjustmentRub(store.ledger, client.id)
-                call.respond(
+                    persistState()
+                    val debt = LedgerCalculator.debtRub(client, store.ledger, LocalDate.now())
+                    val totalAdjustment = LedgerCalculator.totalAdjustmentRub(store.ledger, client.id)
                     ApiAdminDebtAdjustmentResponse(
                         clientId = client.id,
                         debtRub = debt,
                         totalAdjustmentRub = totalAdjustment
                     )
+                }
+
+                call.respond(
+                    response
                 )
             }
 
@@ -632,7 +662,10 @@ fun Application.module() {
                     return@post
                 }
 
-                rental.comment = comment
+                synchronized(stateLock) {
+                    rental.comment = comment
+                    persistState()
+                }
                 call.respond(
                     ApiAdminRentalCommentUpdateResponse(
                         rentalId = rental.id,
@@ -661,8 +694,11 @@ fun Application.module() {
                 }
 
                 val request = call.receive<ApiAdminRentalLinksUpdateRequest>()
-                rental.videoUrl = request.videoUrl?.trim()?.ifBlank { null }
-                rental.contractUrl = request.contractUrl?.trim()?.ifBlank { null }
+                synchronized(stateLock) {
+                    rental.videoUrl = request.videoUrl?.trim()?.ifBlank { null }
+                    rental.contractUrl = request.contractUrl?.trim()?.ifBlank { null }
+                    persistState()
+                }
 
                 call.respond(
                     ApiAdminRentalLinksUpdateResponse(
@@ -688,7 +724,11 @@ fun Application.module() {
                 }
 
                 try {
-                    val payment = paymentService.createPayment(clientId = session.clientId, paymentType = type)
+                    val payment = synchronized(stateLock) {
+                        val createdPayment = paymentService.createPayment(clientId = session.clientId, paymentType = type)
+                        persistState()
+                        createdPayment
+                    }
                     call.respond(
                         HttpStatusCode.OK,
                         ApiPaymentCreateResponse(
@@ -719,11 +759,15 @@ fun Application.module() {
                     return@post
                 }
 
-                val result = paymentService.applyWebhook(
-                    event = event,
-                    providerPaymentId = providerPaymentId,
-                    localPaymentId = localPaymentId
-                )
+                val result = synchronized(stateLock) {
+                    val webhookResult = paymentService.applyWebhook(
+                        event = event,
+                        providerPaymentId = providerPaymentId,
+                        localPaymentId = localPaymentId
+                    )
+                    persistState()
+                    webhookResult
+                }
 
                 call.respond(
                     HttpStatusCode.OK,

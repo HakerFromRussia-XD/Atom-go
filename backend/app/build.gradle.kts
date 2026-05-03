@@ -18,6 +18,7 @@ dependencies {
     implementation("io.ktor:ktor-serialization-kotlinx-json-jvm:3.0.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.1")
     implementation("ch.qos.logback:logback-classic:1.5.8")
+    implementation("org.postgresql:postgresql:42.7.4")
 
     testImplementation(kotlin("test"))
     testImplementation("io.ktor:ktor-server-test-host-jvm:3.0.0")
@@ -28,4 +29,8 @@ dependencies {
 
 kotlin {
     jvmToolchain(17)
+}
+
+tasks.withType<Test>().configureEach {
+    environment("ATOMGO_USE_INMEMORY", "true")
 }

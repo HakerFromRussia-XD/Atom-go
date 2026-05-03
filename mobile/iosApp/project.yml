@@ -21,15 +21,22 @@ targets:
         CFBundleVersion: "1"
         BackendBaseURLSimulator: "http://127.0.0.1:8080/api/v1"
         BackendBaseURLDevice: "http://192.168.1.234:8080/api/v1"
+        BackendBaseURLDeviceHostname: "http://MacBook-Pro-2.local:8080/api/v1"
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
+          NSExceptionDomains:
+            192.168.1.234:
+              NSExceptionAllowsInsecureHTTPLoads: true
+            MacBook-Pro-2.local:
+              NSExceptionAllowsInsecureHTTPLoads: true
+              NSIncludesSubdomains: true
         NSLocalNetworkUsageDescription: AtomGo uses your local network to connect to a development backend on your Mac.
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
         UILaunchScreen: {}
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.atomgo.ios
+        PRODUCT_BUNDLE_IDENTIFIER: com.atom.go
         SWIFT_VERSION: "5.0"
         IPHONEOS_DEPLOYMENT_TARGET: "16.0"
         TARGETED_DEVICE_FAMILY: "1,2"
@@ -40,6 +47,12 @@ targets:
           - "$(inherited)"
           - "-framework"
           - "shared"
+      configs:
+        Debug:
+          ENABLE_TESTABILITY: NO
+          GCC_OPTIMIZATION_LEVEL: s
+          MTL_ENABLE_DEBUG_INFO: NO
+          SWIFT_OPTIMIZATION_LEVEL: "-Osize"
     preBuildScripts:
       - name: Compile Kotlin
         shell: /bin/sh
@@ -93,6 +106,21 @@ targets:
             echo "Expected: $FRAMEWORK_BINARY_PATH"
             exit 1
           fi
+  AtomGoIOSTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: AtomGoIOSTests
+    dependencies:
+      - target: AtomGoIOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.atom.go.tests
+        SWIFT_VERSION: "5.0"
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/AtomGoIOS.app/AtomGoIOS"
+        BUNDLE_LOADER: "$(TEST_HOST)"
 
 schemes:
   AtomGoIOS:
@@ -101,5 +129,9 @@ schemes:
         AtomGoIOS: all
     run:
       config: Debug
+    test:
+      config: Debug
+      targets:
+        - AtomGoIOSTests
     archive:
       config: Release
