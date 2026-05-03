@@ -50,6 +50,17 @@
                ReferencedContainer = "container:AtomGoIOS.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "B1DB3820E52DED2956B3351E"
+               BuildableName = "AtomGoIOSUITests.xctest"
+               BlueprintName = "AtomGoIOSUITests"
+               ReferencedContainer = "container:AtomGoIOS.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
       <CommandLineArguments>
       </CommandLineArguments>

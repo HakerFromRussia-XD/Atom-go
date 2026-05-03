@@ -52,7 +52,8 @@ struct ContentView: View {
                     textScale: textScale,
                     iconName: "Email Icon",
                     placeholder: "Enter Your Email",
-                    text: $viewModel.login
+                    text: $viewModel.login,
+                    accessibilityIdentifier: "login.loginField"
                 )
                 .frame(width: fieldWidth, height: 92 * yScale)
                 .offset(x: 54 * xScale, y: 436 * yScale)
@@ -73,6 +74,7 @@ struct ContentView: View {
                         xScale: xScale,
                         yScale: yScale,
                         textScale: textScale,
+                        accessibilityIdentifier: "login.quickFillClient",
                         action: viewModel.fillClientCredentials
                     )
                     quickFillButton(
@@ -80,6 +82,7 @@ struct ContentView: View {
                         xScale: xScale,
                         yScale: yScale,
                         textScale: textScale,
+                        accessibilityIdentifier: "login.quickFillAdmin",
                         action: viewModel.fillAdminCredentials
                     )
                 }
@@ -97,6 +100,7 @@ struct ContentView: View {
                 .background(AppDesign.accent)
                 .clipShape(RoundedRectangle(cornerRadius: 22 * textScale, style: .continuous))
                 .disabled(viewModel.isLoading)
+                .accessibilityIdentifier("login.submitButton")
                 .frame(width: fieldWidth)
                 .offset(x: 54 * xScale, y: 730 * yScale)
 
@@ -106,6 +110,7 @@ struct ContentView: View {
                         .foregroundStyle(statusColor)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(width: fieldWidth, alignment: .leading)
+                        .accessibilityIdentifier("login.statusText")
                         .offset(x: 54 * xScale, y: 840 * yScale)
                 }
             }
@@ -120,7 +125,8 @@ struct ContentView: View {
         textScale: CGFloat,
         iconName: String,
         placeholder: String,
-        text: Binding<String>
+        text: Binding<String>,
+        accessibilityIdentifier: String
     ) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: 18 * textScale, style: .continuous)
@@ -143,6 +149,7 @@ struct ContentView: View {
                 .autocorrectionDisabled(true)
                 .font(.system(size: 20 * textScale, weight: .semibold))
                 .foregroundStyle(AppDesign.titleText)
+                .accessibilityIdentifier(accessibilityIdentifier)
 
                 Spacer(minLength: 0)
             }
@@ -173,6 +180,7 @@ struct ContentView: View {
                 .autocorrectionDisabled(true)
                 .font(.system(size: 20 * textScale, weight: .semibold))
                 .foregroundStyle(AppDesign.titleText)
+                .accessibilityIdentifier("login.passwordField")
 
                 Spacer(minLength: 0)
 
@@ -192,6 +200,7 @@ struct ContentView: View {
         xScale: CGFloat,
         yScale: CGFloat,
         textScale: CGFloat,
+        accessibilityIdentifier: String,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
@@ -204,6 +213,7 @@ struct ContentView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12 * textScale, style: .continuous))
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier(accessibilityIdentifier)
     }
 }
 

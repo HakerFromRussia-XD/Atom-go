@@ -21,12 +21,25 @@ data class WebhookResult(
 
 class PaymentService(private val store: InMemoryStore) {
 
+    private data class BillingTerms(
+        val rentalStartDate: LocalDate,
+        val weeklyRateRub: Int
+    )
+
     fun createPayment(clientId: String, paymentType: PaymentType, now: LocalDate = LocalDate.now()): PaymentRecord {
-        val client = store.clients.firstOrNull { it.id == clientId }
+        store.clients.firstOrNull { it.id == clientId }
             ?: throw IllegalArgumentException("Client not found")
 
-        val debt = LedgerCalculator.debtRub(client, store.ledger, now)
-        val amount = PricingRules.amountForType(paymentType, client.weeklyRateRub, debt)
+        val terms = resolveBillingTerms(clientId = clientId, asOf = now)
+
+        val debt = LedgerCalculator.debtRub(
+            clientId = clientId,
+            rentalStartDate = terms.rentalStartDate,
+            weeklyRateRub = terms.weeklyRateRub,
+            entries = store.ledger,
+            asOf = now
+        )
+        val amount = PricingRules.amountForType(paymentType, terms.weeklyRateRub, debt)
 
         if (amount <= 0) {
             throw IllegalStateException("Amount is zero. Nothing to pay.")
@@ -106,16 +119,53 @@ class PaymentService(private val store: InMemoryStore) {
         applied: Boolean,
         message: String
     ): WebhookResult {
-        val client = store.clients.firstOrNull { it.id == payment.clientId }
+        store.clients.firstOrNull { it.id == payment.clientId }
             ?: return WebhookResult(applied = applied, message = message, paymentId = payment.id)
 
-        val debt = LedgerCalculator.debtRub(client, store.ledger, now)
+        val terms = try {
+            resolveBillingTerms(clientId = payment.clientId, asOf = now)
+        } catch (_: Throwable) {
+            return WebhookResult(applied = applied, message = message, paymentId = payment.id, clientId = payment.clientId)
+        }
+
+        val debt = LedgerCalculator.debtRub(
+            clientId = payment.clientId,
+            rentalStartDate = terms.rentalStartDate,
+            weeklyRateRub = terms.weeklyRateRub,
+            entries = store.ledger,
+            asOf = now
+        )
         return WebhookResult(
             applied = applied,
             message = message,
             paymentId = payment.id,
             clientId = payment.clientId,
             debtRub = debt
+        )
+    }
+
+    private fun resolveBillingTerms(clientId: String, asOf: LocalDate): BillingTerms {
+        val clientRentals = store.rentals
+            .asSequence()
+            .filter { it.clientId == clientId }
+            .sortedByDescending { it.startDate }
+            .toList()
+        if (clientRentals.isEmpty()) {
+            throw IllegalStateException("Client has no rentals")
+        }
+
+        val activeRental = clientRentals
+            .firstOrNull { rental ->
+                rental.startDate <= asOf && (rental.endDate == null || !rental.endDate.isBefore(asOf))
+            }
+            ?: clientRentals.first()
+
+        val bike = store.bikes.firstOrNull { it.id == activeRental.bikeId }
+            ?: throw IllegalStateException("Bike not found for active rental")
+
+        return BillingTerms(
+            rentalStartDate = activeRental.startDate,
+            weeklyRateRub = bike.weeklyRateRub
         )
     }
 }
