@@ -7,8 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		03A10A269EA499FC85CF5852 /* CreateClientUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 716A3D61E1FEFEF87A3F63DF /* CreateClientUITests.swift */; };
-		1B0785ABA9A78EF21187CE08 /* BackendReachabilityPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAC50F2B0DB149A43363072E /* BackendReachabilityPolicyTests.swift */; };
+			03A10A269EA499FC85CF5852 /* CreateClientUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 716A3D61E1FEFEF87A3F63DF /* CreateClientUITests.swift */; };
+			0A36D29B5FEE43D3A8EFA69B /* AdminBikeRentalUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A7783B53B324A4CB9FF7DA7 /* AdminBikeRentalUITests.swift */; };
+			1B0785ABA9A78EF21187CE08 /* BackendReachabilityPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAC50F2B0DB149A43363072E /* BackendReachabilityPolicyTests.swift */; };
 		1CB1F67B87E8909AC05561D3 /* CreateClientFlowUnitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC0D7917489EFB24CD545DA4 /* CreateClientFlowUnitTests.swift */; };
 		209D8C09CC0BC7D48D1053F0 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B06085DBE1F31C40421BAE8 /* ContentView.swift */; };
 		2BF942514F63DE33B0CC6ECF /* CreateClientFormValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB9DCC5AB764337899D966D9 /* CreateClientFormValidator.swift */; };
@@ -46,8 +47,9 @@
 
 /* Begin PBXFileReference section */
 		0B06085DBE1F31C40421BAE8 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		0F7F44A56F9F7489B50CE778 /* AdminHomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminHomeViewModel.swift; sourceTree = "<group>"; };
-		2477B38675A2682D5677B0C9 /* AppViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppViewModel.swift; sourceTree = "<group>"; };
+			0F7F44A56F9F7489B50CE778 /* AdminHomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminHomeViewModel.swift; sourceTree = "<group>"; };
+			1A7783B53B324A4CB9FF7DA7 /* AdminBikeRentalUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminBikeRentalUITests.swift; sourceTree = "<group>"; };
+			2477B38675A2682D5677B0C9 /* AppViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppViewModel.swift; sourceTree = "<group>"; };
 		2E8130A756790E47154B7493 /* BackendReachabilityPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendReachabilityPolicy.swift; sourceTree = "<group>"; };
 		31F93C8EF3C90D4012005AAE /* AppModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModels.swift; sourceTree = "<group>"; };
 		46CAAFE892071E531ECD6B41 /* ClientHomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientHomeViewModel.swift; sourceTree = "<group>"; };
@@ -156,11 +158,12 @@
 			path = Core;
 			sourceTree = "<group>";
 		};
-		72D8ED7E537296BB6F713139 /* AtomGoIOSUITests */ = {
-			isa = PBXGroup;
-			children = (
-				716A3D61E1FEFEF87A3F63DF /* CreateClientUITests.swift */,
-			);
+			72D8ED7E537296BB6F713139 /* AtomGoIOSUITests */ = {
+				isa = PBXGroup;
+				children = (
+					1A7783B53B324A4CB9FF7DA7 /* AdminBikeRentalUITests.swift */,
+					716A3D61E1FEFEF87A3F63DF /* CreateClientUITests.swift */,
+				);
 			path = AtomGoIOSUITests;
 			sourceTree = "<group>";
 		};
@@ -370,12 +373,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		F697645A5B6DE5791AF51491 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				03A10A269EA499FC85CF5852 /* CreateClientUITests.swift in Sources */,
-			);
+			F697645A5B6DE5791AF51491 /* Sources */ = {
+				isa = PBXSourcesBuildPhase;
+				buildActionMask = 2147483647;
+				files = (
+					0A36D29B5FEE43D3A8EFA69B /* AdminBikeRentalUITests.swift in Sources */,
+					03A10A269EA499FC85CF5852 /* CreateClientUITests.swift in Sources */,
+				);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
@@ -394,12 +398,13 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		0CDAF31AEF82139B066DCD31 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+			0CDAF31AEF82139B066DCD31 /* Debug */ = {
+				isa = XCBuildConfiguration;
+				buildSettings = {
+					BUNDLE_LOADER = "$(TEST_HOST)";
+					DEVELOPMENT_TEAM = R7K637DW83;
+					GENERATE_INFOPLIST_FILE = YES;
+					IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -413,12 +418,13 @@
 			};
 			name = Debug;
 		};
-		35B8A2DFAF29191A2EE44F1C /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+			35B8A2DFAF29191A2EE44F1C /* Release */ = {
+				isa = XCBuildConfiguration;
+				buildSettings = {
+					BUNDLE_LOADER = "$(TEST_HOST)";
+					DEVELOPMENT_TEAM = R7K637DW83;
+					GENERATE_INFOPLIST_FILE = YES;
+					IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -432,12 +438,13 @@
 			};
 			name = Release;
 		};
-		42A715D4B78E071EC2326D31 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+			42A715D4B78E071EC2326D31 /* Release */ = {
+				isa = XCBuildConfiguration;
+				buildSettings = {
+					BUNDLE_LOADER = "$(TEST_HOST)";
+					DEVELOPMENT_TEAM = R7K637DW83;
+					GENERATE_INFOPLIST_FILE = YES;
+					IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -483,12 +490,13 @@
 			};
 			name = Debug;
 		};
-		74D3A45F5547C89953BDCB45 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
+			74D3A45F5547C89953BDCB45 /* Debug */ = {
+				isa = XCBuildConfiguration;
+				buildSettings = {
+					BUNDLE_LOADER = "$(TEST_HOST)";
+					DEVELOPMENT_TEAM = R7K637DW83;
+					GENERATE_INFOPLIST_FILE = YES;
+					IPHONEOS_DEPLOYMENT_TARGET = 16.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

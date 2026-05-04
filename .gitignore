@@ -1,0 +1,21 @@
+# macOS
+.DS_Store
+
+# Gradle / Kotlin / Android build artifacts
+.gradle/
+**/build/
+*.iml
+
+# Xcode / Swift build artifacts
+DerivedData/
+*.xcuserstate
+*.xcscmblueprint
+**/xcuserdata/
+
+# Kotlin Multiplatform generated frameworks and caches
+mobile/shared/build/
+mobile/shared/.konan/
+
+# Local runtime files
+*.log
+*.pid

@@ -50,7 +50,7 @@ struct ContentView: View {
                     xScale: xScale,
                     yScale: yScale,
                     textScale: textScale,
-                    iconName: "Email Icon",
+                    iconName: "User Icon",
                     placeholder: "Enter Your Email",
                     text: $viewModel.login,
                     accessibilityIdentifier: "login.loginField"

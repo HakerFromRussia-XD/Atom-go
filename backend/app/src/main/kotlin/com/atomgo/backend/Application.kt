@@ -108,6 +108,8 @@ private data class ApiClientDashboardResponse(
 private data class ApiAdminClientSummaryResponse(
     @SerialName("client_id")
     val clientId: String,
+    @SerialName("client_login")
+    val clientLogin: String? = null,
     @SerialName("full_name")
     val fullName: String,
     @SerialName("bike_model")
@@ -116,6 +118,8 @@ private data class ApiAdminClientSummaryResponse(
     val bikeAvatarUrl: String,
     @SerialName("status_text")
     val statusText: String,
+    @SerialName("paid_until")
+    val paidUntil: String? = null,
     @SerialName("debt_rub")
     val debtRub: Int,
     @SerialName("profit_rub")
@@ -134,6 +138,8 @@ private data class ApiAdminClientPhoneResponse(
 private data class ApiAdminRentalHistoryItemResponse(
     @SerialName("rental_id")
     val rentalId: String,
+    @SerialName("bike_id")
+    val bikeId: String,
     @SerialName("bike_avatar_url")
     val bikeAvatarUrl: String,
     @SerialName("period_start")
@@ -304,6 +310,41 @@ private data class ApiAdminCreateBikeRequest(
 )
 
 @Serializable
+private data class ApiAdminUpdateBikeRequest(
+    @SerialName("photo_url")
+    val photoUrl: String? = null,
+    @SerialName("bike_model")
+    val bikeModel: String,
+    @SerialName("weekly_rate_rub")
+    val weeklyRateRub: Int,
+    @SerialName("frame_serial_number")
+    val frameSerialNumber: String,
+    @SerialName("motor_serial_number")
+    val motorSerialNumber: String,
+    @SerialName("battery_serial_number_1")
+    val batterySerialNumber1: String,
+    @SerialName("battery_serial_number_2")
+    val batterySerialNumber2: String? = null
+)
+
+@Serializable
+private data class ApiAdminUpdateRentalRequest(
+    @SerialName("bike_id")
+    val bikeId: String,
+    @SerialName("period_start")
+    val periodStart: String,
+    @SerialName("period_end")
+    val periodEnd: String? = null
+)
+
+@Serializable
+private data class ApiAdminDeleteRentalResponse(
+    @SerialName("rental_id")
+    val rentalId: String,
+    val deleted: Boolean
+)
+
+@Serializable
 private data class ApiPaymentCreateResponse(
     @SerialName("payment_id")
     val paymentId: String,
@@ -370,6 +411,51 @@ private fun bikeToApiResponse(bike: BikeAccount): ApiAdminBikeResponse {
         batterySerialNumber1 = bike.batterySerialNumber1,
         batterySerialNumber2 = bike.batterySerialNumber2
     )
+}
+
+private fun bikeContainsSerial(bike: BikeAccount, serial: String): Boolean {
+    return bike.frameSerialNumber.equals(serial, ignoreCase = true) ||
+        bike.motorSerialNumber.equals(serial, ignoreCase = true) ||
+        bike.batterySerialNumber1.equals(serial, ignoreCase = true) ||
+        (bike.batterySerialNumber2?.equals(serial, ignoreCase = true) == true)
+}
+
+private fun validateUniqueBikeSerials(
+    store: InMemoryStore,
+    bikeIdToIgnore: String?,
+    frameSerial: String,
+    motorSerial: String,
+    battery1: String,
+    battery2: String?
+): String? {
+    val serialPairs = mutableListOf(
+        "frame_serial_number" to frameSerial,
+        "motor_serial_number" to motorSerial,
+        "battery_serial_number_1" to battery1
+    )
+    if (battery2 != null) {
+        serialPairs += "battery_serial_number_2" to battery2
+    }
+
+    val normalized = serialPairs.map { it.second.lowercase() }
+    if (normalized.size != normalized.toSet().size) {
+        return "serial numbers must be unique inside bike"
+    }
+
+    for ((fieldName, serialValue) in serialPairs) {
+        val duplicate = store.bikes.firstOrNull { bike ->
+            bike.id != bikeIdToIgnore && bikeContainsSerial(bike, serialValue)
+        }
+        if (duplicate != null) {
+            return "$fieldName is already used"
+        }
+    }
+
+    return null
+}
+
+private fun clientLoginByClientId(store: InMemoryStore, clientId: String): String? {
+    return store.users.firstOrNull { it.role == Role.CLIENT && it.clientId == clientId }?.login
 }
 
 private sealed class RentalCreationOutcome {
@@ -470,6 +556,7 @@ private fun createRentalForClient(
         RentalCreationOutcome.Success(
             ApiAdminRentalHistoryItemResponse(
                 rentalId = rental.id,
+                bikeId = bike.id,
                 bikeAvatarUrl = bike.photoUrl ?: "",
                 periodStart = rental.startDate.toString(),
                 periodEnd = rental.endDate?.toString(),
@@ -501,15 +588,19 @@ private fun buildAdminClientSummary(
     }
     val paid = LedgerCalculator.totalPaidRub(store.ledger, client.id)
     val profit = if (debt == 0) paid else 0
-    val statusText = if (snapshot == null) {
-        "Нет активной аренды"
+    val paidUntil = if (snapshot == null) {
+        null
     } else {
-        val paidUntil = LedgerCalculator.paidUntilDate(
+        LedgerCalculator.paidUntilDate(
             clientId = client.id,
             rentalStartDate = snapshot.rentalStartDate,
             weeklyRateRub = snapshot.weeklyRateRub,
             entries = store.ledger
         )
+    }
+    val statusText = if (paidUntil == null) {
+        "Нет активной аренды"
+    } else {
         val dayDiff = ChronoUnit.DAYS.between(now, paidUntil).toInt()
         if (dayDiff >= 0) {
             "Оплачено еще на $dayDiff дн."
@@ -520,10 +611,12 @@ private fun buildAdminClientSummary(
 
     return ApiAdminClientSummaryResponse(
         clientId = client.id,
+        clientLogin = clientLoginByClientId(store, client.id),
         fullName = client.fullName,
         bikeModel = snapshot?.bikeModel ?: "-",
         bikeAvatarUrl = snapshot?.bikePhotoUrl ?: "",
         statusText = statusText,
+        paidUntil = paidUntil?.toString(),
         debtRub = debt,
         profitRub = profit,
         totalAdjustmentRub = LedgerCalculator.totalAdjustmentRub(store.ledger, client.id)
@@ -567,6 +660,7 @@ private fun buildAdminClientDetails(
             val bike = store.bikes.firstOrNull { bike -> bike.id == it.bikeId }
             ApiAdminRentalHistoryItemResponse(
                 rentalId = it.id,
+                bikeId = it.bikeId,
                 bikeAvatarUrl = bike?.photoUrl ?: "",
                 periodStart = it.startDate.toString(),
                 periodEnd = it.endDate?.toString(),
@@ -829,7 +923,15 @@ fun Application.module() {
                 }
 
                 val createdBike = synchronized(stateLock) {
-                    if (store.bikes.any { it.frameSerialNumber.equals(frameSerial, ignoreCase = true) }) {
+                    val duplicateError = validateUniqueBikeSerials(
+                        store = store,
+                        bikeIdToIgnore = null,
+                        frameSerial = frameSerial,
+                        motorSerial = motorSerial,
+                        battery1 = battery1,
+                        battery2 = battery2
+                    )
+                    if (duplicateError != null) {
                         null
                     } else {
                         val bike = BikeAccount(
@@ -848,11 +950,105 @@ fun Application.module() {
                     }
                 }
                 if (createdBike == null) {
-                    call.respond(HttpStatusCode.Conflict, ApiErrorResponse(message = "frame_serial_number is already used"))
+                    val duplicateError = validateUniqueBikeSerials(
+                        store = store,
+                        bikeIdToIgnore = null,
+                        frameSerial = frameSerial,
+                        motorSerial = motorSerial,
+                        battery1 = battery1,
+                        battery2 = battery2
+                    ) ?: "bike serial numbers are already used"
+                    call.respond(HttpStatusCode.Conflict, ApiErrorResponse(message = duplicateError))
                     return@post
                 }
 
                 call.respond(HttpStatusCode.Created, bikeToApiResponse(createdBike))
+            }
+
+            post("/admin/bikes/{bikeId}") {
+                val session = authService.resolveSession(call.request.header("Authorization"))
+                if (session == null || session.role != Role.ADMIN) {
+                    call.respond(HttpStatusCode.Unauthorized, ApiErrorResponse(message = "Unauthorized"))
+                    return@post
+                }
+
+                val bikeId = call.parameters["bikeId"]
+                if (bikeId.isNullOrBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "bikeId is required"))
+                    return@post
+                }
+
+                val request = call.receive<ApiAdminUpdateBikeRequest>()
+                val bikeModel = request.bikeModel.trim()
+                val frameSerial = request.frameSerialNumber.trim()
+                val motorSerial = request.motorSerialNumber.trim()
+                val battery1 = request.batterySerialNumber1.trim()
+                val battery2 = request.batterySerialNumber2?.trim()?.ifBlank { null }
+                val photoUrl = request.photoUrl?.trim()?.ifBlank { null }
+
+                if (bikeModel.isBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "bike_model is required"))
+                    return@post
+                }
+                if (request.weeklyRateRub <= 0) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "weekly_rate_rub must be positive"))
+                    return@post
+                }
+                if (frameSerial.isBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "frame_serial_number is required"))
+                    return@post
+                }
+                if (motorSerial.isBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "motor_serial_number is required"))
+                    return@post
+                }
+                if (battery1.isBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "battery_serial_number_1 is required"))
+                    return@post
+                }
+
+                val duplicateError = synchronized(stateLock) {
+                    validateUniqueBikeSerials(
+                        store = store,
+                        bikeIdToIgnore = bikeId,
+                        frameSerial = frameSerial,
+                        motorSerial = motorSerial,
+                        battery1 = battery1,
+                        battery2 = battery2
+                    )
+                }
+                if (duplicateError != null) {
+                    call.respond(HttpStatusCode.Conflict, ApiErrorResponse(message = duplicateError))
+                    return@post
+                }
+
+                val updated = synchronized(stateLock) {
+                    val bikeIndex = store.bikes.indexOfFirst { it.id == bikeId }
+                    if (bikeIndex < 0) {
+                        null
+                    } else {
+                        val currentBike = store.bikes[bikeIndex]
+                        val updatedBike = currentBike.copy(
+                            photoUrl = photoUrl,
+                            model = bikeModel,
+                            weeklyRateRub = request.weeklyRateRub,
+                            frameSerialNumber = frameSerial,
+                            motorSerialNumber = motorSerial,
+                            batterySerialNumber1 = battery1,
+                            batterySerialNumber2 = battery2
+                        )
+                        store.bikes[bikeIndex] = updatedBike
+                        persistState()
+                        updatedBike
+                    }
+                }
+
+                if (updated == null) {
+                    call.respond(HttpStatusCode.NotFound, ApiErrorResponse(message = "Bike not found"))
+                    return@post
+                }
+
+                call.respond(HttpStatusCode.OK, bikeToApiResponse(updated))
             }
 
             post("/admin/clients") {
@@ -1110,6 +1306,131 @@ fun Application.module() {
                         rentalId = rental.id,
                         videoUrl = rental.videoUrl,
                         contractUrl = rental.contractUrl
+                    )
+                )
+            }
+
+            post("/admin/rentals/{rentalId}") {
+                val session = authService.resolveSession(call.request.header("Authorization"))
+                if (session == null || session.role != Role.ADMIN) {
+                    call.respond(HttpStatusCode.Unauthorized, ApiErrorResponse(message = "Unauthorized"))
+                    return@post
+                }
+
+                val rentalId = call.parameters["rentalId"]
+                if (rentalId.isNullOrBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "rentalId is required"))
+                    return@post
+                }
+
+                val request = call.receive<ApiAdminUpdateRentalRequest>()
+                val bikeId = request.bikeId.trim()
+                val periodStartRaw = request.periodStart.trim()
+                val periodEndRaw = request.periodEnd?.trim()?.ifBlank { null }
+
+                if (bikeId.isBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "bike_id is required"))
+                    return@post
+                }
+                if (periodStartRaw.isBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "period_start is required"))
+                    return@post
+                }
+
+                val periodStart = try {
+                    LocalDate.parse(periodStartRaw)
+                } catch (_: Throwable) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "period_start must be YYYY-MM-DD"))
+                    return@post
+                }
+
+                val periodEnd = if (periodEndRaw != null) {
+                    try {
+                        LocalDate.parse(periodEndRaw)
+                    } catch (_: Throwable) {
+                        call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "period_end must be YYYY-MM-DD"))
+                        return@post
+                    }
+                } else {
+                    null
+                }
+
+                if (periodEnd != null && periodEnd.isBefore(periodStart)) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "period_end must be after or equal to period_start"))
+                    return@post
+                }
+
+                val updatedRental = synchronized(stateLock) {
+                    val rentalIndex = store.rentals.indexOfFirst { it.id == rentalId }
+                    if (rentalIndex < 0) {
+                        null
+                    } else {
+                        val bike = store.bikes.firstOrNull { it.id == bikeId }
+                            ?: return@synchronized RentalCreationOutcome.Failure(HttpStatusCode.NotFound, "Bike not found")
+                        val currentRental = store.rentals[rentalIndex]
+                        val updated = currentRental.copy(
+                            bikeId = bike.id,
+                            startDate = periodStart,
+                            endDate = periodEnd
+                        )
+                        store.rentals[rentalIndex] = updated
+                        persistState()
+                        ApiAdminRentalHistoryItemResponse(
+                            rentalId = updated.id,
+                            bikeId = bike.id,
+                            bikeAvatarUrl = bike.photoUrl ?: "",
+                            periodStart = updated.startDate.toString(),
+                            periodEnd = updated.endDate?.toString(),
+                            bikeModel = bike.model,
+                            videoUrl = updated.videoUrl,
+                            contractUrl = updated.contractUrl,
+                            comment = updated.comment
+                        )
+                    }
+                }
+
+                when (updatedRental) {
+                    null -> call.respond(HttpStatusCode.NotFound, ApiErrorResponse(message = "Rental not found"))
+                    is RentalCreationOutcome.Failure -> call.respond(updatedRental.status, ApiErrorResponse(message = updatedRental.message))
+                    is ApiAdminRentalHistoryItemResponse -> call.respond(HttpStatusCode.OK, updatedRental)
+                    else -> call.respond(HttpStatusCode.InternalServerError, ApiErrorResponse(message = "internal server error"))
+                }
+            }
+
+            post("/admin/rentals/{rentalId}/delete") {
+                val session = authService.resolveSession(call.request.header("Authorization"))
+                if (session == null || session.role != Role.ADMIN) {
+                    call.respond(HttpStatusCode.Unauthorized, ApiErrorResponse(message = "Unauthorized"))
+                    return@post
+                }
+
+                val rentalId = call.parameters["rentalId"]
+                if (rentalId.isNullOrBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "rentalId is required"))
+                    return@post
+                }
+
+                val deleted = synchronized(stateLock) {
+                    val index = store.rentals.indexOfFirst { it.id == rentalId }
+                    if (index < 0) {
+                        false
+                    } else {
+                        store.rentals.removeAt(index)
+                        persistState()
+                        true
+                    }
+                }
+
+                if (!deleted) {
+                    call.respond(HttpStatusCode.NotFound, ApiErrorResponse(message = "Rental not found"))
+                    return@post
+                }
+
+                call.respond(
+                    HttpStatusCode.OK,
+                    ApiAdminDeleteRentalResponse(
+                        rentalId = rentalId,
+                        deleted = true
                     )
                 )
             }
