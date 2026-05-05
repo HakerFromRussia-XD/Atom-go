@@ -15,7 +15,12 @@ import com.atomgo.backend.infra.AuthService
 import com.atomgo.backend.infra.InMemoryStore
 import com.atomgo.backend.infra.PaymentService
 import com.atomgo.backend.infra.PostgresStateStore
+import com.atomgo.backend.infra.YooKassaException
+import com.atomgo.backend.infra.YooKassaPaymentProvider
+import com.atomgo.backend.infra.decimalStringToRub
+import com.atomgo.backend.infra.mapStatus
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.ContentType
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
 import io.ktor.server.application.call
@@ -29,6 +34,7 @@ import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.request.header
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
+import io.ktor.server.response.respondText
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
@@ -358,6 +364,21 @@ private data class ApiPaymentCreateResponse(
 )
 
 @Serializable
+private data class ApiPaymentStatusResponse(
+    @SerialName("payment_id")
+    val paymentId: String,
+    @SerialName("amount_rub")
+    val amountRub: Int,
+    @SerialName("confirmation_url")
+    val confirmationUrl: String,
+    @SerialName("provider_payment_id")
+    val providerPaymentId: String?,
+    val status: String,
+    @SerialName("debt_rub")
+    val debtRub: Int?
+)
+
+@Serializable
 private data class ApiWebhookApplyResponse(
     val applied: Boolean,
     val message: String,
@@ -370,6 +391,7 @@ private data class ApiWebhookApplyResponse(
 )
 
 private data class ClientBillingSnapshot(
+    val rentalId: String,
     val rentalStartDate: LocalDate,
     val weeklyRateRub: Int,
     val bikeModel: String,
@@ -393,6 +415,7 @@ private fun resolveClientBillingSnapshot(clientId: String, store: InMemoryStore,
     val rental = resolveCurrentRental(clientId = clientId, store = store, asOf = asOf) ?: return null
     val bike = store.bikes.firstOrNull { it.id == rental.bikeId } ?: return null
     return ClientBillingSnapshot(
+        rentalId = rental.id,
         rentalStartDate = rental.startDate,
         weeklyRateRub = bike.weeklyRateRub,
         bikeModel = bike.model,
@@ -581,12 +604,13 @@ private fun buildAdminClientSummary(
             rentalStartDate = snapshot.rentalStartDate,
             weeklyRateRub = snapshot.weeklyRateRub,
             entries = store.ledger,
-            asOf = now
+            asOf = now,
+            rentalId = snapshot.rentalId
         )
     } else {
         0
     }
-    val paid = LedgerCalculator.totalPaidRub(store.ledger, client.id)
+    val paid = LedgerCalculator.totalPaidRub(store.ledger, client.id, snapshot?.rentalId)
     val profit = if (debt == 0) paid else 0
     val paidUntil = if (snapshot == null) {
         null
@@ -595,7 +619,8 @@ private fun buildAdminClientSummary(
             clientId = client.id,
             rentalStartDate = snapshot.rentalStartDate,
             weeklyRateRub = snapshot.weeklyRateRub,
-            entries = store.ledger
+            entries = store.ledger,
+            rentalId = snapshot.rentalId
         )
     }
     val statusText = if (paidUntil == null) {
@@ -619,7 +644,7 @@ private fun buildAdminClientSummary(
         paidUntil = paidUntil?.toString(),
         debtRub = debt,
         profitRub = profit,
-        totalAdjustmentRub = LedgerCalculator.totalAdjustmentRub(store.ledger, client.id)
+        totalAdjustmentRub = LedgerCalculator.totalAdjustmentRub(store.ledger, client.id, snapshot?.rentalId)
     )
 }
 
@@ -635,7 +660,8 @@ private fun buildAdminClientDetails(
             rentalStartDate = snapshot.rentalStartDate,
             weeklyRateRub = snapshot.weeklyRateRub,
             entries = store.ledger,
-            asOf = now
+            asOf = now,
+            rentalId = snapshot.rentalId
         )
     } else {
         0
@@ -645,13 +671,14 @@ private fun buildAdminClientDetails(
             clientId = client.id,
             rentalStartDate = snapshot.rentalStartDate,
             weeklyRateRub = snapshot.weeklyRateRub,
-            entries = store.ledger
+            entries = store.ledger,
+            rentalId = snapshot.rentalId
         ).toString()
     } else {
         ""
     }
-    val totalPaid = LedgerCalculator.totalPaidRub(store.ledger, client.id)
-    val totalAdjustment = LedgerCalculator.totalAdjustmentRub(store.ledger, client.id)
+    val totalPaid = LedgerCalculator.totalPaidRub(store.ledger, client.id, snapshot?.rentalId)
+    val totalAdjustment = LedgerCalculator.totalAdjustmentRub(store.ledger, client.id, snapshot?.rentalId)
     val rentals = store.rentals
         .asSequence()
         .filter { it.clientId == client.id }
@@ -696,12 +723,13 @@ fun main() {
 }
 
 fun Application.module() {
+    val apiJson = Json {
+        ignoreUnknownKeys = true
+        prettyPrint = true
+        isLenient = true
+    }
     install(ContentNegotiation) {
-        json(Json {
-            ignoreUnknownKeys = true
-            prettyPrint = true
-            isLenient = true
-        })
+        json(apiJson)
     }
     install(StatusPages) {
         exception<Throwable> { call, cause ->
@@ -743,7 +771,10 @@ fun Application.module() {
         println("AtomGo backend storage mode: POSTGRESQL")
     }
     val authService = AuthService(store)
-    val paymentService = PaymentService(store)
+    val paymentService = PaymentService(
+        store = store,
+        provider = YooKassaPaymentProvider.fromEnvironment(apiJson)
+    )
 
     routing {
         get("/") {
@@ -807,7 +838,8 @@ fun Application.module() {
                         rentalStartDate = snapshot.rentalStartDate,
                         weeklyRateRub = snapshot.weeklyRateRub,
                         entries = store.ledger,
-                        asOf = now
+                        asOf = now,
+                        rentalId = snapshot.rentalId
                     )
                 } else {
                     0
@@ -817,12 +849,13 @@ fun Application.module() {
                         clientId = client.id,
                         rentalStartDate = snapshot.rentalStartDate,
                         weeklyRateRub = snapshot.weeklyRateRub,
-                        entries = store.ledger
+                        entries = store.ledger,
+                        rentalId = snapshot.rentalId
                     ).toString()
                 } else {
                     ""
                 }
-                val totalAdjustment = LedgerCalculator.totalAdjustmentRub(store.ledger, client.id)
+                val totalAdjustment = LedgerCalculator.totalAdjustmentRub(store.ledger, client.id, snapshot?.rentalId)
                 val weeklyRate = snapshot?.weeklyRateRub ?: 0
 
                 call.respond(
@@ -1219,12 +1252,13 @@ fun Application.module() {
                             rentalStartDate = snapshot.rentalStartDate,
                             weeklyRateRub = snapshot.weeklyRateRub,
                             entries = store.ledger,
-                            asOf = now
+                            asOf = now,
+                            rentalId = snapshot.rentalId
                         )
                     } else {
                         0
                     }
-                    val totalAdjustment = LedgerCalculator.totalAdjustmentRub(store.ledger, client.id)
+                    val totalAdjustment = LedgerCalculator.totalAdjustmentRub(store.ledger, client.id, snapshot?.rentalId)
                     ApiAdminDebtAdjustmentResponse(
                         clientId = client.id,
                         debtRub = debt,
@@ -1494,7 +1528,93 @@ fun Application.module() {
                     call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = e.message ?: "Invalid payment"))
                 } catch (e: IllegalArgumentException) {
                     call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = e.message ?: "Invalid request"))
+                } catch (e: YooKassaException) {
+                    call.application.environment.log.error("YooKassa create payment failed", e)
+                    val message = if (e.statusCode == 0) {
+                        "YooKassa is not configured"
+                    } else {
+                        "YooKassa payment creation failed"
+                    }
+                    call.respond(HttpStatusCode.BadGateway, ApiErrorResponse(message = message))
                 }
+            }
+
+            get("/payments/{paymentId}") {
+                val session = authService.resolveSession(call.request.header("Authorization"))
+                if (session == null) {
+                    call.respond(HttpStatusCode.Unauthorized, ApiErrorResponse(message = "Unauthorized"))
+                    return@get
+                }
+
+                val paymentId = call.parameters["paymentId"]
+                if (paymentId.isNullOrBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "paymentId is required"))
+                    return@get
+                }
+
+                val payment = store.payments.firstOrNull { it.id == paymentId }
+                if (payment == null) {
+                    call.respond(HttpStatusCode.NotFound, ApiErrorResponse(message = "Payment not found"))
+                    return@get
+                }
+
+                if (session.role == Role.CLIENT && session.clientId != payment.clientId) {
+                    call.respond(HttpStatusCode.Forbidden, ApiErrorResponse(message = "Forbidden"))
+                    return@get
+                }
+
+                try {
+                    val result = synchronized(stateLock) {
+                        val refreshed = paymentService.refreshPaymentStatus(paymentId)
+                        persistState()
+                        refreshed
+                    }
+                    call.respond(
+                        ApiPaymentStatusResponse(
+                            paymentId = result.payment.id,
+                            amountRub = result.payment.amountRub,
+                            confirmationUrl = result.payment.confirmationUrl,
+                            providerPaymentId = result.payment.providerPaymentId,
+                            status = result.payment.status.name.lowercase(),
+                            debtRub = result.debtRub
+                        )
+                    )
+                } catch (e: IllegalArgumentException) {
+                    call.respond(HttpStatusCode.NotFound, ApiErrorResponse(message = e.message ?: "Payment not found"))
+                } catch (e: YooKassaException) {
+                    call.application.environment.log.error("YooKassa payment status check failed", e)
+                    call.respond(HttpStatusCode.BadGateway, ApiErrorResponse(message = "YooKassa payment status check failed"))
+                }
+            }
+
+            get("/payments/{paymentId}/return") {
+                val paymentId = call.parameters["paymentId"] ?: ""
+                call.respondText(
+                    """
+                    <!doctype html>
+                    <html lang="ru">
+                    <head>
+                      <meta charset="utf-8">
+                      <meta name="viewport" content="width=device-width, initial-scale=1">
+                      <title>Atom Go payment</title>
+                      <style>
+                        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; padding: 32px; background: #eef4fb; color: #0b0f18; }
+                        .card { max-width: 520px; margin: 12vh auto; background: white; border-radius: 24px; padding: 28px; box-shadow: 0 18px 50px rgba(0,0,0,.08); }
+                        h1 { margin: 0 0 12px; }
+                        p { line-height: 1.45; color: #5f6574; }
+                      </style>
+                    </head>
+                    <body>
+                      <main class="card">
+                        <h1>Платёж отправлен на проверку</h1>
+                        <p>Можно вернуться в приложение Atom Go. Статус платежа обновится автоматически после уведомления ЮKassa.</p>
+                        <p>ID платежа: ${paymentId}</p>
+                      </main>
+                    </body>
+                    </html>
+                    """.trimIndent(),
+                    ContentType.Text.Html
+                )
             }
 
             post("/payments/yookassa/webhook") {
@@ -1502,6 +1622,12 @@ fun Application.module() {
                 val event = webhook.string("event")
                 val obj = webhook["object"]?.jsonObject
                 val providerPaymentId = obj?.string("id")
+                val providerStatus = obj?.string("status")?.let(::mapStatus)
+                val amountRub = obj
+                    ?.get("amount")
+                    ?.jsonObject
+                    ?.string("value")
+                    ?.let { runCatching { decimalStringToRub(it) }.getOrNull() }
                 val metadata = obj?.get("metadata")?.jsonObject
                 val localPaymentId = metadata?.string("local_payment_id")
 
@@ -1510,14 +1636,22 @@ fun Application.module() {
                     return@post
                 }
 
-                val result = synchronized(stateLock) {
-                    val webhookResult = paymentService.applyWebhook(
-                        event = event,
-                        providerPaymentId = providerPaymentId,
-                        localPaymentId = localPaymentId
-                    )
-                    persistState()
-                    webhookResult
+                val result = try {
+                    synchronized(stateLock) {
+                        val webhookResult = paymentService.applyWebhook(
+                            event = event,
+                            providerPaymentId = providerPaymentId,
+                            localPaymentId = localPaymentId,
+                            providerStatusFromWebhook = providerStatus,
+                            amountRubFromWebhook = amountRub
+                        )
+                        persistState()
+                        webhookResult
+                    }
+                } catch (e: YooKassaException) {
+                    call.application.environment.log.error("YooKassa webhook status check failed", e)
+                    call.respond(HttpStatusCode.ServiceUnavailable, ApiErrorResponse(message = "YooKassa payment status check failed"))
+                    return@post
                 }
 
                 call.respond(

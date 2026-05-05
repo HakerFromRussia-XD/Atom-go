@@ -68,6 +68,42 @@ paths:
           description: Bad Request
         '401':
           description: Unauthorized
+        '502':
+          description: YooKassa unavailable
+  /payments/{paymentId}:
+    get:
+      summary: Refresh and return payment status
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: paymentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+        '404':
+          description: Not Found
+        '502':
+          description: YooKassa unavailable
+  /payments/{paymentId}/return:
+    get:
+      summary: Browser return page after YooKassa redirect
+      parameters:
+        - name: paymentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: HTML return page
   /payments/yookassa/webhook:
     post:
       summary: YooKassa webhook callback

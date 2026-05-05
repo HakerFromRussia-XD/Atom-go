@@ -325,3 +325,18 @@ data class CreatePaymentResponse(
     val idempotenceKey: String,
     val status: String
 )
+
+@Serializable
+data class PaymentStatusResponse(
+    @SerialName("payment_id")
+    val paymentId: String,
+    @SerialName("amount_rub")
+    val amountRub: Int,
+    @SerialName("confirmation_url")
+    val confirmationUrl: String,
+    @SerialName("provider_payment_id")
+    val providerPaymentId: String? = null,
+    val status: String,
+    @SerialName("debt_rub")
+    val debtRub: Int? = null
+)

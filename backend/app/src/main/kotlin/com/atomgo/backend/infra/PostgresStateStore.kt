@@ -134,15 +134,18 @@ class PostgresStateStore private constructor(
                     amount_rub INT NOT NULL CHECK (amount_rub > 0),
                     created_at TIMESTAMPTZ NOT NULL,
                     note TEXT,
-                    source_id TEXT
+                    source_id TEXT,
+                    rental_id TEXT
                 )
                 """.trimIndent()
             )
+            statement.execute("ALTER TABLE atomgo_ledger_entries ADD COLUMN IF NOT EXISTS rental_id TEXT")
             statement.execute(
                 """
                 CREATE TABLE IF NOT EXISTS atomgo_payments (
                     id TEXT PRIMARY KEY,
                     client_id TEXT NOT NULL REFERENCES atomgo_clients(id) ON DELETE CASCADE,
+                    rental_id TEXT,
                     payment_type TEXT NOT NULL,
                     amount_rub INT NOT NULL CHECK (amount_rub > 0),
                     confirmation_url TEXT NOT NULL,
@@ -152,6 +155,7 @@ class PostgresStateStore private constructor(
                 )
                 """.trimIndent()
             )
+            statement.execute("ALTER TABLE atomgo_payments ADD COLUMN IF NOT EXISTS rental_id TEXT")
             statement.execute(
                 """
                 CREATE TABLE IF NOT EXISTS atomgo_users (
@@ -282,6 +286,7 @@ class PostgresStateStore private constructor(
                 1::smallint AS state_row_id,
                 id,
                 client_id,
+                rental_id,
                 type,
                 direction,
                 amount_rub,
@@ -296,6 +301,7 @@ class PostgresStateStore private constructor(
                 1::smallint AS state_row_id,
                 id,
                 client_id,
+                rental_id,
                 payment_type,
                 amount_rub,
                 status,
@@ -439,7 +445,7 @@ class PostgresStateStore private constructor(
         val ledger = mutableListOf<LedgerEntry>()
         connection.prepareStatement(
             """
-            SELECT id, client_id, type, direction, amount_rub, created_at, note, source_id
+            SELECT id, client_id, rental_id, type, direction, amount_rub, created_at, note, source_id
             FROM atomgo_ledger_entries
             ORDER BY created_at, id
             """.trimIndent()
@@ -454,7 +460,8 @@ class PostgresStateStore private constructor(
                         amountRub = rs.getInt("amount_rub"),
                         createdAt = rs.getTimestamp("created_at").toInstant(),
                         note = rs.getString("note"),
-                        sourceId = rs.getString("source_id")
+                        sourceId = rs.getString("source_id"),
+                        rentalId = rs.getString("rental_id")
                     )
                 }
             }
@@ -463,7 +470,7 @@ class PostgresStateStore private constructor(
         val payments = mutableListOf<PaymentRecord>()
         connection.prepareStatement(
             """
-            SELECT id, client_id, payment_type, amount_rub, confirmation_url, idempotence_key, status, provider_payment_id
+            SELECT id, client_id, rental_id, payment_type, amount_rub, confirmation_url, idempotence_key, status, provider_payment_id
             FROM atomgo_payments
             ORDER BY id
             """.trimIndent()
@@ -478,7 +485,8 @@ class PostgresStateStore private constructor(
                         confirmationUrl = rs.getString("confirmation_url"),
                         idempotenceKey = rs.getString("idempotence_key"),
                         status = enumValueOf<PaymentStatus>(rs.getString("status")),
-                        providerPaymentId = rs.getString("provider_payment_id")
+                        providerPaymentId = rs.getString("provider_payment_id"),
+                        rentalId = rs.getString("rental_id")
                     )
                 }
             }
@@ -649,9 +657,10 @@ class PostgresStateStore private constructor(
                 amount_rub,
                 created_at,
                 note,
-                source_id
+                source_id,
+                rental_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent()
         ).use { statement ->
             state.ledger.forEach { entry ->
@@ -663,6 +672,7 @@ class PostgresStateStore private constructor(
                 statement.setTimestamp(6, Timestamp.from(entry.createdAt))
                 statement.setString(7, entry.note)
                 statement.setString(8, entry.sourceId)
+                statement.setString(9, entry.rentalId)
                 statement.addBatch()
             }
             statement.executeBatch()
@@ -673,6 +683,7 @@ class PostgresStateStore private constructor(
             INSERT INTO atomgo_payments (
                 id,
                 client_id,
+                rental_id,
                 payment_type,
                 amount_rub,
                 confirmation_url,
@@ -680,18 +691,19 @@ class PostgresStateStore private constructor(
                 status,
                 provider_payment_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent()
         ).use { statement ->
             state.payments.forEach { payment ->
                 statement.setString(1, payment.id)
                 statement.setString(2, payment.clientId)
-                statement.setString(3, payment.paymentType.name)
-                statement.setInt(4, payment.amountRub)
-                statement.setString(5, payment.confirmationUrl)
-                statement.setString(6, payment.idempotenceKey)
-                statement.setString(7, payment.status.name)
-                statement.setString(8, payment.providerPaymentId)
+                statement.setString(3, payment.rentalId)
+                statement.setString(4, payment.paymentType.name)
+                statement.setInt(5, payment.amountRub)
+                statement.setString(6, payment.confirmationUrl)
+                statement.setString(7, payment.idempotenceKey)
+                statement.setString(8, payment.status.name)
+                statement.setString(9, payment.providerPaymentId)
                 statement.addBatch()
             }
             statement.executeBatch()
@@ -914,13 +926,15 @@ private object InMemoryStoreJsonMapper {
         val amountRub: Int,
         val createdAt: String,
         val note: String? = null,
-        val sourceId: String? = null
+        val sourceId: String? = null,
+        val rentalId: String? = null
     )
 
     @Serializable
     private data class PersistedPayment(
         val id: String,
         val clientId: String,
+        val rentalId: String? = null,
         val paymentType: String,
         val amountRub: Int,
         val confirmationUrl: String,
@@ -1003,13 +1017,15 @@ private object InMemoryStoreJsonMapper {
                     amountRub = it.amountRub,
                     createdAt = it.createdAt.toString(),
                     note = it.note,
-                    sourceId = it.sourceId
+                    sourceId = it.sourceId,
+                    rentalId = it.rentalId
                 )
             },
             payments = store.payments.map {
                 PersistedPayment(
                     id = it.id,
                     clientId = it.clientId,
+                    rentalId = it.rentalId,
                     paymentType = it.paymentType.name,
                     amountRub = it.amountRub,
                     confirmationUrl = it.confirmationUrl,
@@ -1128,7 +1144,8 @@ private object InMemoryStoreJsonMapper {
                     amountRub = it.amountRub,
                     createdAt = Instant.parse(it.createdAt),
                     note = it.note,
-                    sourceId = it.sourceId
+                    sourceId = it.sourceId,
+                    rentalId = it.rentalId
                 )
             }.toMutableList(),
             payments = persisted.payments.map {
@@ -1140,7 +1157,8 @@ private object InMemoryStoreJsonMapper {
                     confirmationUrl = it.confirmationUrl,
                     idempotenceKey = it.idempotenceKey,
                     status = enumValueOf<PaymentStatus>(it.status),
-                    providerPaymentId = it.providerPaymentId
+                    providerPaymentId = it.providerPaymentId,
+                    rentalId = it.rentalId
                 )
             }.toMutableList(),
             sessions = persisted.sessions.mapValues { (_, value) ->

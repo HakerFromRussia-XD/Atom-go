@@ -3,6 +3,8 @@ import SwiftUI
 struct ContentView: View {
     @ObservedObject var viewModel: LoginViewModel
     @StateObject private var keyboardState = KeyboardState()
+    @State private var isPasswordVisible = false
+    @FocusState private var focusedField: LoginInputField?
 
     var body: some View {
         GeometryReader { geometry in
@@ -92,8 +94,8 @@ struct ContentView: View {
                 Button(action: viewModel.signIn) {
                     Text(viewModel.isLoading ? "Logging in..." : "Login")
                         .font(.system(size: 22 * textScale, weight: .semibold, design: .rounded))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 91 * yScale)
+                        .frame(width: fieldWidth, height: 91 * yScale)
+                        .contentShape(RoundedRectangle(cornerRadius: 22 * textScale, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.white)
@@ -101,7 +103,6 @@ struct ContentView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 22 * textScale, style: .continuous))
                 .disabled(viewModel.isLoading)
                 .accessibilityIdentifier("login.submitButton")
-                .frame(width: fieldWidth)
                 .offset(x: 54 * xScale, y: 730 * yScale)
 
                 if viewModel.statusText != LoginViewModel.waitingStatusText {
@@ -149,12 +150,17 @@ struct ContentView: View {
                 .autocorrectionDisabled(true)
                 .font(.system(size: 20 * textScale, weight: .semibold))
                 .foregroundStyle(AppDesign.titleText)
+                .focused($focusedField, equals: .login)
                 .accessibilityIdentifier(accessibilityIdentifier)
 
                 Spacer(minLength: 0)
             }
             .padding(.leading, 31 * xScale)
             .padding(.trailing, 24 * xScale)
+        }
+        .contentShape(RoundedRectangle(cornerRadius: 18 * textScale, style: .continuous))
+        .onTapGesture {
+            focusedField = .login
         }
     }
 
@@ -170,28 +176,62 @@ struct ContentView: View {
                     .scaledToFit()
                     .frame(width: 30 * textScale)
 
-                SecureField(
-                    "",
-                    text: $viewModel.password,
-                    prompt: Text("Password")
-                        .foregroundColor(AppDesign.iconSoft)
-                )
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled(true)
-                .font(.system(size: 20 * textScale, weight: .semibold))
-                .foregroundStyle(AppDesign.titleText)
-                .accessibilityIdentifier("login.passwordField")
+                passwordInput(textScale: textScale)
 
                 Spacer(minLength: 0)
 
-                Image("Eye Off Icon")
-                    .resizable()
-                    .renderingMode(.original)
-                    .scaledToFit()
-                    .frame(width: 30 * textScale)
+                Button {
+                    isPasswordVisible.toggle()
+                    focusedField = .password
+                } label: {
+                    Image(isPasswordVisible ? "View_light" : "View_hide_light")
+                        .resizable()
+                        .renderingMode(.original)
+                        .scaledToFit()
+                        .frame(width: 36 * textScale, height: 36 * textScale)
+                        .frame(width: 58 * xScale, height: 92 * yScale)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("login.passwordVisibilityButton")
             }
             .padding(.leading, 31 * xScale)
-            .padding(.trailing, 24 * xScale)
+            .padding(.trailing, 14 * xScale)
+        }
+        .contentShape(RoundedRectangle(cornerRadius: 18 * textScale, style: .continuous))
+        .onTapGesture {
+            focusedField = .password
+        }
+    }
+
+    @ViewBuilder
+    private func passwordInput(textScale: CGFloat) -> some View {
+        if isPasswordVisible {
+            TextField(
+                "",
+                text: $viewModel.password,
+                prompt: Text("Password")
+                    .foregroundColor(AppDesign.iconSoft)
+            )
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled(true)
+            .font(.system(size: 20 * textScale, weight: .semibold))
+            .foregroundStyle(AppDesign.titleText)
+            .focused($focusedField, equals: .password)
+            .accessibilityIdentifier("login.passwordField")
+        } else {
+            SecureField(
+                "",
+                text: $viewModel.password,
+                prompt: Text("Password")
+                    .foregroundColor(AppDesign.iconSoft)
+            )
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled(true)
+            .font(.system(size: 20 * textScale, weight: .semibold))
+            .foregroundStyle(AppDesign.titleText)
+            .focused($focusedField, equals: .password)
+            .accessibilityIdentifier("login.passwordField")
         }
     }
 
@@ -215,6 +255,11 @@ struct ContentView: View {
         .buttonStyle(.plain)
         .accessibilityIdentifier(accessibilityIdentifier)
     }
+}
+
+private enum LoginInputField: Hashable {
+    case login
+    case password
 }
 
 #Preview {

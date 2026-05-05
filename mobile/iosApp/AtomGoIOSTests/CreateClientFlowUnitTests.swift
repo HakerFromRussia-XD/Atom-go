@@ -391,6 +391,55 @@ final class CreateClientFlowUnitTests: XCTestCase {
     }
 
     @MainActor
+    func testClientPaymentCreateStoresYooKassaResult() async {
+        let service = MockAdminBackendService()
+        service.fetchClientDashboardResult = .success(service.sampleDashboard)
+        service.createPaymentResult = .success(service.samplePayment)
+        let viewModel = ClientHomeViewModel(
+            session: AuthSession(accessToken: "token", role: .client, userId: "user-client-001"),
+            apiService: service
+        )
+
+        viewModel.load()
+        await waitUntilClientDashboardLoads(viewModel)
+        viewModel.createPayment(type: .week)
+        await waitUntilPaymentCreateCompletes(viewModel)
+
+        XCTAssertEqual(viewModel.paymentResult?.paymentId, "payment-001")
+        XCTAssertEqual(viewModel.paymentResult?.confirmationUrl, "https://example.test/pay/payment-001")
+        XCTAssertNil(viewModel.paymentErrorMessage)
+        XCTAssertFalse(viewModel.isCreatingPayment)
+    }
+
+    @MainActor
+    func testClientPaymentStatusSuccessRefreshesDashboard() async {
+        let service = MockAdminBackendService()
+        service.fetchClientDashboardResult = .success(service.sampleDashboard)
+        service.paymentStatusResult = .success(
+            PaymentStatusResponse(
+                paymentId: "payment-001",
+                amountRub: 3000,
+                confirmationUrl: "https://example.test/pay/payment-001",
+                providerPaymentId: "provider-payment-001",
+                status: "succeeded",
+                debtRub: 0
+            )
+        )
+        let viewModel = ClientHomeViewModel(
+            session: AuthSession(accessToken: "token", role: .client, userId: "user-client-001"),
+            apiService: service
+        )
+
+        viewModel.paymentResult = service.samplePayment
+        viewModel.refreshPaymentStatus(paymentId: "payment-001")
+        await waitUntilPaymentStatusRefreshCompletes(viewModel)
+
+        XCTAssertEqual(viewModel.paymentResult?.status, "succeeded")
+        XCTAssertEqual(viewModel.paymentStatusMessage, "Платеж успешно прошел. Данные аренды обновлены.")
+        XCTAssertNil(viewModel.paymentErrorMessage)
+    }
+
+    @MainActor
     private func makeViewModel(service: MockAdminBackendService) -> AdminHomeViewModel {
         AdminHomeViewModel(
             session: AuthSession(accessToken: "token", role: .admin, userId: "admin-001"),
@@ -408,11 +457,45 @@ final class CreateClientFlowUnitTests: XCTestCase {
         }
         XCTFail("Operation did not complete in time")
     }
+
+    @MainActor
+    private func waitUntilClientDashboardLoads(_ viewModel: ClientHomeViewModel) async {
+        for _ in 0 ..< 200 {
+            if case .loaded = viewModel.state {
+                return
+            }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTFail("Client dashboard did not load in time")
+    }
+
+    @MainActor
+    private func waitUntilPaymentCreateCompletes(_ viewModel: ClientHomeViewModel) async {
+        for _ in 0 ..< 200 {
+            if !viewModel.isCreatingPayment {
+                return
+            }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTFail("Payment create did not complete in time")
+    }
+
+    @MainActor
+    private func waitUntilPaymentStatusRefreshCompletes(_ viewModel: ClientHomeViewModel) async {
+        for _ in 0 ..< 200 {
+            if !viewModel.isRefreshingPaymentStatus {
+                return
+            }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTFail("Payment status refresh did not complete in time")
+    }
 }
 
 private final class MockAdminBackendService: BackendServicing {
     var fetchClientsResult: Result<[AdminClientSummaryResponse], Error> = .success([])
     var fetchBikesResult: Result<[AdminBikeResponse], Error> = .success([])
+    var fetchClientDashboardResult: Result<ClientDashboardResponse, Error> = .failure(BackendError.invalidResponse)
     var createClientResult: Result<AdminClientDetailsResponse, Error> = .failure(BackendError.invalidResponse)
     var fetchClientDetailsResult: Result<AdminClientDetailsResponse, Error> = .failure(BackendError.invalidResponse)
     var createBikeResult: Result<AdminBikeResponse, Error> = .failure(BackendError.invalidResponse)
@@ -420,6 +503,8 @@ private final class MockAdminBackendService: BackendServicing {
     var updateBikeResult: Result<AdminBikeResponse, Error> = .failure(BackendError.invalidResponse)
     var updateRentalResult: Result<AdminRentalHistoryItem, Error> = .failure(BackendError.invalidResponse)
     var deleteRentalResult: Result<DeleteRentalResult, Error> = .failure(BackendError.invalidResponse)
+    var createPaymentResult: Result<PaymentCreationResponse, Error> = .failure(BackendError.invalidResponse)
+    var paymentStatusResult: Result<PaymentStatusResponse, Error> = .failure(BackendError.invalidResponse)
     var createRentalCallsCount = 0
     var updateRentalCallsCount = 0
     var deleteRentalCallsCount = 0
@@ -464,6 +549,30 @@ private final class MockAdminBackendService: BackendServicing {
         rentals: []
     )
 
+    let sampleDashboard = ClientDashboardResponse(
+        clientId: "client-001",
+        bikeModel: "Монстер",
+        rentalStart: "2026-05-01",
+        paidUntil: "2026-05-08",
+        debtRub: 0,
+        totalAdjustmentRub: 0,
+        presets: ClientPaymentPresets(
+            dayRub: 430,
+            weekRub: 3000,
+            twoWeeksRub: 6000,
+            monthRub: 12000,
+            debtExactRub: 0
+        )
+    )
+
+    let samplePayment = PaymentCreationResponse(
+        paymentId: "payment-001",
+        amountRub: 3000,
+        confirmationUrl: "https://example.test/pay/payment-001",
+        idempotenceKey: "idem-001",
+        status: "pending"
+    )
+
     func isServerReachable() async -> Bool { true }
 
     func login(login _: String, password _: String) async throws -> AuthSession {
@@ -471,7 +580,7 @@ private final class MockAdminBackendService: BackendServicing {
     }
 
     func fetchClientDashboard(accessToken _: String) async throws -> ClientDashboardResponse {
-        throw BackendError.invalidResponse
+        try fetchClientDashboardResult.get()
     }
 
     func fetchAdminClients(accessToken _: String) async throws -> [AdminClientSummaryResponse] {
@@ -483,7 +592,11 @@ private final class MockAdminBackendService: BackendServicing {
     }
 
     func createPayment(accessToken _: String, paymentType _: ClientPaymentType) async throws -> PaymentCreationResponse {
-        throw BackendError.invalidResponse
+        try createPaymentResult.get()
+    }
+
+    func fetchPaymentStatus(accessToken _: String, paymentId _: String) async throws -> PaymentStatusResponse {
+        try paymentStatusResult.get()
     }
 
     func fetchAdminClientDetails(accessToken _: String, clientId _: String) async throws -> AdminClientDetailsResponse {

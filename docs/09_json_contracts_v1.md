@@ -76,13 +76,40 @@ Response 200:
 {
   "payment_id": "uuid",
   "amount_rub": 430,
-  "confirmation_url": "https://yookassa.ru/pay/uuid",
+  "confirmation_url": "https://yoomoney.ru/checkout/payments/v2/contract?orderId=...",
   "idempotence_key": "uuid",
-  "status": "new"
+  "status": "pending"
 }
 ```
 
-## 5) POST /api/v1/payments/yookassa/webhook
+Notes:
+- `payment_type`: `day`, `week`, `two_weeks`, `month`, `debt_exact`.
+- Backend сам находит активную аренду клиента и привязывает платеж к `rental_id`.
+- Деньги в ledger не попадают в момент создания платежа. Начисление происходит только после подтверждения ЮKassa.
+- Если переменные ЮKassa не заданы, backend использует mock-provider для локальной разработки.
+
+## 5) GET /api/v1/payments/{payment_id}
+Header:
+`Authorization: Bearer <client_token | admin_token>`
+
+Response 200:
+```json
+{
+  "payment_id": "uuid",
+  "amount_rub": 430,
+  "confirmation_url": "https://yoomoney.ru/checkout/payments/v2/contract?orderId=...",
+  "provider_payment_id": "2f4f...",
+  "status": "succeeded",
+  "debt_rub": 0
+}
+```
+
+Notes:
+- Клиент может смотреть только свои платежи, админ - любые.
+- Endpoint нужен как fallback: если webhook задержался, приложение опрашивает backend, backend проверяет статус в ЮKassa и применяет успешный платеж один раз.
+- `status`: `pending`, `succeeded`, `canceled`, `failed`.
+
+## 6) POST /api/v1/payments/yookassa/webhook
 Request:
 ```json
 {
@@ -91,8 +118,15 @@ Request:
   "object": {
     "id": "provider-payment-id",
     "status": "succeeded",
+    "amount": {
+      "value": "430.00",
+      "currency": "RUB"
+    },
     "metadata": {
-      "local_payment_id": "uuid-from-payments-create"
+      "local_payment_id": "uuid-from-payments-create",
+      "client_id": "client-001",
+      "rental_id": "rental-001",
+      "payment_type": "day"
     }
   }
 }
@@ -108,3 +142,9 @@ Response 200:
   "debt_rub": 1070
 }
 ```
+
+Notes:
+- Backend принимает `payment.succeeded` и `payment.canceled`.
+- Перед начислением backend проверяет актуальный статус платежа через API ЮKassa.
+- Повторный webhook не создает вторую ledger-запись.
+- Успешный платеж добавляется в ledger с конкретным `rental_id`.

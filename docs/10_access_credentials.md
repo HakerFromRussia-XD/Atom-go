@@ -16,6 +16,10 @@
 - `password`: `client123`
 - `role`: `client`
 
+- `login`: `client2`
+- `password`: `client234`
+- `role`: `client`
+
 ## Примечание
 
 - Это тестовые учетные данные из in-memory seed для локальной разработки.

@@ -2,6 +2,7 @@ package com.atomgo.shared.api
 
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -13,6 +14,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.serialization.json.Json
 
 class AtomGoApiClient private constructor(
@@ -38,6 +40,7 @@ class AtomGoApiClient private constructor(
         }
     }
 
+    @Throws(AtomGoApiException::class, CancellationException::class)
     suspend fun login(login: String, password: String): AuthSession {
         val response = executeRequest {
             httpClient.post("$apiBaseUrl/auth/login") {
@@ -53,6 +56,7 @@ class AtomGoApiClient private constructor(
         )
     }
 
+    @Throws(AtomGoApiException::class, CancellationException::class)
     suspend fun fetchClientDashboard(accessToken: String): ClientDashboardResponse {
         val response = executeRequest {
             httpClient.get("$apiBaseUrl/client/me/dashboard") {
@@ -62,6 +66,7 @@ class AtomGoApiClient private constructor(
         return decodeResponse(response)
     }
 
+    @Throws(AtomGoApiException::class, CancellationException::class)
     suspend fun fetchAdminClients(accessToken: String): List<AdminClientSummaryResponse> {
         val response = executeRequest {
             httpClient.get("$apiBaseUrl/admin/clients") {
@@ -71,6 +76,7 @@ class AtomGoApiClient private constructor(
         return decodeResponse(response)
     }
 
+    @Throws(AtomGoApiException::class, CancellationException::class)
     suspend fun fetchAdminClientDetails(accessToken: String, clientId: String): AdminClientDetailsResponse {
         val response = executeRequest {
             httpClient.get("$apiBaseUrl/admin/clients/$clientId") {
@@ -80,6 +86,7 @@ class AtomGoApiClient private constructor(
         return decodeResponse(response)
     }
 
+    @Throws(AtomGoApiException::class, CancellationException::class)
     suspend fun fetchAdminBikes(accessToken: String): List<AdminBikeResponse> {
         val response = executeRequest {
             httpClient.get("$apiBaseUrl/admin/bikes") {
@@ -89,6 +96,7 @@ class AtomGoApiClient private constructor(
         return decodeResponse(response)
     }
 
+    @Throws(AtomGoApiException::class, CancellationException::class)
     suspend fun createAdminClient(
         accessToken: String,
         requestBody: AdminCreateClientRequest
@@ -103,6 +111,7 @@ class AtomGoApiClient private constructor(
         return decodeResponse(response)
     }
 
+    @Throws(AtomGoApiException::class, CancellationException::class)
     suspend fun createAdminBike(
         accessToken: String,
         requestBody: AdminCreateBikeRequest
@@ -117,6 +126,7 @@ class AtomGoApiClient private constructor(
         return decodeResponse(response)
     }
 
+    @Throws(AtomGoApiException::class, CancellationException::class)
     suspend fun updateAdminBike(
         accessToken: String,
         bikeId: String,
@@ -132,6 +142,7 @@ class AtomGoApiClient private constructor(
         return decodeResponse(response)
     }
 
+    @Throws(AtomGoApiException::class, CancellationException::class)
     suspend fun updateAdminClient(
         accessToken: String,
         clientId: String,
@@ -147,6 +158,7 @@ class AtomGoApiClient private constructor(
         return decodeResponse(response)
     }
 
+    @Throws(AtomGoApiException::class, CancellationException::class)
     suspend fun createAdminRental(
         accessToken: String,
         requestBody: AdminCreateRentalRequest
@@ -161,6 +173,7 @@ class AtomGoApiClient private constructor(
         return decodeResponse(response)
     }
 
+    @Throws(AtomGoApiException::class, CancellationException::class)
     suspend fun updateAdminRental(
         accessToken: String,
         rentalId: String,
@@ -176,6 +189,7 @@ class AtomGoApiClient private constructor(
         return decodeResponse(response)
     }
 
+    @Throws(AtomGoApiException::class, CancellationException::class)
     suspend fun deleteAdminRental(
         accessToken: String,
         rentalId: String
@@ -188,6 +202,7 @@ class AtomGoApiClient private constructor(
         return decodeResponse(response)
     }
 
+    @Throws(AtomGoApiException::class, CancellationException::class)
     suspend fun adjustAdminClientDebt(
         accessToken: String,
         clientId: String,
@@ -211,6 +226,7 @@ class AtomGoApiClient private constructor(
         return decodeResponse(response)
     }
 
+    @Throws(AtomGoApiException::class, CancellationException::class)
     suspend fun updateAdminRentalComment(
         accessToken: String,
         rentalId: String,
@@ -226,6 +242,7 @@ class AtomGoApiClient private constructor(
         return decodeResponse(response)
     }
 
+    @Throws(AtomGoApiException::class, CancellationException::class)
     suspend fun updateAdminRentalLinks(
         accessToken: String,
         rentalId: String,
@@ -247,12 +264,23 @@ class AtomGoApiClient private constructor(
         return decodeResponse(response)
     }
 
+    @Throws(AtomGoApiException::class, CancellationException::class)
     suspend fun createPayment(accessToken: String, paymentType: String): CreatePaymentResponse {
         val response = executeRequest {
             httpClient.post("$apiBaseUrl/payments/create") {
                 header(HttpHeaders.Authorization, "Bearer $accessToken")
                 header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
                 setBody(CreatePaymentRequest(paymentType = paymentType))
+            }
+        }
+        return decodeResponse(response)
+    }
+
+    @Throws(AtomGoApiException::class, CancellationException::class)
+    suspend fun fetchPaymentStatus(accessToken: String, paymentId: String): PaymentStatusResponse {
+        val response = executeRequest {
+            httpClient.get("$apiBaseUrl/payments/$paymentId") {
+                header(HttpHeaders.Authorization, "Bearer $accessToken")
             }
         }
         return decodeResponse(response)
@@ -300,6 +328,11 @@ sealed class AtomGoApiException(message: String) : Exception(message) {
 
 private fun defaultHttpClient(): HttpClient {
     return HttpClient {
+        install(HttpTimeout) {
+            requestTimeoutMillis = 5_000
+            connectTimeoutMillis = 3_000
+            socketTimeoutMillis = 5_000
+        }
         install(ContentNegotiation) {
             json(
                 Json {

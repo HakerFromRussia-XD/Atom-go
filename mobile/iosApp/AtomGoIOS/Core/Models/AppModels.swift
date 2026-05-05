@@ -151,12 +151,38 @@ enum ClientPaymentType: String, CaseIterable, Identifiable {
     }
 }
 
-struct PaymentCreationResponse: Equatable {
+struct PaymentCreationResponse: Decodable, Equatable {
     let paymentId: String
     let amountRub: Int
     let confirmationUrl: String
     let idempotenceKey: String
     let status: String
+
+    enum CodingKeys: String, CodingKey {
+        case paymentId = "payment_id"
+        case amountRub = "amount_rub"
+        case confirmationUrl = "confirmation_url"
+        case idempotenceKey = "idempotence_key"
+        case status
+    }
+}
+
+struct PaymentStatusResponse: Decodable, Equatable {
+    let paymentId: String
+    let amountRub: Int
+    let confirmationUrl: String
+    let providerPaymentId: String?
+    let status: String
+    let debtRub: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case paymentId = "payment_id"
+        case amountRub = "amount_rub"
+        case confirmationUrl = "confirmation_url"
+        case providerPaymentId = "provider_payment_id"
+        case status
+        case debtRub = "debt_rub"
+    }
 }
 
 struct AdminClientPhone: Identifiable, Equatable {

@@ -26,8 +26,8 @@ final class LoginViewModel: ObservableObject {
 
     init(apiService: BackendServicing) {
         self.apiService = apiService
-        self.login = "client1"
-        self.password = "client123"
+        self.login = ProcessInfo.processInfo.environment["ATOMGO_TEST_LOGIN"] ?? "client1"
+        self.password = ProcessInfo.processInfo.environment["ATOMGO_TEST_PASSWORD"] ?? "client123"
         checkServerOnStart()
     }
 

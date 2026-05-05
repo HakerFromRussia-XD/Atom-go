@@ -34,4 +34,5 @@ kotlin {
 
 tasks.withType<Test>().configureEach {
     environment("ATOMGO_USE_INMEMORY", "true")
+    environment("YOOKASSA_USE_MOCK", "true")
 }

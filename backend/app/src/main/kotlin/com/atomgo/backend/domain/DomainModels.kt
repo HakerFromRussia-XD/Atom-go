@@ -91,13 +91,16 @@ data class LedgerEntry(
     val amountRub: Int,
     val createdAt: Instant,
     val note: String? = null,
-    val sourceId: String? = null
+    val sourceId: String? = null,
+    val rentalId: String? = null
 )
 
 enum class PaymentStatus {
     NEW,
+    PENDING,
     SUCCEEDED,
-    CANCELED
+    CANCELED,
+    FAILED
 }
 
 data class PaymentRecord(
@@ -108,5 +111,6 @@ data class PaymentRecord(
     val confirmationUrl: String,
     val idempotenceKey: String,
     var status: PaymentStatus,
-    var providerPaymentId: String? = null
+    var providerPaymentId: String? = null,
+    val rentalId: String? = null
 )

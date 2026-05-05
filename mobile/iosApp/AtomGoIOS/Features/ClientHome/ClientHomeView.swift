@@ -1,11 +1,18 @@
 import SwiftUI
+import SafariServices
 
 struct ClientHomeView: View {
     @ObservedObject var viewModel: ClientHomeViewModel
     let onLogout: () -> Void
-    @Environment(\.openURL) private var openURL
+    @Environment(\.scenePhase) private var scenePhase
     @State private var isPaymentDialogPresented = false
     @State private var paymentDialogPresets: ClientPaymentPresets?
+    @State private var paymentSafariUrl: URL?
+    @State private var activePaymentId: String?
+    @State private var isSafariPresented = false
+    private var shouldAutoOpenPaymentSafari: Bool {
+        !ProcessInfo.processInfo.arguments.contains("-ATOMGO_DISABLE_PAYMENT_SAFARI_AUTOPEN")
+    }
 
     var body: some View {
         NavigationStack {
@@ -60,11 +67,20 @@ struct ClientHomeView: View {
                                     .font(.subheadline)
                                     .foregroundStyle(AppDesign.danger)
                                     .padding(.horizontal, 4)
+                                    .accessibilityIdentifier("client.paymentErrorMessage")
+                            }
+
+                            if let paymentStatusMessage = viewModel.paymentStatusMessage {
+                                Text(paymentStatusMessage)
+                                    .font(.subheadline)
+                                    .foregroundStyle(AppDesign.success)
+                                    .padding(.horizontal, 4)
+                                    .accessibilityIdentifier("client.paymentStatusMessage")
                             }
 
                             if let payment = viewModel.paymentResult {
                                 VStack(alignment: .leading, spacing: 10) {
-                                    Text("Платеж создан")
+                                    Text("Платеж ЮKassa")
                                         .font(.headline)
                                     Text("Сумма: \(payment.amountRub) ₽")
                                         .font(.subheadline)
@@ -72,17 +88,27 @@ struct ClientHomeView: View {
                                         .font(.subheadline)
                                         .foregroundStyle(AppDesign.subtleText)
 
-                                    Button("Открыть ссылку оплаты") {
+                                    Button("Открыть оплату повторно") {
                                         if let url = URL(string: payment.confirmationUrl) {
-                                            openURL(url)
+                                            activePaymentId = payment.paymentId
+                                            paymentSafariUrl = url
+                                            isSafariPresented = true
                                         }
                                     }
                                     .buttonStyle(.borderedProminent)
+                                    .disabled(payment.confirmationUrl.isEmpty || payment.status == "succeeded")
+                                    .accessibilityIdentifier("client.openPaymentAgainButton")
+
+                                    if viewModel.isRefreshingPaymentStatus {
+                                        ProgressView("Проверяем статус платежа...")
+                                    }
                                 }
                                 .padding(16)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .background(AppDesign.cardBackground)
                                 .cornerRadius(14)
+                                .accessibilityIdentifier("client.paymentCard")
+                                .accessibilityValue(payment.confirmationUrl)
                             }
                         }
                         .padding(16)
@@ -107,6 +133,35 @@ struct ClientHomeView: View {
         .task {
             if case .idle = viewModel.state {
                 viewModel.load()
+            }
+        }
+        .onReceive(viewModel.$paymentResult.compactMap { $0 }) { payment in
+            guard shouldAutoOpenPaymentSafari,
+                  payment.status != "succeeded",
+                  payment.status != "canceled",
+                  payment.status != "failed",
+                  let url = URL(string: payment.confirmationUrl),
+                  activePaymentId != payment.paymentId
+            else { return }
+            activePaymentId = payment.paymentId
+            paymentSafariUrl = url
+            isSafariPresented = true
+        }
+        .onChange(of: scenePhase) { phase in
+            if phase == .active, let activePaymentId {
+                viewModel.refreshPaymentStatus(paymentId: activePaymentId)
+            }
+        }
+        .sheet(
+            isPresented: $isSafariPresented,
+            onDismiss: {
+                if let activePaymentId {
+                    viewModel.refreshPaymentStatus(paymentId: activePaymentId)
+                }
+            }
+        ) {
+            if let paymentSafariUrl {
+                SafariPaymentView(url: paymentSafariUrl)
             }
         }
         .confirmationDialog(
@@ -168,6 +223,7 @@ struct ClientHomeView: View {
             .disabled(viewModel.isCreatingPayment)
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
+            .accessibilityIdentifier("client.paymentButton")
 
             Text("Оплата создаёт платеж в ЮKassa и возвращает ссылку подтверждения.")
                 .font(.caption)
@@ -193,4 +249,14 @@ struct ClientHomeView: View {
             return presets.debtExactRub
         }
     }
+}
+
+private struct SafariPaymentView: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context _: Context) -> SFSafariViewController {
+        SFSafariViewController(url: url)
+    }
+
+    func updateUIViewController(_: SFSafariViewController, context _: Context) {}
 }

@@ -66,6 +66,21 @@ private final class ContinuationResumeGate: @unchecked Sendable {
     }
 }
 
+private struct NativeLoginRequest: Encodable {
+    let login: String
+    let password: String
+}
+
+private struct NativeCreatePaymentRequest: Encodable {
+    let paymentType: String
+
+    enum CodingKeys: String, CodingKey {
+        case paymentType = "payment_type"
+    }
+}
+
+private struct NativeEmptyRequest: Encodable {}
+
 protocol BackendServicing {
     func isServerReachable() async -> Bool
     func login(login: String, password: String) async throws -> AuthSession
@@ -73,6 +88,7 @@ protocol BackendServicing {
     func fetchAdminClients(accessToken: String) async throws -> [AdminClientSummaryResponse]
     func fetchAdminBikes(accessToken: String) async throws -> [AdminBikeResponse]
     func createPayment(accessToken: String, paymentType: ClientPaymentType) async throws -> PaymentCreationResponse
+    func fetchPaymentStatus(accessToken: String, paymentId: String) async throws -> PaymentStatusResponse
     func fetchAdminClientDetails(accessToken: String, clientId: String) async throws -> AdminClientDetailsResponse
     func createAdminClient(accessToken: String, payload: CreateClientPayload) async throws -> AdminClientDetailsResponse
     func createAdminBike(accessToken: String, payload: CreateBikePayload) async throws -> AdminBikeResponse
@@ -148,6 +164,7 @@ private enum BackendErrorMessageParser {
     private static let knownMessageMap: [String: String] = [
         "login is already used": "Логин уже занят. Укажите другой логин.",
         "login and password are required": "Укажите логин и пароль клиента.",
+        "неверный логин или пароль": "Неверный логин или пароль.",
         "full_name is required": "Укажите ФИО клиента.",
         "weekly_rate_rub must be positive": "Сумма за неделю должна быть больше 0.",
         "rental_start must be YYYY-MM-DD": "Дата начала аренды должна быть в формате YYYY-MM-DD.",
@@ -178,7 +195,13 @@ private enum BackendErrorMessageParser {
         "unauthorized": "Сессия недействительна. Войдите снова.",
         "client not found": "Клиент не найден.",
         "rental not found": "Аренда не найдена.",
-        "bike not found": "Велосипед не найден."
+        "bike not found": "Велосипед не найден.",
+        "yookassa payment creation failed": "Не удалось создать платеж в ЮKassa. Попробуйте ещё раз.",
+        "yookassa payment status check failed": "Не удалось проверить статус платежа в ЮKassa. Попробуйте ещё раз.",
+        "yookassa is not configured": "ЮKassa не настроена на backend. Проверьте YOOKASSA_SECRET_KEY и YOOKASSA_PUBLIC_BASE_URL.",
+        "payment not found": "Платеж не найден.",
+        "unknown payment_type": "Неизвестный тип платежа.",
+        "amount is zero. nothing to pay.": "Сейчас нечего оплачивать."
     ]
 
     static func extractBackendMessage(from body: String) -> String? {
@@ -242,10 +265,21 @@ private enum BackendErrorMessageParser {
 final class BackendService: BackendServicing {
     private static let quickHealthCheckTimeout: TimeInterval = 0.6
 
+    private let baseUrl: String
     private let apiClient: AtomGoApiClient
+    private let urlSession: URLSession
+    private let jsonEncoder: JSONEncoder
+    private let jsonDecoder: JSONDecoder
 
     init(baseUrl: String = BackendRuntimeConfig.baseUrl) {
+        self.baseUrl = baseUrl
         self.apiClient = AtomGoApiClient(baseUrl: baseUrl)
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = 5
+        configuration.timeoutIntervalForResource = 8
+        self.urlSession = URLSession(configuration: configuration)
+        self.jsonEncoder = JSONEncoder()
+        self.jsonDecoder = JSONDecoder()
     }
 
     deinit {
@@ -254,6 +288,7 @@ final class BackendService: BackendServicing {
 
     func close() {
         self.apiClient.close()
+        self.urlSession.invalidateAndCancel()
     }
 
     static var configuredBaseUrls: [String] {
@@ -306,14 +341,15 @@ final class BackendService: BackendServicing {
     }
 
     func login(login: String, password: String) async throws -> AuthSession {
-        let session: shared.AuthSession = try await awaitResult { completion in
-            self.apiClient.login(login: login, password: password, completionHandler: completion)
-        }
-
+        let response: LoginResponse = try await sendNativeRequest(
+            path: "/auth/login",
+            method: "POST",
+            body: NativeLoginRequest(login: login, password: password)
+        )
         return AuthSession(
-            accessToken: session.accessToken,
-            role: mapRole(session.role),
-            userId: session.userId
+            accessToken: response.accessToken,
+            role: response.role,
+            userId: response.userId
         )
     }
 
@@ -628,21 +664,65 @@ final class BackendService: BackendServicing {
     }
 
     func createPayment(accessToken: String, paymentType: ClientPaymentType) async throws -> PaymentCreationResponse {
-        let response: shared.CreatePaymentResponse = try await awaitResult { completion in
-            self.apiClient.createPayment(
-                accessToken: accessToken,
-                paymentType: paymentType.apiValue,
-                completionHandler: completion
-            )
+        try await sendNativeRequest(
+            path: "/payments/create",
+            method: "POST",
+            accessToken: accessToken,
+            body: NativeCreatePaymentRequest(paymentType: paymentType.apiValue)
+        )
+    }
+
+    func fetchPaymentStatus(accessToken: String, paymentId: String) async throws -> PaymentStatusResponse {
+        try await sendNativeRequest(
+            path: "/payments/\(paymentId)",
+            method: "GET",
+            accessToken: accessToken,
+            body: Optional<NativeEmptyRequest>.none
+        )
+    }
+
+    private func sendNativeRequest<RequestBody: Encodable, ResponseBody: Decodable>(
+        path: String,
+        method: String,
+        accessToken: String? = nil,
+        body: RequestBody?
+    ) async throws -> ResponseBody {
+        guard let url = URL(string: "\(baseUrl)\(path)") else {
+            throw BackendError.network("Некорректный адрес backend: \(baseUrl)\(path)")
         }
 
-        return PaymentCreationResponse(
-            paymentId: response.paymentId,
-            amountRub: Int(response.amountRub),
-            confirmationUrl: response.confirmationUrl,
-            idempotenceKey: response.idempotenceKey,
-            status: response.status
-        )
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let accessToken {
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        }
+        if let body {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try jsonEncoder.encode(body)
+        }
+
+        do {
+            let (data, response) = try await urlSession.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw BackendError.invalidResponse
+            }
+
+            guard (200 ... 299).contains(httpResponse.statusCode) else {
+                let responseBody = String(data: data, encoding: .utf8) ?? ""
+                throw BackendError.httpError(code: httpResponse.statusCode, body: responseBody)
+            }
+
+            do {
+                return try jsonDecoder.decode(ResponseBody.self, from: data)
+            } catch {
+                throw BackendError.unknown("Не удалось прочитать ответ backend: \(error.localizedDescription)")
+            }
+        } catch let backendError as BackendError {
+            throw backendError
+        } catch {
+            throw BackendError.network(error.localizedDescription)
+        }
     }
 
     private func mapRole(_ role: shared.UserRole) -> AppRole {
@@ -839,6 +919,12 @@ final class LazyBackendService: BackendServicing {
     func createPayment(accessToken: String, paymentType: ClientPaymentType) async throws -> PaymentCreationResponse {
         try await withFallback { service in
             try await service.createPayment(accessToken: accessToken, paymentType: paymentType)
+        }
+    }
+
+    func fetchPaymentStatus(accessToken: String, paymentId: String) async throws -> PaymentStatusResponse {
+        try await withFallback { service in
+            try await service.fetchPaymentStatus(accessToken: accessToken, paymentId: paymentId)
         }
     }
 

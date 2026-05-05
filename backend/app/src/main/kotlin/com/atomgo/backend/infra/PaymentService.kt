@@ -19,15 +19,28 @@ data class WebhookResult(
     val debtRub: Int? = null
 )
 
-class PaymentService(private val store: InMemoryStore) {
+data class PaymentStatusResult(
+    val payment: PaymentRecord,
+    val applied: Boolean,
+    val message: String,
+    val debtRub: Int? = null
+)
+
+class PaymentService(
+    private val store: InMemoryStore,
+    private val provider: PaymentProvider = MockYooKassaPaymentProvider()
+) {
 
     private data class BillingTerms(
+        val rentalId: String,
         val rentalStartDate: LocalDate,
-        val weeklyRateRub: Int
+        val weeklyRateRub: Int,
+        val clientName: String,
+        val bikeModel: String
     )
 
     fun createPayment(clientId: String, paymentType: PaymentType, now: LocalDate = LocalDate.now()): PaymentRecord {
-        store.clients.firstOrNull { it.id == clientId }
+        val client = store.clients.firstOrNull { it.id == clientId }
             ?: throw IllegalArgumentException("Client not found")
 
         val terms = resolveBillingTerms(clientId = clientId, asOf = now)
@@ -37,7 +50,8 @@ class PaymentService(private val store: InMemoryStore) {
             rentalStartDate = terms.rentalStartDate,
             weeklyRateRub = terms.weeklyRateRub,
             entries = store.ledger,
-            asOf = now
+            asOf = now,
+            rentalId = terms.rentalId
         )
         val amount = PricingRules.amountForType(paymentType, terms.weeklyRateRub, debt)
 
@@ -47,16 +61,30 @@ class PaymentService(private val store: InMemoryStore) {
 
         val paymentId = UUID.randomUUID().toString()
         val idempotenceKey = UUID.randomUUID().toString()
-        val confirmationUrl = "https://yookassa.ru/pay/$paymentId"
+        val providerPayment = provider.createPayment(
+            ProviderCreatePaymentRequest(
+                localPaymentId = paymentId,
+                clientId = clientId,
+                rentalId = terms.rentalId,
+                paymentType = paymentType,
+                amountRub = amount,
+                idempotenceKey = idempotenceKey,
+                description = "Atom Go: ${client.fullName}, ${terms.bikeModel}, ${PaymentType.toApi(paymentType)}"
+            )
+        )
+
+        validateProviderPayment(paymentId, terms.rentalId, amount, providerPayment)
 
         val payment = PaymentRecord(
             id = paymentId,
             clientId = clientId,
             paymentType = paymentType,
             amountRub = amount,
-            confirmationUrl = confirmationUrl,
+            confirmationUrl = providerPayment.confirmationUrl.orEmpty(),
             idempotenceKey = idempotenceKey,
-            status = PaymentStatus.NEW
+            status = providerPayment.status,
+            providerPaymentId = providerPayment.providerPaymentId,
+            rentalId = terms.rentalId
         )
 
         store.payments += payment
@@ -67,27 +95,80 @@ class PaymentService(private val store: InMemoryStore) {
         event: String,
         providerPaymentId: String,
         localPaymentId: String?,
+        providerStatusFromWebhook: PaymentStatus?,
+        amountRubFromWebhook: Int?,
         now: LocalDate = LocalDate.now()
     ): WebhookResult {
+        if (event != "payment.succeeded" && event != "payment.canceled") {
+            return WebhookResult(applied = false, message = "Unsupported event: $event")
+        }
+
         val eventFingerprint = "$event:$providerPaymentId"
-        if (!store.processedWebhookEvents.add(eventFingerprint)) {
-            return WebhookResult(
-                applied = false,
-                message = "Duplicate webhook ignored"
-            )
+        if (store.processedWebhookEvents.contains(eventFingerprint)) {
+            return WebhookResult(applied = false, message = "Duplicate webhook ignored")
         }
 
-        if (localPaymentId == null) {
-            return WebhookResult(applied = false, message = "No local_payment_id in metadata")
-        }
-
-        val payment = store.payments.firstOrNull { it.id == localPaymentId }
+        val payment = findPayment(localPaymentId = localPaymentId, providerPaymentId = providerPaymentId)
             ?: return WebhookResult(applied = false, message = "Payment not found")
 
         payment.providerPaymentId = providerPaymentId
 
-        if (event == "payment.succeeded") {
-            if (payment.status == PaymentStatus.SUCCEEDED) {
+        val providerInfo = provider.fetchPayment(providerPaymentId) ?: ProviderPaymentInfo(
+            providerPaymentId = providerPaymentId,
+            status = providerStatusFromWebhook ?: statusFromEvent(event),
+            amountRub = amountRubFromWebhook,
+            confirmationUrl = payment.confirmationUrl,
+            localPaymentId = localPaymentId,
+            clientId = payment.clientId,
+            rentalId = payment.rentalId,
+            paymentType = PaymentType.toApi(payment.paymentType)
+        )
+
+        val validationError = validateProviderPaymentOrMessage(payment, providerInfo)
+        if (validationError != null) {
+            return WebhookResult(applied = false, message = validationError, paymentId = payment.id, clientId = payment.clientId)
+        }
+
+        if (event == "payment.succeeded" && providerInfo.status != PaymentStatus.SUCCEEDED) {
+            return buildWebhookResponse(payment, now, applied = false, "Provider payment is not succeeded")
+        }
+
+        val result = applyProviderStatus(payment, providerInfo.status, now)
+        store.processedWebhookEvents += eventFingerprint
+        return result
+    }
+
+    fun refreshPaymentStatus(paymentId: String, now: LocalDate = LocalDate.now()): PaymentStatusResult {
+        val payment = store.payments.firstOrNull { it.id == paymentId }
+            ?: throw IllegalArgumentException("Payment not found")
+
+        val providerPaymentId = payment.providerPaymentId
+        if (providerPaymentId.isNullOrBlank()) {
+            return PaymentStatusResult(payment = payment, applied = false, message = "No provider payment id")
+        }
+
+        val providerInfo = provider.fetchPayment(providerPaymentId)
+            ?: return PaymentStatusResult(payment = payment, applied = false, message = "Provider payment status unavailable")
+
+        val validationError = validateProviderPaymentOrMessage(payment, providerInfo)
+        if (validationError != null) {
+            return PaymentStatusResult(payment = payment, applied = false, message = validationError)
+        }
+
+        val beforeStatus = payment.status
+        val webhookResult = applyProviderStatus(payment, providerInfo.status, now)
+        return PaymentStatusResult(
+            payment = payment,
+            applied = webhookResult.applied || beforeStatus != payment.status,
+            message = webhookResult.message,
+            debtRub = webhookResult.debtRub
+        )
+    }
+
+    private fun applyProviderStatus(payment: PaymentRecord, status: PaymentStatus, now: LocalDate): WebhookResult {
+        if (status == PaymentStatus.SUCCEEDED) {
+            if (payment.status == PaymentStatus.SUCCEEDED || store.ledger.any { it.sourceId == payment.id }) {
+                payment.status = PaymentStatus.SUCCEEDED
                 return buildWebhookResponse(payment, now, applied = false, "Payment already applied")
             }
 
@@ -100,17 +181,63 @@ class PaymentService(private val store: InMemoryStore) {
                 amountRub = payment.amountRub,
                 createdAt = Instant.now(),
                 sourceId = payment.id,
-                note = "YooKassa payment succeeded"
+                note = "YooKassa payment succeeded",
+                rentalId = payment.rentalId
             )
             return buildWebhookResponse(payment, now, applied = true, "Payment applied")
         }
 
-        if (event == "payment.canceled") {
-            payment.status = PaymentStatus.CANCELED
-            return buildWebhookResponse(payment, now, applied = true, "Payment canceled")
+        if (status == PaymentStatus.CANCELED || status == PaymentStatus.FAILED) {
+            payment.status = status
+            return buildWebhookResponse(payment, now, applied = true, "Payment ${status.name.lowercase()}")
         }
 
-        return WebhookResult(applied = false, message = "Unsupported event: $event")
+        payment.status = status
+        return buildWebhookResponse(payment, now, applied = false, "Payment is ${status.name.lowercase()}")
+    }
+
+    private fun findPayment(localPaymentId: String?, providerPaymentId: String?): PaymentRecord? {
+        if (!localPaymentId.isNullOrBlank()) {
+            store.payments.firstOrNull { it.id == localPaymentId }?.let { return it }
+        }
+        if (!providerPaymentId.isNullOrBlank()) {
+            store.payments.firstOrNull { it.providerPaymentId == providerPaymentId }?.let { return it }
+        }
+        return null
+    }
+
+    private fun validateProviderPayment(paymentId: String, rentalId: String, amountRub: Int, providerPayment: ProviderPaymentInfo) {
+        if (providerPayment.localPaymentId != null && providerPayment.localPaymentId != paymentId) {
+            throw IllegalStateException("YooKassa returned payment with wrong local_payment_id")
+        }
+        if (providerPayment.rentalId != null && providerPayment.rentalId != rentalId) {
+            throw IllegalStateException("YooKassa returned payment with wrong rental_id")
+        }
+        if (providerPayment.amountRub != null && providerPayment.amountRub != amountRub) {
+            throw IllegalStateException("YooKassa returned payment with wrong amount")
+        }
+    }
+
+    private fun validateProviderPaymentOrMessage(payment: PaymentRecord, providerPayment: ProviderPaymentInfo): String? {
+        if (providerPayment.localPaymentId != null && providerPayment.localPaymentId != payment.id) {
+            return "Provider payment local_payment_id mismatch"
+        }
+        if (providerPayment.clientId != null && providerPayment.clientId != payment.clientId) {
+            return "Provider payment client_id mismatch"
+        }
+        if (providerPayment.rentalId != null && providerPayment.rentalId != payment.rentalId) {
+            return "Provider payment rental_id mismatch"
+        }
+        if (providerPayment.amountRub != null && providerPayment.amountRub != payment.amountRub) {
+            return "Provider payment amount mismatch"
+        }
+        return null
+    }
+
+    private fun statusFromEvent(event: String): PaymentStatus = when (event) {
+        "payment.succeeded" -> PaymentStatus.SUCCEEDED
+        "payment.canceled" -> PaymentStatus.CANCELED
+        else -> PaymentStatus.PENDING
     }
 
     private fun buildWebhookResponse(
@@ -133,7 +260,8 @@ class PaymentService(private val store: InMemoryStore) {
             rentalStartDate = terms.rentalStartDate,
             weeklyRateRub = terms.weeklyRateRub,
             entries = store.ledger,
-            asOf = now
+            asOf = now,
+            rentalId = terms.rentalId
         )
         return WebhookResult(
             applied = applied,
@@ -145,6 +273,8 @@ class PaymentService(private val store: InMemoryStore) {
     }
 
     private fun resolveBillingTerms(clientId: String, asOf: LocalDate): BillingTerms {
+        val client = store.clients.firstOrNull { it.id == clientId }
+            ?: throw IllegalStateException("Client not found")
         val clientRentals = store.rentals
             .asSequence()
             .filter { it.clientId == clientId }
@@ -164,8 +294,11 @@ class PaymentService(private val store: InMemoryStore) {
             ?: throw IllegalStateException("Bike not found for active rental")
 
         return BillingTerms(
+            rentalId = activeRental.id,
             rentalStartDate = activeRental.startDate,
-            weeklyRateRub = bike.weeklyRateRub
+            weeklyRateRub = bike.weeklyRateRub,
+            clientName = client.fullName,
+            bikeModel = bike.model
         )
     }
 }
