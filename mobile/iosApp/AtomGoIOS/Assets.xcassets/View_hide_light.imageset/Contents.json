@@ -1,17 +1,17 @@
 {
   "images" : [
     {
-      "filename" : "Email Icon.png",
+      "filename" : "View_hide_light.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
-      "filename" : "Email Icon 1.png",
+      "filename" : "View_hide_light 1.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
     {
-      "filename" : "Email Icon 2.png",
+      "filename" : "View_hide_light 2.png",
       "idiom" : "universal",
       "scale" : "3x"
     }
