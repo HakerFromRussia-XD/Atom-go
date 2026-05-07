@@ -3,6 +3,8 @@ package com.atomgo.backend.infra
 import com.atomgo.backend.domain.LedgerCalculator
 import com.atomgo.backend.domain.LedgerEntry
 import com.atomgo.backend.domain.LedgerType
+import com.atomgo.backend.domain.AdminTaxMode
+import com.atomgo.backend.domain.FiscalizationStatus
 import com.atomgo.backend.domain.PaymentRecord
 import com.atomgo.backend.domain.PaymentStatus
 import com.atomgo.backend.domain.PaymentType
@@ -26,9 +28,36 @@ data class PaymentStatusResult(
     val debtRub: Int? = null
 )
 
+data class FiscalizationConfig(
+    val taxMode: AdminTaxMode,
+    val yooKassaTaxSystemCode: Int = 1,
+    val yooKassaVatCode: Int = 1,
+    val yooKassaPaymentMode: String = "full_payment",
+    val yooKassaPaymentSubject: String = "service",
+    val defaultCustomerEmail: String? = null
+) {
+    companion object {
+        fun fromEnvironment(): FiscalizationConfig {
+            val taxMode = when (System.getenv("ATOMGO_ADMIN_TAX_MODE")?.trim()?.lowercase()) {
+                "ip", "individual_entrepreneur", "individual-entrepreneur" -> AdminTaxMode.INDIVIDUAL_ENTREPRENEUR
+                else -> AdminTaxMode.SELF_EMPLOYED
+            }
+            return FiscalizationConfig(
+                taxMode = taxMode,
+                yooKassaTaxSystemCode = System.getenv("YOOKASSA_RECEIPT_TAX_SYSTEM_CODE")?.toIntOrNull() ?: 1,
+                yooKassaVatCode = System.getenv("YOOKASSA_RECEIPT_VAT_CODE")?.toIntOrNull() ?: 1,
+                yooKassaPaymentMode = System.getenv("YOOKASSA_RECEIPT_PAYMENT_MODE")?.trim()?.ifBlank { null } ?: "full_payment",
+                yooKassaPaymentSubject = System.getenv("YOOKASSA_RECEIPT_PAYMENT_SUBJECT")?.trim()?.ifBlank { null } ?: "service",
+                defaultCustomerEmail = System.getenv("YOOKASSA_RECEIPT_CUSTOMER_EMAIL")?.trim()?.ifBlank { null }
+            )
+        }
+    }
+}
+
 class PaymentService(
     private val store: InMemoryStore,
-    private val provider: PaymentProvider = MockYooKassaPaymentProvider()
+    private val provider: PaymentProvider = MockYooKassaPaymentProvider(),
+    private val fiscalizationConfig: FiscalizationConfig = FiscalizationConfig.fromEnvironment()
 ) {
 
     private data class BillingTerms(
@@ -36,7 +65,8 @@ class PaymentService(
         val rentalStartDate: LocalDate,
         val weeklyRateRub: Int,
         val clientName: String,
-        val bikeModel: String
+        val bikeModel: String,
+        val taxMode: AdminTaxMode
     )
 
     fun createPayment(clientId: String, paymentType: PaymentType, now: LocalDate = LocalDate.now()): PaymentRecord {
@@ -61,6 +91,8 @@ class PaymentService(
 
         val paymentId = UUID.randomUUID().toString()
         val idempotenceKey = UUID.randomUUID().toString()
+        val description = "Atom Go: ${client.fullName}, ${terms.bikeModel}, ${PaymentType.toApi(paymentType)}"
+        val receipt = buildProviderReceipt(terms.taxMode, client.phones.map { it.number })
         val providerPayment = provider.createPayment(
             ProviderCreatePaymentRequest(
                 localPaymentId = paymentId,
@@ -69,7 +101,8 @@ class PaymentService(
                 paymentType = paymentType,
                 amountRub = amount,
                 idempotenceKey = idempotenceKey,
-                description = "Atom Go: ${client.fullName}, ${terms.bikeModel}, ${PaymentType.toApi(paymentType)}"
+                description = description,
+                receipt = receipt
             )
         )
 
@@ -84,11 +117,44 @@ class PaymentService(
             idempotenceKey = idempotenceKey,
             status = providerPayment.status,
             providerPaymentId = providerPayment.providerPaymentId,
-            rentalId = terms.rentalId
+            rentalId = terms.rentalId,
+            taxMode = terms.taxMode,
+            fiscalizationStatus = fiscalizationStatusForCreatedPayment(
+                taxMode = terms.taxMode,
+                receipt = receipt,
+                providerReceiptRegistration = providerPayment.receiptRegistration
+            )
         )
 
         store.payments += payment
         return payment
+    }
+
+    private fun buildProviderReceipt(taxMode: AdminTaxMode, rawCustomerContacts: List<String>): ProviderReceipt? {
+        if (taxMode != AdminTaxMode.INDIVIDUAL_ENTREPRENEUR) return null
+
+        val customerEmail = rawCustomerContacts.firstNotNullOfOrNull(::normalizeReceiptEmail)
+            ?: fiscalizationConfig.defaultCustomerEmail
+            ?: throw IllegalStateException("Client email is required for YooKassa receipt")
+
+        return ProviderReceipt(
+            customerEmail = customerEmail,
+            taxSystemCode = fiscalizationConfig.yooKassaTaxSystemCode,
+            vatCode = fiscalizationConfig.yooKassaVatCode,
+            paymentMode = fiscalizationConfig.yooKassaPaymentMode,
+            paymentSubject = fiscalizationConfig.yooKassaPaymentSubject
+        )
+    }
+
+    private fun fiscalizationStatusForCreatedPayment(
+        taxMode: AdminTaxMode,
+        receipt: ProviderReceipt?,
+        providerReceiptRegistration: String?
+    ): FiscalizationStatus = when {
+        taxMode == AdminTaxMode.SELF_EMPLOYED -> FiscalizationStatus.NPD_RECEIPT_PENDING
+        receipt == null -> FiscalizationStatus.FISCALIZATION_NOT_CONFIGURED
+        providerReceiptRegistration.isNullOrBlank() -> FiscalizationStatus.FISCALIZATION_NOT_CONFIGURED
+        else -> FiscalizationStatus.YOOKASSA_RECEIPT_PENDING
     }
 
     fun applyWebhook(
@@ -298,7 +364,17 @@ class PaymentService(
             rentalStartDate = activeRental.startDate,
             weeklyRateRub = bike.weeklyRateRub,
             clientName = client.fullName,
-            bikeModel = bike.model
+            bikeModel = bike.model,
+            taxMode = activeRental.taxMode
         )
     }
+}
+
+    internal fun normalizeReceiptEmail(rawEmail: String?): String? {
+        val email = rawEmail?.trim()?.lowercase().orEmpty()
+        if (email.isBlank() || email.length > 254 || !email.contains("@")) return null
+    val parts = email.split("@")
+    if (parts.size != 2 || parts.any { it.isBlank() }) return null
+    if (!parts[1].contains(".")) return null
+    return email
 }

@@ -40,7 +40,7 @@ final class ClientHomeViewModel: ObservableObject {
         }
     }
 
-    func createPayment(type: ClientPaymentType) {
+    func createPayment(type: ClientPaymentType, receiptEmail: String? = nil) {
         guard !isCreatingPayment else { return }
         guard case let .loaded(dashboard) = state else { return }
         if type == .debtExact && dashboard.presets.debtExactRub <= 0 {
@@ -55,11 +55,22 @@ final class ClientHomeViewModel: ObservableObject {
 
         Task {
             do {
+                if let receiptEmail {
+                    try await apiService.updateClientReceiptEmail(
+                        accessToken: session.accessToken,
+                        email: receiptEmail
+                    )
+                }
                 let result = try await apiService.createPayment(
                     accessToken: session.accessToken,
                     paymentType: type
                 )
                 paymentResult = result
+                if result.taxMode == "individual_entrepreneur" &&
+                    result.fiscalizationStatus == "fiscalization_not_configured" {
+                    paymentErrorMessage = "Чек 54-ФЗ не будет отправлен: в ЮKassa не настроена фискализация магазина."
+                }
+                load(clearPaymentMessages: false)
             } catch {
                 paymentErrorMessage = error.localizedDescription
             }
@@ -86,7 +97,9 @@ final class ClientHomeViewModel: ObservableObject {
                     amountRub: status.amountRub,
                     confirmationUrl: status.confirmationUrl,
                     idempotenceKey: paymentResult?.idempotenceKey ?? "",
-                    status: status.status
+                    status: status.status,
+                    taxMode: status.taxMode ?? paymentResult?.taxMode,
+                    fiscalizationStatus: status.fiscalizationStatus ?? paymentResult?.fiscalizationStatus
                 )
                 switch status.status {
                 case "succeeded":

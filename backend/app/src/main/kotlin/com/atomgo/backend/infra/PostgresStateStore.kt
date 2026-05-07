@@ -1,9 +1,11 @@
 package com.atomgo.backend.infra
 
 import com.atomgo.backend.domain.AppUser
+import com.atomgo.backend.domain.AdminTaxMode
 import com.atomgo.backend.domain.BikeAccount
 import com.atomgo.backend.domain.ClientAccount
 import com.atomgo.backend.domain.ClientPhone
+import com.atomgo.backend.domain.FiscalizationStatus
 import com.atomgo.backend.domain.LedgerEntry
 import com.atomgo.backend.domain.LedgerType
 import com.atomgo.backend.domain.PaymentRecord
@@ -81,10 +83,12 @@ class PostgresStateStore private constructor(
                     id TEXT PRIMARY KEY,
                     full_name TEXT NOT NULL,
                     address TEXT NOT NULL DEFAULT '',
-                    passport_data TEXT NOT NULL DEFAULT ''
+                    passport_data TEXT NOT NULL DEFAULT '',
+                    admin_id TEXT
                 )
                 """.trimIndent()
             )
+            statement.execute("ALTER TABLE atomgo_clients ADD COLUMN IF NOT EXISTS admin_id TEXT")
             statement.execute(
                 """
                 CREATE TABLE IF NOT EXISTS atomgo_client_phones (
@@ -106,10 +110,12 @@ class PostgresStateStore private constructor(
                     frame_serial_number TEXT NOT NULL,
                     motor_serial_number TEXT NOT NULL,
                     battery_serial_number_1 TEXT NOT NULL,
-                    battery_serial_number_2 TEXT
+                    battery_serial_number_2 TEXT,
+                    admin_id TEXT
                 )
                 """.trimIndent()
             )
+            statement.execute("ALTER TABLE atomgo_bikes ADD COLUMN IF NOT EXISTS admin_id TEXT")
             statement.execute(
                 """
                 CREATE TABLE IF NOT EXISTS atomgo_rentals (
@@ -120,10 +126,14 @@ class PostgresStateStore private constructor(
                     end_date DATE,
                     video_url TEXT,
                     contract_url TEXT,
-                    comment TEXT
+                    comment TEXT,
+                    admin_id TEXT,
+                    tax_mode TEXT NOT NULL DEFAULT 'SELF_EMPLOYED'
                 )
                 """.trimIndent()
             )
+            statement.execute("ALTER TABLE atomgo_rentals ADD COLUMN IF NOT EXISTS admin_id TEXT")
+            statement.execute("ALTER TABLE atomgo_rentals ADD COLUMN IF NOT EXISTS tax_mode TEXT NOT NULL DEFAULT 'SELF_EMPLOYED'")
             statement.execute(
                 """
                 CREATE TABLE IF NOT EXISTS atomgo_ledger_entries (
@@ -151,22 +161,28 @@ class PostgresStateStore private constructor(
                     confirmation_url TEXT NOT NULL,
                     idempotence_key TEXT NOT NULL,
                     status TEXT NOT NULL,
-                    provider_payment_id TEXT
+                    provider_payment_id TEXT,
+                    tax_mode TEXT NOT NULL DEFAULT 'SELF_EMPLOYED',
+                    fiscalization_status TEXT NOT NULL DEFAULT 'NPD_RECEIPT_PENDING'
                 )
                 """.trimIndent()
             )
             statement.execute("ALTER TABLE atomgo_payments ADD COLUMN IF NOT EXISTS rental_id TEXT")
+            statement.execute("ALTER TABLE atomgo_payments ADD COLUMN IF NOT EXISTS tax_mode TEXT NOT NULL DEFAULT 'SELF_EMPLOYED'")
+            statement.execute("ALTER TABLE atomgo_payments ADD COLUMN IF NOT EXISTS fiscalization_status TEXT NOT NULL DEFAULT 'NPD_RECEIPT_PENDING'")
             statement.execute(
                 """
-                CREATE TABLE IF NOT EXISTS atomgo_users (
-                    id TEXT PRIMARY KEY,
-                    login TEXT NOT NULL UNIQUE,
-                    password TEXT NOT NULL,
-                    role TEXT NOT NULL,
-                    client_id TEXT REFERENCES atomgo_clients(id) ON DELETE SET NULL
-                )
-                """.trimIndent()
-            )
+	                CREATE TABLE IF NOT EXISTS atomgo_users (
+	                    id TEXT PRIMARY KEY,
+	                    login TEXT NOT NULL UNIQUE,
+	                    password TEXT NOT NULL,
+	                    role TEXT NOT NULL,
+	                    client_id TEXT REFERENCES atomgo_clients(id) ON DELETE SET NULL,
+	                    tax_mode TEXT NOT NULL DEFAULT 'SELF_EMPLOYED'
+	                )
+	                """.trimIndent()
+	            )
+	            statement.execute("ALTER TABLE atomgo_users ADD COLUMN IF NOT EXISTS tax_mode TEXT NOT NULL DEFAULT 'SELF_EMPLOYED'")
             statement.execute(
                 """
                 CREATE TABLE IF NOT EXISTS atomgo_sessions (
@@ -348,7 +364,7 @@ class PostgresStateStore private constructor(
         val clients = linkedMapOf<String, ClientAccount>()
         connection.prepareStatement(
             """
-            SELECT id, full_name, address, passport_data
+	            SELECT id, full_name, address, passport_data, admin_id
             FROM atomgo_clients
             ORDER BY id
             """.trimIndent()
@@ -357,10 +373,11 @@ class PostgresStateStore private constructor(
                 while (rs.next()) {
                     val client = ClientAccount(
                         id = rs.getString("id"),
-                        fullName = rs.getString("full_name"),
-                        address = rs.getString("address"),
-                        passportData = rs.getString("passport_data"),
-                        phones = mutableListOf()
+	                        fullName = rs.getString("full_name"),
+	                        address = rs.getString("address"),
+	                        passportData = rs.getString("passport_data"),
+	                        phones = mutableListOf(),
+	                        adminId = rs.getString("admin_id")
                     )
                     clients[client.id] = client
                 }
@@ -397,7 +414,8 @@ class PostgresStateStore private constructor(
                 frame_serial_number,
                 motor_serial_number,
                 battery_serial_number_1,
-                battery_serial_number_2
+	                battery_serial_number_2,
+	                admin_id
             FROM atomgo_bikes
             ORDER BY id
             """.trimIndent()
@@ -410,9 +428,10 @@ class PostgresStateStore private constructor(
                         model = rs.getString("model"),
                         weeklyRateRub = rs.getInt("weekly_rate_rub"),
                         frameSerialNumber = rs.getString("frame_serial_number"),
-                        motorSerialNumber = rs.getString("motor_serial_number"),
-                        batterySerialNumber1 = rs.getString("battery_serial_number_1"),
-                        batterySerialNumber2 = rs.getString("battery_serial_number_2")
+	                        motorSerialNumber = rs.getString("motor_serial_number"),
+	                        batterySerialNumber1 = rs.getString("battery_serial_number_1"),
+	                        batterySerialNumber2 = rs.getString("battery_serial_number_2"),
+	                        adminId = rs.getString("admin_id")
                     )
                 }
             }
@@ -421,7 +440,7 @@ class PostgresStateStore private constructor(
         val rentals = mutableListOf<RentalRecord>()
         connection.prepareStatement(
             """
-            SELECT id, client_id, bike_id, start_date, end_date, video_url, contract_url, comment
+            SELECT id, client_id, bike_id, start_date, end_date, video_url, contract_url, comment, admin_id, tax_mode
             FROM atomgo_rentals
             ORDER BY start_date DESC, id
             """.trimIndent()
@@ -436,7 +455,9 @@ class PostgresStateStore private constructor(
                         endDate = rs.getDate("end_date")?.toLocalDate(),
                         videoUrl = rs.getString("video_url"),
                         contractUrl = rs.getString("contract_url"),
-                        comment = rs.getString("comment")
+                        comment = rs.getString("comment"),
+                        adminId = rs.getString("admin_id"),
+                        taxMode = enumValueOf<AdminTaxMode>(rs.getString("tax_mode"))
                     )
                 }
             }
@@ -470,7 +491,8 @@ class PostgresStateStore private constructor(
         val payments = mutableListOf<PaymentRecord>()
         connection.prepareStatement(
             """
-            SELECT id, client_id, rental_id, payment_type, amount_rub, confirmation_url, idempotence_key, status, provider_payment_id
+            SELECT id, client_id, rental_id, payment_type, amount_rub, confirmation_url, idempotence_key, status, provider_payment_id,
+                   tax_mode, fiscalization_status
             FROM atomgo_payments
             ORDER BY id
             """.trimIndent()
@@ -486,7 +508,9 @@ class PostgresStateStore private constructor(
                         idempotenceKey = rs.getString("idempotence_key"),
                         status = enumValueOf<PaymentStatus>(rs.getString("status")),
                         providerPaymentId = rs.getString("provider_payment_id"),
-                        rentalId = rs.getString("rental_id")
+                        rentalId = rs.getString("rental_id"),
+                        taxMode = enumValueOf<AdminTaxMode>(rs.getString("tax_mode")),
+                        fiscalizationStatus = enumValueOf<FiscalizationStatus>(rs.getString("fiscalization_status"))
                     )
                 }
             }
@@ -495,7 +519,7 @@ class PostgresStateStore private constructor(
         val users = mutableListOf<AppUser>()
         connection.prepareStatement(
             """
-            SELECT id, login, password, role, client_id
+	            SELECT id, login, password, role, client_id, tax_mode
             FROM atomgo_users
             ORDER BY id
             """.trimIndent()
@@ -505,9 +529,10 @@ class PostgresStateStore private constructor(
                     users += AppUser(
                         id = rs.getString("id"),
                         login = rs.getString("login"),
-                        password = rs.getString("password"),
-                        role = enumValueOf<Role>(rs.getString("role")),
-                        clientId = rs.getString("client_id")
+	                        password = rs.getString("password"),
+	                        role = enumValueOf<Role>(rs.getString("role")),
+	                        clientId = rs.getString("client_id"),
+	                        taxMode = enumValueOf<AdminTaxMode>(rs.getString("tax_mode"))
                     )
                 }
             }
@@ -557,8 +582,8 @@ class PostgresStateStore private constructor(
 
         connection.prepareStatement(
             """
-            INSERT INTO atomgo_clients (id, full_name, address, passport_data)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO atomgo_clients (id, full_name, address, passport_data, admin_id)
+            VALUES (?, ?, ?, ?, ?)
             """.trimIndent()
         ).use { statement ->
             state.clients.forEach { client ->
@@ -566,6 +591,7 @@ class PostgresStateStore private constructor(
                 statement.setString(2, client.fullName)
                 statement.setString(3, client.address)
                 statement.setString(4, client.passportData)
+                statement.setString(5, client.adminId)
                 statement.addBatch()
             }
             statement.executeBatch()
@@ -599,9 +625,10 @@ class PostgresStateStore private constructor(
                 frame_serial_number,
                 motor_serial_number,
                 battery_serial_number_1,
-                battery_serial_number_2
+                battery_serial_number_2,
+                admin_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent()
         ).use { statement ->
             state.bikes.forEach { bike ->
@@ -613,6 +640,7 @@ class PostgresStateStore private constructor(
                 statement.setString(6, bike.motorSerialNumber)
                 statement.setString(7, bike.batterySerialNumber1)
                 statement.setString(8, bike.batterySerialNumber2)
+                statement.setString(9, bike.adminId)
                 statement.addBatch()
             }
             statement.executeBatch()
@@ -628,9 +656,11 @@ class PostgresStateStore private constructor(
                 end_date,
                 video_url,
                 contract_url,
-                comment
+                comment,
+                admin_id,
+                tax_mode
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent()
         ).use { statement ->
             state.rentals.forEach { rental ->
@@ -642,6 +672,8 @@ class PostgresStateStore private constructor(
                 statement.setString(6, rental.videoUrl)
                 statement.setString(7, rental.contractUrl)
                 statement.setString(8, rental.comment)
+                statement.setString(9, rental.adminId)
+                statement.setString(10, rental.taxMode.name)
                 statement.addBatch()
             }
             statement.executeBatch()
@@ -689,9 +721,11 @@ class PostgresStateStore private constructor(
                 confirmation_url,
                 idempotence_key,
                 status,
-                provider_payment_id
+                provider_payment_id,
+                tax_mode,
+                fiscalization_status
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent()
         ).use { statement ->
             state.payments.forEach { payment ->
@@ -704,6 +738,8 @@ class PostgresStateStore private constructor(
                 statement.setString(7, payment.idempotenceKey)
                 statement.setString(8, payment.status.name)
                 statement.setString(9, payment.providerPaymentId)
+                statement.setString(10, payment.taxMode.name)
+                statement.setString(11, payment.fiscalizationStatus.name)
                 statement.addBatch()
             }
             statement.executeBatch()
@@ -711,8 +747,8 @@ class PostgresStateStore private constructor(
 
         connection.prepareStatement(
             """
-            INSERT INTO atomgo_users (id, login, password, role, client_id)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO atomgo_users (id, login, password, role, client_id, tax_mode)
+            VALUES (?, ?, ?, ?, ?, ?)
             """.trimIndent()
         ).use { statement ->
             state.users.forEach { user ->
@@ -721,6 +757,7 @@ class PostgresStateStore private constructor(
                 statement.setString(3, user.password)
                 statement.setString(4, user.role.name)
                 statement.setString(5, user.clientId)
+                statement.setString(6, user.taxMode.name)
                 statement.addBatch()
             }
             statement.executeBatch()
@@ -870,7 +907,8 @@ private object InMemoryStoreJsonMapper {
         val login: String,
         val password: String,
         val role: String,
-        val clientId: String? = null
+        val clientId: String? = null,
+        val taxMode: String = AdminTaxMode.SELF_EMPLOYED.name
     )
 
     @Serializable
@@ -888,7 +926,8 @@ private object InMemoryStoreJsonMapper {
         val phones: List<PersistedClientPhone>,
         val bikeModel: String? = null,
         val bikeAvatarUrl: String? = null,
-        val weeklyRateRub: Int? = null
+        val weeklyRateRub: Int? = null,
+        val adminId: String? = null
     )
 
     @Serializable
@@ -900,7 +939,8 @@ private object InMemoryStoreJsonMapper {
         val frameSerialNumber: String,
         val motorSerialNumber: String,
         val batterySerialNumber1: String,
-        val batterySerialNumber2: String? = null
+        val batterySerialNumber2: String? = null,
+        val adminId: String? = null
     )
 
     @Serializable
@@ -914,7 +954,9 @@ private object InMemoryStoreJsonMapper {
         val bikeAvatarUrl: String? = null,
         val videoUrl: String? = null,
         val contractUrl: String? = null,
-        val comment: String? = null
+        val comment: String? = null,
+        val adminId: String? = null,
+        val taxMode: String = AdminTaxMode.SELF_EMPLOYED.name
     )
 
     @Serializable
@@ -940,7 +982,9 @@ private object InMemoryStoreJsonMapper {
         val confirmationUrl: String,
         val idempotenceKey: String,
         val status: String,
-        val providerPaymentId: String? = null
+        val providerPaymentId: String? = null,
+        val taxMode: String = AdminTaxMode.SELF_EMPLOYED.name,
+        val fiscalizationStatus: String = FiscalizationStatus.NPD_RECEIPT_PENDING.name
     )
 
     @Serializable
@@ -968,9 +1012,10 @@ private object InMemoryStoreJsonMapper {
                 PersistedUser(
                     id = it.id,
                     login = it.login,
-                    password = it.password,
-                    role = it.role.name,
-                    clientId = it.clientId
+	                    password = it.password,
+	                    role = it.role.name,
+	                    clientId = it.clientId,
+	                    taxMode = it.taxMode.name
                 )
             },
             clients = store.clients.map {
@@ -979,10 +1024,11 @@ private object InMemoryStoreJsonMapper {
                     fullName = it.fullName,
                     address = it.address,
                     passportData = it.passportData,
-                    phones = it.phones.map { phone ->
-                        PersistedClientPhone(label = phone.label, number = phone.number)
-                    }
-                )
+	                    phones = it.phones.map { phone ->
+	                        PersistedClientPhone(label = phone.label, number = phone.number)
+	                    },
+	                    adminId = it.adminId
+	                )
             },
             bikes = store.bikes.map {
                 PersistedBike(
@@ -991,10 +1037,11 @@ private object InMemoryStoreJsonMapper {
                     model = it.model,
                     weeklyRateRub = it.weeklyRateRub,
                     frameSerialNumber = it.frameSerialNumber,
-                    motorSerialNumber = it.motorSerialNumber,
-                    batterySerialNumber1 = it.batterySerialNumber1,
-                    batterySerialNumber2 = it.batterySerialNumber2
-                )
+	                    motorSerialNumber = it.motorSerialNumber,
+	                    batterySerialNumber1 = it.batterySerialNumber1,
+	                    batterySerialNumber2 = it.batterySerialNumber2,
+	                    adminId = it.adminId
+	                )
             },
             rentals = store.rentals.map {
                 PersistedRental(
@@ -1005,7 +1052,9 @@ private object InMemoryStoreJsonMapper {
                     endDate = it.endDate?.toString(),
                     videoUrl = it.videoUrl,
                     contractUrl = it.contractUrl,
-                    comment = it.comment
+                    comment = it.comment,
+                    adminId = it.adminId,
+                    taxMode = it.taxMode.name
                 )
             },
             ledger = store.ledger.map {
@@ -1031,7 +1080,9 @@ private object InMemoryStoreJsonMapper {
                     confirmationUrl = it.confirmationUrl,
                     idempotenceKey = it.idempotenceKey,
                     status = it.status.name,
-                    providerPaymentId = it.providerPaymentId
+                    providerPaymentId = it.providerPaymentId,
+                    taxMode = it.taxMode.name,
+                    fiscalizationStatus = it.fiscalizationStatus.name
                 )
             },
             sessions = store.sessions.mapValues { (_, value) ->
@@ -1054,16 +1105,17 @@ private object InMemoryStoreJsonMapper {
 
         val bikesById = linkedMapOf<String, BikeAccount>()
         persisted.bikes.forEach { bike ->
-            bikesById[bike.id] = BikeAccount(
+	            bikesById[bike.id] = BikeAccount(
                 id = bike.id,
                 photoUrl = bike.photoUrl,
                 model = bike.model,
                 weeklyRateRub = bike.weeklyRateRub,
                 frameSerialNumber = bike.frameSerialNumber,
                 motorSerialNumber = bike.motorSerialNumber,
-                batterySerialNumber1 = bike.batterySerialNumber1,
-                batterySerialNumber2 = bike.batterySerialNumber2
-            )
+	                batterySerialNumber1 = bike.batterySerialNumber1,
+	                batterySerialNumber2 = bike.batterySerialNumber2,
+	                adminId = bike.adminId
+	            )
         }
 
         fun ensureLegacyBike(
@@ -1087,9 +1139,10 @@ private object InMemoryStoreJsonMapper {
                 weeklyRateRub = weeklyRate,
                 frameSerialNumber = "$bikeId-frame",
                 motorSerialNumber = "$bikeId-motor",
-                batterySerialNumber1 = "$bikeId-battery-1",
-                batterySerialNumber2 = null
-            )
+	                batterySerialNumber1 = "$bikeId-battery-1",
+	                batterySerialNumber2 = null,
+	                adminId = persisted.rentals.firstOrNull { it.bikeId == bikeId }?.adminId
+	            )
         }
 
         val rentals = persisted.rentals.map { rental ->
@@ -1108,7 +1161,9 @@ private object InMemoryStoreJsonMapper {
                 endDate = rental.endDate?.let(LocalDate::parse),
                 videoUrl = rental.videoUrl,
                 contractUrl = rental.contractUrl,
-                comment = rental.comment
+                comment = rental.comment,
+                adminId = rental.adminId,
+                taxMode = enumValueOf<AdminTaxMode>(rental.taxMode)
             )
         }.toMutableList()
 
@@ -1117,10 +1172,11 @@ private object InMemoryStoreJsonMapper {
                 AppUser(
                     id = it.id,
                     login = it.login,
-                    password = it.password,
-                    role = enumValueOf<Role>(it.role),
-                    clientId = it.clientId
-                )
+	                    password = it.password,
+	                    role = enumValueOf<Role>(it.role),
+	                    clientId = it.clientId,
+	                    taxMode = enumValueOf<AdminTaxMode>(it.taxMode)
+	                )
             }.toMutableList(),
             clients = persisted.clients.map {
                 ClientAccount(
@@ -1128,10 +1184,11 @@ private object InMemoryStoreJsonMapper {
                     fullName = it.fullName,
                     address = it.address,
                     passportData = it.passportData,
-                    phones = it.phones.map { phone ->
-                        ClientPhone(label = phone.label, number = phone.number)
-                    }.toMutableList()
-                )
+	                    phones = it.phones.map { phone ->
+	                        ClientPhone(label = phone.label, number = phone.number)
+	                    }.toMutableList(),
+	                    adminId = it.adminId
+	                )
             }.toMutableList(),
             bikes = bikesById.values.toMutableList(),
             rentals = rentals,
@@ -1158,7 +1215,9 @@ private object InMemoryStoreJsonMapper {
                     idempotenceKey = it.idempotenceKey,
                     status = enumValueOf<PaymentStatus>(it.status),
                     providerPaymentId = it.providerPaymentId,
-                    rentalId = it.rentalId
+                    rentalId = it.rentalId,
+                    taxMode = enumValueOf<AdminTaxMode>(it.taxMode),
+                    fiscalizationStatus = enumValueOf<FiscalizationStatus>(it.fiscalizationStatus)
                 )
             }.toMutableList(),
             sessions = persisted.sessions.mapValues { (_, value) ->

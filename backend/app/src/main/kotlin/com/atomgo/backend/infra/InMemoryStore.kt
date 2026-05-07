@@ -1,6 +1,7 @@
 package com.atomgo.backend.infra
 
 import com.atomgo.backend.domain.AppUser
+import com.atomgo.backend.domain.AdminTaxMode
 import com.atomgo.backend.domain.BikeAccount
 import com.atomgo.backend.domain.ClientAccount
 import com.atomgo.backend.domain.LedgerEntry
@@ -29,6 +30,7 @@ class InMemoryStore(
             val bikeId1 = "bike-001"
             val bikeId2 = "bike-002"
             val adminId = "admin-001"
+            val adminIpId = "admin-ip-001"
             val clientUserId = "user-client-001"
             val clientUserId2 = "user-client-002"
 
@@ -38,7 +40,16 @@ class InMemoryStore(
                     login = "admin",
                     password = "admin123",
                     role = Role.ADMIN,
-                    clientId = null
+                    clientId = null,
+                    taxMode = AdminTaxMode.SELF_EMPLOYED
+                ),
+                AppUser(
+                    id = adminIpId,
+                    login = "admin_ip",
+                    password = "adminip123",
+                    role = Role.ADMIN,
+                    clientId = null,
+                    taxMode = AdminTaxMode.INDIVIDUAL_ENTREPRENEUR
                 ),
                 AppUser(
                     id = clientUserId,
@@ -65,7 +76,8 @@ class InMemoryStore(
                     phones = mutableListOf(
                         com.atomgo.backend.domain.ClientPhone(label = "Рабочий (TG)", number = "+7 900 123-45-67"),
                         com.atomgo.backend.domain.ClientPhone(label = "Домашний", number = "+7 495 222-33-44")
-                    )
+                    ),
+                    adminId = adminId
                 ),
                 ClientAccount(
                     id = clientId2,
@@ -74,7 +86,8 @@ class InMemoryStore(
                     passportData = "40 22 987654, выдан 01.02.2020",
                     phones = mutableListOf(
                         com.atomgo.backend.domain.ClientPhone(label = "Рабочий", number = "+7 911 333-22-11")
-                    )
+                    ),
+                    adminId = adminId
                 )
             )
 
@@ -87,7 +100,8 @@ class InMemoryStore(
                     frameSerialNumber = "NB-FRAME-001",
                     motorSerialNumber = "NB-MOTOR-001",
                     batterySerialNumber1 = "NB-BAT-A-001",
-                    batterySerialNumber2 = "NB-BAT-B-001"
+                    batterySerialNumber2 = "NB-BAT-B-001",
+                    adminId = adminId
                 ),
                 BikeAccount(
                     id = bikeId2,
@@ -97,7 +111,8 @@ class InMemoryStore(
                     frameSerialNumber = "AV-FRAME-002",
                     motorSerialNumber = "AV-MOTOR-002",
                     batterySerialNumber1 = "AV-BAT-A-002",
-                    batterySerialNumber2 = null
+                    batterySerialNumber2 = null,
+                    adminId = adminId
                 )
             )
 
@@ -110,7 +125,9 @@ class InMemoryStore(
                     endDate = null,
                     videoUrl = "https://youtube.com/watch?v=demo-acceptance-1",
                     contractUrl = "https://drive.google.com/file/d/contract-1/view",
-                    comment = "Передан с новым аккумулятором"
+                    comment = "Передан с новым аккумулятором",
+                    adminId = adminId,
+                    taxMode = AdminTaxMode.SELF_EMPLOYED
                 ),
                 RentalRecord(
                     id = "rental-000",
@@ -120,7 +137,9 @@ class InMemoryStore(
                     endDate = LocalDate.now().minusDays(48),
                     videoUrl = "https://youtube.com/watch?v=demo-acceptance-old",
                     contractUrl = "https://drive.google.com/file/d/contract-old/view",
-                    comment = "Возврат по апгрейду на новую модель"
+                    comment = "Возврат по апгрейду на новую модель",
+                    adminId = adminId,
+                    taxMode = AdminTaxMode.SELF_EMPLOYED
                 ),
                 RentalRecord(
                     id = "rental-002",
@@ -130,7 +149,9 @@ class InMemoryStore(
                     endDate = null,
                     videoUrl = "https://youtube.com/watch?v=demo-acceptance-2",
                     contractUrl = "https://drive.google.com/file/d/contract-2/view",
-                    comment = null
+                    comment = null,
+                    adminId = adminId,
+                    taxMode = AdminTaxMode.SELF_EMPLOYED
                 )
             )
 

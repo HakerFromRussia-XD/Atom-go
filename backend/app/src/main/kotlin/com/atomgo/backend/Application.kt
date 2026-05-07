@@ -7,11 +7,13 @@ import com.atomgo.backend.domain.PaymentType
 import com.atomgo.backend.domain.PricingRules
 import com.atomgo.backend.domain.Role
 import com.atomgo.backend.domain.AppUser
+import com.atomgo.backend.domain.AdminTaxMode
 import com.atomgo.backend.domain.BikeAccount
 import com.atomgo.backend.domain.ClientAccount
 import com.atomgo.backend.domain.ClientPhone
 import com.atomgo.backend.domain.RentalRecord
 import com.atomgo.backend.infra.AuthService
+import com.atomgo.backend.infra.FiscalizationConfig
 import com.atomgo.backend.infra.InMemoryStore
 import com.atomgo.backend.infra.PaymentService
 import com.atomgo.backend.infra.PostgresStateStore
@@ -107,7 +109,11 @@ private data class ApiClientDashboardResponse(
     val debtRub: Int,
     @SerialName("total_adjustment_rub")
     val totalAdjustmentRub: Int,
-    val presets: ApiClientPaymentPresetsResponse
+    val presets: ApiClientPaymentPresetsResponse,
+    @SerialName("tax_mode")
+    val taxMode: String,
+    @SerialName("requires_receipt_email")
+    val requiresReceiptEmail: Boolean
 )
 
 @Serializable
@@ -158,7 +164,11 @@ private data class ApiAdminRentalHistoryItemResponse(
     val videoUrl: String?,
     @SerialName("contract_url")
     val contractUrl: String?,
-    val comment: String?
+    val comment: String?,
+    @SerialName("admin_id")
+    val adminId: String?,
+    @SerialName("tax_mode")
+    val taxMode: String
 )
 
 @Serializable
@@ -351,6 +361,20 @@ private data class ApiAdminDeleteRentalResponse(
 )
 
 @Serializable
+private data class ApiAdminDeleteClientResponse(
+    @SerialName("client_id")
+    val clientId: String,
+    val deleted: Boolean
+)
+
+@Serializable
+private data class ApiAdminDeleteBikeResponse(
+    @SerialName("bike_id")
+    val bikeId: String,
+    val deleted: Boolean
+)
+
+@Serializable
 private data class ApiPaymentCreateResponse(
     @SerialName("payment_id")
     val paymentId: String,
@@ -360,6 +384,10 @@ private data class ApiPaymentCreateResponse(
     val confirmationUrl: String,
     @SerialName("idempotence_key")
     val idempotenceKey: String,
+    @SerialName("tax_mode")
+    val taxMode: String,
+    @SerialName("fiscalization_status")
+    val fiscalizationStatus: String,
     val status: String
 )
 
@@ -374,8 +402,30 @@ private data class ApiPaymentStatusResponse(
     @SerialName("provider_payment_id")
     val providerPaymentId: String?,
     val status: String,
+    @SerialName("tax_mode")
+    val taxMode: String,
+    @SerialName("fiscalization_status")
+    val fiscalizationStatus: String,
     @SerialName("debt_rub")
     val debtRub: Int?
+)
+
+@Serializable
+private data class ApiPaymentCreateRequest(
+    @SerialName("payment_type")
+    val paymentType: String
+)
+
+@Serializable
+private data class ApiClientReceiptEmailRequest(
+    val email: String
+)
+
+@Serializable
+private data class ApiClientReceiptEmailResponse(
+    @SerialName("client_id")
+    val clientId: String,
+    val email: String
 )
 
 @Serializable
@@ -395,13 +445,20 @@ private data class ClientBillingSnapshot(
     val rentalStartDate: LocalDate,
     val weeklyRateRub: Int,
     val bikeModel: String,
-    val bikePhotoUrl: String?
+    val bikePhotoUrl: String?,
+    val taxMode: AdminTaxMode
 )
 
-private fun resolveCurrentRental(clientId: String, store: InMemoryStore, asOf: LocalDate): RentalRecord? {
+private fun resolveCurrentRental(
+    clientId: String,
+    store: InMemoryStore,
+    asOf: LocalDate,
+    adminId: String? = null
+): RentalRecord? {
     val clientRentals = store.rentals
         .asSequence()
         .filter { it.clientId == clientId }
+        .filter { adminId == null || it.adminId == adminId }
         .sortedByDescending { it.startDate }
         .toList()
     if (clientRentals.isEmpty()) return null
@@ -411,16 +468,35 @@ private fun resolveCurrentRental(clientId: String, store: InMemoryStore, asOf: L
     } ?: clientRentals.first()
 }
 
-private fun resolveClientBillingSnapshot(clientId: String, store: InMemoryStore, asOf: LocalDate): ClientBillingSnapshot? {
-    val rental = resolveCurrentRental(clientId = clientId, store = store, asOf = asOf) ?: return null
+private fun resolveClientBillingSnapshot(
+    clientId: String,
+    store: InMemoryStore,
+    asOf: LocalDate,
+    adminId: String? = null
+): ClientBillingSnapshot? {
+    val rental = resolveCurrentRental(clientId = clientId, store = store, asOf = asOf, adminId = adminId) ?: return null
     val bike = store.bikes.firstOrNull { it.id == rental.bikeId } ?: return null
     return ClientBillingSnapshot(
         rentalId = rental.id,
         rentalStartDate = rental.startDate,
         weeklyRateRub = bike.weeklyRateRub,
         bikeModel = bike.model,
-        bikePhotoUrl = bike.photoUrl
+        bikePhotoUrl = bike.photoUrl,
+        taxMode = rental.taxMode
     )
+}
+
+private fun clientHasReceiptEmail(client: ClientAccount): Boolean {
+    return client.phones.any { normalizeReceiptEmail(it.number) != null }
+}
+
+private fun normalizeReceiptEmail(rawEmail: String?): String? {
+    val email = rawEmail?.trim()?.lowercase().orEmpty()
+    if (email.isBlank() || email.length > 254 || !email.contains("@")) return null
+    val parts = email.split("@")
+    if (parts.size != 2 || parts.any { it.isBlank() }) return null
+    if (!parts[1].contains(".")) return null
+    return email
 }
 
 private fun bikeToApiResponse(bike: BikeAccount): ApiAdminBikeResponse {
@@ -443,8 +519,85 @@ private fun bikeContainsSerial(bike: BikeAccount, serial: String): Boolean {
         (bike.batterySerialNumber2?.equals(serial, ignoreCase = true) == true)
 }
 
+private fun adminOwnsClient(store: InMemoryStore, adminId: String, clientId: String): Boolean {
+    val client = store.clients.firstOrNull { it.id == clientId } ?: return false
+    return client.adminId == adminId || store.rentals.any { it.clientId == clientId && it.adminId == adminId }
+}
+
+private fun adminOwnsBike(store: InMemoryStore, adminId: String, bikeId: String): Boolean {
+    val bike = store.bikes.firstOrNull { it.id == bikeId } ?: return false
+    return bike.adminId == adminId || store.rentals.any { it.bikeId == bikeId && it.adminId == adminId }
+}
+
+private fun currentAdminTaxMode(store: InMemoryStore, adminId: String): AdminTaxMode {
+    return store.users.firstOrNull { it.id == adminId && it.role == Role.ADMIN }?.taxMode
+        ?: AdminTaxMode.SELF_EMPLOYED
+}
+
+private fun ensureDefaultAdminsAndOwnership(store: InMemoryStore): Boolean {
+    var changed = false
+    val selfEmployedAdminId = "admin-001"
+    val ipAdminId = "admin-ip-001"
+
+    fun upsertAdmin(id: String, login: String, password: String, taxMode: AdminTaxMode) {
+        val index = store.users.indexOfFirst { it.id == id }
+        if (index >= 0) {
+            val user = store.users[index]
+            if (user.role != Role.ADMIN || user.taxMode != taxMode || user.login != login || user.password != password) {
+                store.users[index] = user.copy(login = login, password = password, role = Role.ADMIN, clientId = null, taxMode = taxMode)
+                changed = true
+            }
+            return
+        }
+        if (store.users.none { it.login == login }) {
+            store.users += AppUser(
+                id = id,
+                login = login,
+                password = password,
+                role = Role.ADMIN,
+                clientId = null,
+                taxMode = taxMode
+            )
+            changed = true
+        }
+    }
+
+    upsertAdmin(selfEmployedAdminId, "admin", "admin123", AdminTaxMode.SELF_EMPLOYED)
+    upsertAdmin(ipAdminId, "admin_ip", "adminip123", AdminTaxMode.INDIVIDUAL_ENTREPRENEUR)
+
+    store.clients.replaceAll { client ->
+        if (client.adminId == null) {
+            changed = true
+            client.copy(adminId = selfEmployedAdminId)
+        } else {
+            client
+        }
+    }
+    store.bikes.replaceAll { bike ->
+        if (bike.adminId == null) {
+            changed = true
+            bike.copy(adminId = selfEmployedAdminId)
+        } else {
+            bike
+        }
+    }
+    store.rentals.replaceAll { rental ->
+        val nextAdminId = rental.adminId ?: selfEmployedAdminId
+        val nextTaxMode = if (nextAdminId == selfEmployedAdminId) AdminTaxMode.SELF_EMPLOYED else rental.taxMode
+        if (rental.adminId != nextAdminId || rental.taxMode != nextTaxMode) {
+            changed = true
+            rental.copy(adminId = nextAdminId, taxMode = nextTaxMode)
+        } else {
+            rental
+        }
+    }
+
+    return changed
+}
+
 private fun validateUniqueBikeSerials(
     store: InMemoryStore,
+    adminId: String?,
     bikeIdToIgnore: String?,
     frameSerial: String,
     motorSerial: String,
@@ -467,7 +620,9 @@ private fun validateUniqueBikeSerials(
 
     for ((fieldName, serialValue) in serialPairs) {
         val duplicate = store.bikes.firstOrNull { bike ->
-            bike.id != bikeIdToIgnore && bikeContainsSerial(bike, serialValue)
+            bike.id != bikeIdToIgnore &&
+                (adminId == null || bike.adminId == adminId) &&
+                bikeContainsSerial(bike, serialValue)
         }
         if (duplicate != null) {
             return "$fieldName is already used"
@@ -490,6 +645,8 @@ private fun createRentalForClient(
     store: InMemoryStore,
     stateLock: Any,
     persistState: () -> Unit,
+    adminId: String,
+    taxMode: AdminTaxMode,
     explicitClientId: String?,
     request: ApiAdminCreateRentalRequest
 ): RentalCreationOutcome {
@@ -538,6 +695,12 @@ private fun createRentalForClient(
         ?: return RentalCreationOutcome.Failure(HttpStatusCode.NotFound, "Client not found")
     val bike = store.bikes.firstOrNull { it.id == bikeId }
         ?: return RentalCreationOutcome.Failure(HttpStatusCode.NotFound, "Bike not found")
+    if (!adminOwnsClient(store, adminId, client.id)) {
+        return RentalCreationOutcome.Failure(HttpStatusCode.Forbidden, "Forbidden")
+    }
+    if (!adminOwnsBike(store, adminId, bike.id)) {
+        return RentalCreationOutcome.Failure(HttpStatusCode.Forbidden, "Forbidden")
+    }
 
     return synchronized(stateLock) {
         val duplicateLogin = store.users.firstOrNull {
@@ -572,7 +735,9 @@ private fun createRentalForClient(
             endDate = periodEnd,
             videoUrl = request.videoUrl?.trim()?.ifBlank { null },
             contractUrl = request.contractUrl?.trim()?.ifBlank { null },
-            comment = request.comment?.trim()?.ifBlank { null }
+            comment = request.comment?.trim()?.ifBlank { null },
+            adminId = adminId,
+            taxMode = taxMode
         )
         store.rentals += rental
         persistState()
@@ -586,7 +751,9 @@ private fun createRentalForClient(
                 bikeModel = bike.model,
                 videoUrl = rental.videoUrl,
                 contractUrl = rental.contractUrl,
-                comment = rental.comment
+                comment = rental.comment,
+                adminId = rental.adminId,
+                taxMode = rental.taxMode.name.lowercase()
             )
         )
     }
@@ -595,9 +762,10 @@ private fun createRentalForClient(
 private fun buildAdminClientSummary(
     client: ClientAccount,
     store: InMemoryStore,
-    now: LocalDate
+    now: LocalDate,
+    adminId: String? = null
 ): ApiAdminClientSummaryResponse {
-    val snapshot = resolveClientBillingSnapshot(client.id, store, now)
+    val snapshot = resolveClientBillingSnapshot(client.id, store, now, adminId)
     val debt = if (snapshot != null) {
         LedgerCalculator.debtRub(
             clientId = client.id,
@@ -651,9 +819,10 @@ private fun buildAdminClientSummary(
 private fun buildAdminClientDetails(
     client: ClientAccount,
     store: InMemoryStore,
-    now: LocalDate
+    now: LocalDate,
+    adminId: String? = null
 ): ApiAdminClientDetailsResponse {
-    val snapshot = resolveClientBillingSnapshot(client.id, store, now)
+    val snapshot = resolveClientBillingSnapshot(client.id, store, now, adminId)
     val debt = if (snapshot != null) {
         LedgerCalculator.debtRub(
             clientId = client.id,
@@ -682,6 +851,7 @@ private fun buildAdminClientDetails(
     val rentals = store.rentals
         .asSequence()
         .filter { it.clientId == client.id }
+        .filter { adminId == null || it.adminId == adminId }
         .sortedByDescending { it.startDate }
         .map {
             val bike = store.bikes.firstOrNull { bike -> bike.id == it.bikeId }
@@ -694,7 +864,9 @@ private fun buildAdminClientDetails(
                 bikeModel = bike?.model ?: "-",
                 videoUrl = it.videoUrl,
                 contractUrl = it.contractUrl,
-                comment = it.comment
+                comment = it.comment,
+                adminId = it.adminId,
+                taxMode = it.taxMode.name.lowercase()
             )
         }
         .toList()
@@ -765,15 +937,20 @@ fun Application.module() {
     val persistState: () -> Unit = {
         stateStore?.save(store)
     }
+    if (ensureDefaultAdminsAndOwnership(store)) {
+        persistState()
+    }
     if (useInMemory) {
         println("AtomGo backend storage mode: IN-MEMORY (tests/dev override)")
     } else {
         println("AtomGo backend storage mode: POSTGRESQL")
     }
     val authService = AuthService(store)
+    val fiscalizationConfig = FiscalizationConfig.fromEnvironment()
     val paymentService = PaymentService(
         store = store,
-        provider = YooKassaPaymentProvider.fromEnvironment(apiJson)
+        provider = YooKassaPaymentProvider.fromEnvironment(apiJson),
+        fiscalizationConfig = fiscalizationConfig
     )
 
     routing {
@@ -872,9 +1049,43 @@ fun Application.module() {
                             twoWeeksRub = PricingRules.twoWeeksAmount(weeklyRate),
                             monthRub = PricingRules.monthAmount(weeklyRate),
                             debtExactRub = debt
-                        )
+                        ),
+                        taxMode = (snapshot?.taxMode ?: AdminTaxMode.SELF_EMPLOYED).name.lowercase(),
+                        requiresReceiptEmail = snapshot?.taxMode == AdminTaxMode.INDIVIDUAL_ENTREPRENEUR &&
+                            !clientHasReceiptEmail(client)
                     )
                 )
+            }
+
+            post("/client/me/receipt-email") {
+                val session = authService.resolveSession(call.request.header("Authorization"))
+                if (session == null || session.role != Role.CLIENT || session.clientId == null) {
+                    call.respond(HttpStatusCode.Unauthorized, ApiErrorResponse(message = "Unauthorized"))
+                    return@post
+                }
+
+                val request = call.receive<ApiClientReceiptEmailRequest>()
+                val email = normalizeReceiptEmail(request.email)
+                if (email == null) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "client email is invalid"))
+                    return@post
+                }
+
+                val updated = synchronized(stateLock) {
+                    val client = store.clients.firstOrNull { it.id == session.clientId }
+                        ?: return@synchronized false
+                    if (client.phones.none { normalizeReceiptEmail(it.number) == email }) {
+                        client.phones.removeAll { it.label.equals("Email", ignoreCase = true) && normalizeReceiptEmail(it.number) != null }
+                        client.phones += ClientPhone(label = "Email", number = email)
+                        persistState()
+                    }
+                    true
+                }
+                if (!updated) {
+                    call.respond(HttpStatusCode.NotFound, ApiErrorResponse(message = "Client not found"))
+                    return@post
+                }
+                call.respond(HttpStatusCode.OK, ApiClientReceiptEmailResponse(clientId = session.clientId, email = email))
             }
 
             get("/admin/clients") {
@@ -885,7 +1096,41 @@ fun Application.module() {
                 }
 
                 val now = LocalDate.now()
-                val response = store.clients.map { client -> buildAdminClientSummary(client, store, now) }
+                val response = store.clients
+                    .filter { client -> adminOwnsClient(store, session.userId, client.id) }
+                    .map { client -> buildAdminClientSummary(client, store, now, session.userId) }
+                call.respond(response)
+            }
+
+            get("/admin/rents") {
+                val session = authService.resolveSession(call.request.header("Authorization"))
+                if (session == null || session.role != Role.ADMIN) {
+                    call.respond(HttpStatusCode.Unauthorized, ApiErrorResponse(message = "Unauthorized"))
+                    return@get
+                }
+
+                val now = LocalDate.now()
+                val response = store.clients
+                    .filter { client ->
+                        store.rentals.any { rental ->
+                            rental.adminId == session.userId && rental.clientId == client.id
+                        }
+                    }
+                    .map { client -> buildAdminClientSummary(client, store, now, session.userId) }
+                call.respond(response)
+            }
+
+            get("/admin/client-catalog") {
+                val session = authService.resolveSession(call.request.header("Authorization"))
+                if (session == null || session.role != Role.ADMIN) {
+                    call.respond(HttpStatusCode.Unauthorized, ApiErrorResponse(message = "Unauthorized"))
+                    return@get
+                }
+
+                val now = LocalDate.now()
+                val response = store.clients
+                    .filter { client -> adminOwnsClient(store, session.userId, client.id) }
+                    .map { client -> buildAdminClientSummary(client, store, now, session.userId) }
                 call.respond(response)
             }
 
@@ -907,8 +1152,12 @@ fun Application.module() {
                     call.respond(HttpStatusCode.NotFound, ApiErrorResponse(message = "Client not found"))
                     return@get
                 }
+                if (!adminOwnsClient(store, session.userId, client.id)) {
+                    call.respond(HttpStatusCode.Forbidden, ApiErrorResponse(message = "Forbidden"))
+                    return@get
+                }
 
-                call.respond(buildAdminClientDetails(client, store, LocalDate.now()))
+                call.respond(buildAdminClientDetails(client, store, LocalDate.now(), session.userId))
             }
 
             get("/admin/bikes") {
@@ -917,7 +1166,7 @@ fun Application.module() {
                     call.respond(HttpStatusCode.Unauthorized, ApiErrorResponse(message = "Unauthorized"))
                     return@get
                 }
-                call.respond(store.bikes.map { bikeToApiResponse(it) })
+                call.respond(store.bikes.filter { it.adminId == session.userId }.map { bikeToApiResponse(it) })
             }
 
             post("/admin/bikes") {
@@ -958,6 +1207,7 @@ fun Application.module() {
                 val createdBike = synchronized(stateLock) {
                     val duplicateError = validateUniqueBikeSerials(
                         store = store,
+                        adminId = session.userId,
                         bikeIdToIgnore = null,
                         frameSerial = frameSerial,
                         motorSerial = motorSerial,
@@ -975,7 +1225,8 @@ fun Application.module() {
                             frameSerialNumber = frameSerial,
                             motorSerialNumber = motorSerial,
                             batterySerialNumber1 = battery1,
-                            batterySerialNumber2 = battery2
+                            batterySerialNumber2 = battery2,
+                            adminId = session.userId
                         )
                         store.bikes += bike
                         persistState()
@@ -985,6 +1236,7 @@ fun Application.module() {
                 if (createdBike == null) {
                     val duplicateError = validateUniqueBikeSerials(
                         store = store,
+                        adminId = session.userId,
                         bikeIdToIgnore = null,
                         frameSerial = frameSerial,
                         motorSerial = motorSerial,
@@ -1043,6 +1295,7 @@ fun Application.module() {
                 val duplicateError = synchronized(stateLock) {
                     validateUniqueBikeSerials(
                         store = store,
+                        adminId = session.userId,
                         bikeIdToIgnore = bikeId,
                         frameSerial = frameSerial,
                         motorSerial = motorSerial,
@@ -1061,6 +1314,9 @@ fun Application.module() {
                         null
                     } else {
                         val currentBike = store.bikes[bikeIndex]
+                        if (currentBike.adminId != session.userId) {
+                            return@synchronized null
+                        }
                         val updatedBike = currentBike.copy(
                             photoUrl = photoUrl,
                             model = bikeModel,
@@ -1082,6 +1338,51 @@ fun Application.module() {
                 }
 
                 call.respond(HttpStatusCode.OK, bikeToApiResponse(updated))
+            }
+
+            post("/admin/bikes/{bikeId}/delete") {
+                val session = authService.resolveSession(call.request.header("Authorization"))
+                if (session == null || session.role != Role.ADMIN) {
+                    call.respond(HttpStatusCode.Unauthorized, ApiErrorResponse(message = "Unauthorized"))
+                    return@post
+                }
+
+                val bikeId = call.parameters["bikeId"]
+                if (bikeId.isNullOrBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "bikeId is required"))
+                    return@post
+                }
+
+                val result = synchronized(stateLock) {
+                    val bikeIndex = store.bikes.indexOfFirst { it.id == bikeId }
+                    if (bikeIndex < 0) {
+                        HttpStatusCode.NotFound to "Bike not found"
+                    } else {
+                        val bike = store.bikes[bikeIndex]
+                        if (bike.adminId != session.userId) {
+                            HttpStatusCode.NotFound to "Bike not found"
+                        } else if (store.rentals.any { it.bikeId == bikeId && it.adminId == session.userId }) {
+                            HttpStatusCode.Conflict to "bike is used by rentals"
+                        } else {
+                            store.bikes.removeAt(bikeIndex)
+                            persistState()
+                            null
+                        }
+                    }
+                }
+
+                if (result != null) {
+                    call.respond(result.first, ApiErrorResponse(message = result.second))
+                    return@post
+                }
+
+                call.respond(
+                    HttpStatusCode.OK,
+                    ApiAdminDeleteBikeResponse(
+                        bikeId = bikeId,
+                        deleted = true
+                    )
+                )
             }
 
             post("/admin/clients") {
@@ -1106,19 +1407,20 @@ fun Application.module() {
                     .filter { it.label.isNotBlank() && it.number.isNotBlank() }
                     .toMutableList()
 
-                val created = synchronized(stateLock) {
-                    val client = ClientAccount(
-                        id = clientId,
-                        fullName = fullName,
-                        address = address,
-                        passportData = passportData,
-                        phones = normalizedPhones
-                    )
+	                val created = synchronized(stateLock) {
+	                    val client = ClientAccount(
+	                        id = clientId,
+	                        fullName = fullName,
+	                        address = address,
+	                        passportData = passportData,
+	                        phones = normalizedPhones,
+	                        adminId = session.userId
+	                    )
 
-                    store.clients += client
-                    persistState()
-                    buildAdminClientDetails(client, store, LocalDate.now())
-                }
+	                    store.clients += client
+	                    persistState()
+	                    buildAdminClientDetails(client, store, LocalDate.now(), session.userId)
+	                }
 
                 call.respond(HttpStatusCode.Created, created)
             }
@@ -1135,6 +1437,8 @@ fun Application.module() {
                     store = store,
                     stateLock = stateLock,
                     persistState = persistState,
+                    adminId = session.userId,
+	                    taxMode = currentAdminTaxMode(store, session.userId),
                     explicitClientId = null,
                     request = request
                 )) {
@@ -1156,7 +1460,7 @@ fun Application.module() {
                     return@post
                 }
 
-                val request = call.receive<ApiAdminUpdateClientRequest>()
+	                val request = call.receive<ApiAdminUpdateClientRequest>()
                 val fullName = request.fullName.trim()
                 val address = request.address.trim()
                 val passportData = request.passportData.trim()
@@ -1171,13 +1475,16 @@ fun Application.module() {
                     .filter { it.label.isNotBlank() && it.number.isNotBlank() }
                     .toMutableList()
 
-                val updated = synchronized(stateLock) {
-                    val index = store.clients.indexOfFirst { it.id == clientId }
-                    if (index < 0) {
-                        null
-                    } else {
-                        val currentClient = store.clients[index]
-                        val updatedClient = currentClient.copy(
+	                val updated = synchronized(stateLock) {
+	                    val index = store.clients.indexOfFirst { it.id == clientId }
+	                    if (index < 0) {
+	                        null
+	                    } else {
+	                        val currentClient = store.clients[index]
+	                        if (!adminOwnsClient(store, session.userId, currentClient.id)) {
+	                            return@synchronized null
+	                        }
+	                        val updatedClient = currentClient.copy(
                             fullName = fullName,
                             address = address,
                             passportData = passportData,
@@ -1185,7 +1492,7 @@ fun Application.module() {
                         )
                         store.clients[index] = updatedClient
                         persistState()
-                        buildAdminClientDetails(updatedClient, store, LocalDate.now())
+	                        buildAdminClientDetails(updatedClient, store, LocalDate.now(), session.userId)
                     }
                 }
 
@@ -1195,6 +1502,55 @@ fun Application.module() {
                 }
 
                 call.respond(HttpStatusCode.OK, updated)
+            }
+
+            post("/admin/clients/{clientId}/delete") {
+                val session = authService.resolveSession(call.request.header("Authorization"))
+                if (session == null || session.role != Role.ADMIN) {
+                    call.respond(HttpStatusCode.Unauthorized, ApiErrorResponse(message = "Unauthorized"))
+                    return@post
+                }
+
+                val clientId = call.parameters["clientId"]
+                if (clientId.isNullOrBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "clientId is required"))
+                    return@post
+                }
+
+                val deleted = synchronized(stateLock) {
+                    val clientIndex = store.clients.indexOfFirst { it.id == clientId }
+                    if (clientIndex < 0) {
+                        HttpStatusCode.NotFound to "Client not found"
+                    } else {
+                        val client = store.clients[clientIndex]
+                        if (!adminOwnsClient(store, session.userId, client.id)) {
+                            return@synchronized HttpStatusCode.NotFound to "Client not found"
+                        }
+                        if (store.rentals.any { it.clientId == clientId && it.adminId == session.userId }) {
+                            return@synchronized HttpStatusCode.Conflict to "client is used by rentals"
+                        }
+                        store.clients.removeAt(clientIndex)
+                        store.users.removeAll { it.clientId == clientId }
+                        store.ledger.removeAll { it.clientId == clientId }
+                        store.payments.removeAll { it.clientId == clientId }
+                        store.sessions.entries.removeAll { it.value.clientId == clientId }
+                        persistState()
+                        null
+                    }
+                }
+
+                if (deleted != null) {
+                    call.respond(deleted.first, ApiErrorResponse(message = deleted.second))
+                    return@post
+                }
+
+                call.respond(
+                    HttpStatusCode.OK,
+                    ApiAdminDeleteClientResponse(
+                        clientId = clientId,
+                        deleted = true
+                    )
+                )
             }
 
             post("/admin/clients/{clientId}/adjustments") {
@@ -1213,6 +1569,10 @@ fun Application.module() {
                 val client = store.clients.firstOrNull { it.id == clientId }
                 if (client == null) {
                     call.respond(HttpStatusCode.NotFound, ApiErrorResponse(message = "Client not found"))
+                    return@post
+                }
+                if (!adminOwnsClient(store, session.userId, client.id)) {
+                    call.respond(HttpStatusCode.Forbidden, ApiErrorResponse(message = "Forbidden"))
                     return@post
                 }
 
@@ -1245,7 +1605,7 @@ fun Application.module() {
 
                     persistState()
                     val now = LocalDate.now()
-                    val snapshot = resolveClientBillingSnapshot(client.id, store, now)
+                    val snapshot = resolveClientBillingSnapshot(client.id, store, now, session.userId)
                     val debt = if (snapshot != null) {
                         LedgerCalculator.debtRub(
                             clientId = client.id,
@@ -1289,6 +1649,10 @@ fun Application.module() {
                     call.respond(HttpStatusCode.NotFound, ApiErrorResponse(message = "Rental not found"))
                     return@post
                 }
+                if (rental.adminId != session.userId) {
+                    call.respond(HttpStatusCode.Forbidden, ApiErrorResponse(message = "Forbidden"))
+                    return@post
+                }
 
                 val request = call.receive<ApiAdminRentalCommentUpdateRequest>()
                 val comment = request.comment.trim()
@@ -1325,6 +1689,10 @@ fun Application.module() {
                 val rental = store.rentals.firstOrNull { it.id == rentalId }
                 if (rental == null) {
                     call.respond(HttpStatusCode.NotFound, ApiErrorResponse(message = "Rental not found"))
+                    return@post
+                }
+                if (rental.adminId != session.userId) {
+                    call.respond(HttpStatusCode.Forbidden, ApiErrorResponse(message = "Forbidden"))
                     return@post
                 }
 
@@ -1394,14 +1762,17 @@ fun Application.module() {
                     return@post
                 }
 
-                val updatedRental = synchronized(stateLock) {
-                    val rentalIndex = store.rentals.indexOfFirst { it.id == rentalId }
-                    if (rentalIndex < 0) {
-                        null
-                    } else {
-                        val bike = store.bikes.firstOrNull { it.id == bikeId }
-                            ?: return@synchronized RentalCreationOutcome.Failure(HttpStatusCode.NotFound, "Bike not found")
-                        val currentRental = store.rentals[rentalIndex]
+	                val updatedRental = synchronized(stateLock) {
+	                    val rentalIndex = store.rentals.indexOfFirst { it.id == rentalId }
+	                    if (rentalIndex < 0) {
+	                        null
+	                    } else {
+	                        val bike = store.bikes.firstOrNull { it.id == bikeId }
+	                            ?: return@synchronized RentalCreationOutcome.Failure(HttpStatusCode.NotFound, "Bike not found")
+	                        val currentRental = store.rentals[rentalIndex]
+	                        if (currentRental.adminId != session.userId || !adminOwnsBike(store, session.userId, bike.id)) {
+	                            return@synchronized RentalCreationOutcome.Failure(HttpStatusCode.Forbidden, "Forbidden")
+	                        }
                         val updated = currentRental.copy(
                             bikeId = bike.id,
                             startDate = periodStart,
@@ -1418,7 +1789,9 @@ fun Application.module() {
                             bikeModel = bike.model,
                             videoUrl = updated.videoUrl,
                             contractUrl = updated.contractUrl,
-                            comment = updated.comment
+                            comment = updated.comment,
+                            adminId = updated.adminId,
+                            taxMode = updated.taxMode.name.lowercase()
                         )
                     }
                 }
@@ -1444,12 +1817,15 @@ fun Application.module() {
                     return@post
                 }
 
-                val deleted = synchronized(stateLock) {
-                    val index = store.rentals.indexOfFirst { it.id == rentalId }
-                    if (index < 0) {
-                        false
-                    } else {
-                        store.rentals.removeAt(index)
+	                val deleted = synchronized(stateLock) {
+	                    val index = store.rentals.indexOfFirst { it.id == rentalId }
+	                    if (index < 0) {
+	                        false
+	                    } else {
+	                        if (store.rentals[index].adminId != session.userId) {
+	                            return@synchronized false
+	                        }
+	                        store.rentals.removeAt(index)
                         persistState()
                         true
                     }
@@ -1486,6 +1862,8 @@ fun Application.module() {
                     store = store,
                     stateLock = stateLock,
                     persistState = persistState,
+                    adminId = session.userId,
+	                    taxMode = currentAdminTaxMode(store, session.userId),
                     explicitClientId = clientId,
                     request = request
                 )) {
@@ -1501,8 +1879,8 @@ fun Application.module() {
                     return@post
                 }
 
-                val request = call.receive<JsonObject>()
-                val type = PaymentType.fromApi(request.string("payment_type") ?: "")
+                val request = call.receive<ApiPaymentCreateRequest>()
+                val type = PaymentType.fromApi(request.paymentType)
                 if (type == null) {
                     call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "Unknown payment_type"))
                     return@post
@@ -1521,6 +1899,8 @@ fun Application.module() {
                             amountRub = payment.amountRub,
                             confirmationUrl = payment.confirmationUrl,
                             idempotenceKey = payment.idempotenceKey,
+                            taxMode = payment.taxMode.name.lowercase(),
+                            fiscalizationStatus = payment.fiscalizationStatus.name.lowercase(),
                             status = payment.status.name.lowercase()
                         )
                     )
@@ -1576,6 +1956,8 @@ fun Application.module() {
                             confirmationUrl = result.payment.confirmationUrl,
                             providerPaymentId = result.payment.providerPaymentId,
                             status = result.payment.status.name.lowercase(),
+                            taxMode = result.payment.taxMode.name.lowercase(),
+                            fiscalizationStatus = result.payment.fiscalizationStatus.name.lowercase(),
                             debtRub = result.debtRub
                         )
                     )

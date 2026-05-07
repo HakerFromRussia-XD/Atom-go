@@ -45,7 +45,8 @@ data class AppUser(
     val login: String,
     val password: String,
     val role: Role,
-    val clientId: String?
+    val clientId: String?,
+    val taxMode: AdminTaxMode = AdminTaxMode.SELF_EMPLOYED
 )
 
 data class ClientAccount(
@@ -53,7 +54,8 @@ data class ClientAccount(
     val fullName: String,
     val address: String,
     val passportData: String,
-    val phones: MutableList<ClientPhone> = mutableListOf()
+    val phones: MutableList<ClientPhone> = mutableListOf(),
+    val adminId: String? = null
 )
 
 data class ClientPhone(
@@ -69,7 +71,9 @@ data class RentalRecord(
     val endDate: LocalDate?,
     var videoUrl: String?,
     var contractUrl: String?,
-    var comment: String?
+    var comment: String?,
+    val adminId: String? = null,
+    val taxMode: AdminTaxMode = AdminTaxMode.SELF_EMPLOYED
 )
 
 data class BikeAccount(
@@ -80,7 +84,8 @@ data class BikeAccount(
     val frameSerialNumber: String,
     val motorSerialNumber: String,
     val batterySerialNumber1: String,
-    val batterySerialNumber2: String?
+    val batterySerialNumber2: String?,
+    val adminId: String? = null
 )
 
 data class LedgerEntry(
@@ -103,6 +108,17 @@ enum class PaymentStatus {
     FAILED
 }
 
+enum class AdminTaxMode {
+    SELF_EMPLOYED,
+    INDIVIDUAL_ENTREPRENEUR
+}
+
+enum class FiscalizationStatus {
+    NPD_RECEIPT_PENDING,
+    YOOKASSA_RECEIPT_PENDING,
+    FISCALIZATION_NOT_CONFIGURED
+}
+
 data class PaymentRecord(
     val id: String,
     val clientId: String,
@@ -112,5 +128,7 @@ data class PaymentRecord(
     val idempotenceKey: String,
     var status: PaymentStatus,
     var providerPaymentId: String? = null,
-    val rentalId: String? = null
+    val rentalId: String? = null,
+    val taxMode: AdminTaxMode = AdminTaxMode.SELF_EMPLOYED,
+    var fiscalizationStatus: FiscalizationStatus = FiscalizationStatus.NPD_RECEIPT_PENDING
 )

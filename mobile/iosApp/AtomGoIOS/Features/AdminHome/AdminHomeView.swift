@@ -39,12 +39,12 @@ struct AdminHomeView: View {
             Group {
                 switch viewModel.state {
                 case .idle, .loading:
-                    ProgressView("Загружаем список клиентов...")
+                    ProgressView("Загружаем список аренд...")
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 case let .failed(message):
                     VStack(spacing: 12) {
-                        Text("Не удалось загрузить клиентов")
+                        Text("Не удалось загрузить аренды")
                             .font(.headline)
                             .foregroundStyle(AppDesign.titleText)
                         Text(message)
@@ -78,8 +78,12 @@ struct AdminHomeView: View {
                                 )
                             }
 
-                            ForEach(clients) { client in
-                                clientCard(client)
+                            if clients.isEmpty {
+                                emptyRentalsView
+                            } else {
+                                ForEach(clients) { client in
+                                    clientCard(client)
+                                }
                             }
                         }
                         .padding(16)
@@ -120,7 +124,9 @@ struct AdminHomeView: View {
             AdminServiceSheet(
                 onOpenClientsCatalog: {
                     isServiceSheetPresented = false
-                    isClientCatalogPresented = true
+                    viewModel.refreshClientCatalog {
+                        isClientCatalogPresented = true
+                    }
                 },
                 onOpenBikeCatalog: {
                     isServiceSheetPresented = false
@@ -131,7 +137,7 @@ struct AdminHomeView: View {
         }
         .sheet(isPresented: $isCreateRentalSheetPresented) {
             CreateRentalSheet(
-                clients: currentClients,
+                clients: viewModel.clientCatalog,
                 bikes: viewModel.bikes,
                 isSaving: viewModel.isOperationInProgress,
                 onCancel: { isCreateRentalSheetPresented = false },
@@ -144,7 +150,7 @@ struct AdminHomeView: View {
         }
         .sheet(isPresented: $isClientCatalogPresented) {
             ClientCatalogSheet(
-                clients: currentClients,
+                clients: viewModel.clientCatalog,
                 isSaving: viewModel.isOperationInProgress,
                 apiErrorMessage: viewModel.operationErrorMessage,
                 onCancel: { isClientCatalogPresented = false },
@@ -173,6 +179,9 @@ struct AdminHomeView: View {
                 },
                 onSave: { payload in
                     viewModel.updateBike(payload: payload)
+                },
+                onDelete: { bikeId in
+                    viewModel.deleteBike(bikeId: bikeId)
                 }
             )
             .presentationDetents([.large])
@@ -188,7 +197,7 @@ struct AdminHomeView: View {
                 operationErrorMessage: viewModel.operationErrorMessage,
                 operationSuccessMessage: viewModel.operationSuccessMessage,
                 isOperationInProgress: viewModel.isOperationInProgress,
-                clients: currentClients,
+                clients: viewModel.clientCatalog,
                 bikes: viewModel.bikes,
                 onRetry: {
                     if let clientId = detailsClientId {
@@ -220,6 +229,12 @@ struct AdminHomeView: View {
                 },
                 onSaveClientProfile: { clientId, payload in
                     viewModel.updateClientProfile(clientId: clientId, payload: payload)
+                },
+                onDeleteClient: { clientId in
+                    viewModel.deleteClient(clientId: clientId) {
+                        isDetailsSheetPresented = false
+                        detailsClientId = nil
+                    }
                 },
                 onCreateRental: { payload in
                     viewModel.createRental(payload: payload)
@@ -258,15 +273,45 @@ struct AdminHomeView: View {
         .onChange(of: scenePhase) { newPhase in
             if newPhase == .active {
                 now = Date()
+                viewModel.load()
             }
         }
     }
 
-    private var currentClients: [AdminClientSummaryResponse] {
-        if case let .loaded(clients) = viewModel.state {
-            return clients
+    private var emptyRentalsView: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "calendar.badge.clock")
+                .font(.system(size: 34, weight: .semibold))
+                .foregroundStyle(AppDesign.iconSoft)
+
+            VStack(spacing: 4) {
+                Text("Аренд пока нет")
+                    .font(.headline)
+                    .foregroundStyle(AppDesign.titleText)
+                Text("Клиентов в каталоге: \(viewModel.clientCatalog.count)")
+                    .font(.subheadline)
+                    .foregroundStyle(AppDesign.subtleText)
+            }
+
+            HStack(spacing: 10) {
+                Button("Каталог клиентов") {
+                    isClientCatalogPresented = true
+                }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("admin.emptyOpenClientCatalogButton")
+
+                Button("Новая аренда") {
+                    isCreateRentalSheetPresented = true
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(viewModel.clientCatalog.isEmpty || viewModel.bikes.isEmpty)
+                .accessibilityIdentifier("admin.emptyCreateRentalButton")
+            }
         }
-        return []
+        .frame(maxWidth: .infinity, minHeight: 260)
+        .padding(20)
+        .background(AppDesign.surfaceBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private func clientCard(_ client: AdminClientSummaryResponse) -> some View {
@@ -841,8 +886,10 @@ private struct BikeCatalogSheet: View {
     let onCancel: () -> Void
     let onCreate: (CreateBikePayload, @escaping () -> Void) -> Void
     let onSave: (UpdateBikePayload) -> Void
+    let onDelete: (String) -> Void
 
     @State private var editingBike: AdminBikeResponse?
+    @State private var bikePendingDeletion: AdminBikeResponse?
     @State private var isCreateBikePresented = false
 
     var body: some View {
@@ -895,6 +942,13 @@ private struct BikeCatalogSheet: View {
                                     }
                                     .buttonStyle(.bordered)
                                     .accessibilityIdentifier("bikeCatalog.edit.\(bike.bikeModel)")
+
+                                    Button("Удалить", role: .destructive) {
+                                        bikePendingDeletion = bike
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .disabled(isSaving)
+                                    .accessibilityIdentifier("bikeCatalog.delete.\(bike.bikeModel)")
                                 }
 
                                 Text("Рама: \(bike.frameSerialNumber)")
@@ -959,6 +1013,30 @@ private struct BikeCatalogSheet: View {
                 }
             )
             .presentationDetents([.large])
+        }
+        .confirmationDialog(
+            "Удалить велосипед?",
+            isPresented: Binding(
+                get: { bikePendingDeletion != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        bikePendingDeletion = nil
+                    }
+                }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Удалить", role: .destructive) {
+                if let bike = bikePendingDeletion {
+                    onDelete(bike.bikeId)
+                    bikePendingDeletion = nil
+                }
+            }
+            Button("Отмена", role: .cancel) {
+                bikePendingDeletion = nil
+            }
+        } message: {
+            Text("Велосипед без истории аренд будет удален из каталога.")
         }
     }
 
@@ -1245,6 +1323,7 @@ private struct AdminClientDetailsSheet: View {
     let onSaveRentalComment: (String, String, String) -> Void
     let onSaveRentalLinks: (String, String, String?, String?) -> Void
     let onSaveClientProfile: (String, UpdateClientProfilePayload) -> Void
+    let onDeleteClient: (String) -> Void
     let onCreateRental: (CreateRentalPayload) -> Void
     let onUpdateRental: (UpdateRentalPayload) -> Void
     let onDeleteRental: (String, String) -> Void
@@ -1252,6 +1331,7 @@ private struct AdminClientDetailsSheet: View {
     @Environment(\.openURL) private var openURL
     @State private var isProfileEditorPresented = false
     @State private var isCreateRentalPresented = false
+    @State private var isDeleteClientConfirmationPresented = false
 
     var body: some View {
         NavigationStack {
@@ -1396,11 +1476,38 @@ private struct AdminClientDetailsSheet: View {
                     detailRow(phone.label, phone.number)
                 }
             }
+
+            if details.rentals.isEmpty {
+                Button("Удалить клиента", role: .destructive) {
+                    isDeleteClientConfirmationPresented = true
+                }
+                .buttonStyle(.bordered)
+                .disabled(isOperationInProgress)
+                .padding(.top, 4)
+                .accessibilityIdentifier("clientDetails.deleteClientButton")
+            } else {
+                Text("Клиента с историей аренд нельзя удалить, профиль можно только редактировать.")
+                    .font(.caption)
+                    .foregroundStyle(AppDesign.subtleText)
+                    .padding(.top, 4)
+            }
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(AppDesign.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .confirmationDialog(
+            "Удалить клиента?",
+            isPresented: $isDeleteClientConfirmationPresented,
+            titleVisibility: .visible
+        ) {
+            Button("Удалить", role: .destructive) {
+                onDeleteClient(details.clientId)
+            }
+            Button("Отмена", role: .cancel) {}
+        } message: {
+            Text("Клиент без истории аренд будет удален из каталога.")
+        }
     }
 
     private func financialSection(_ details: AdminClientDetailsResponse) -> some View {

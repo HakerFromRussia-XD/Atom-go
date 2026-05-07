@@ -5,18 +5,17 @@ struct ContentView: View {
     @StateObject private var keyboardState = KeyboardState()
     @State private var isPasswordVisible = false
     @FocusState private var focusedField: LoginInputField?
+    private let showQuickFillButtons = true
 
     var body: some View {
         GeometryReader { geometry in
-            let screenBounds = UIScreen.main.bounds
-            let layoutWidth = max(geometry.size.width, screenBounds.width)
-            let layoutHeight = max(geometry.size.height, screenBounds.height)
-            let safeTop = geometry.safeAreaInsets.top
-            let xScale = layoutWidth / 600
-            let yScale = layoutHeight / 1260
+            let layoutWidth = geometry.size.width
+            let layoutHeight = geometry.size.height
+            let xScale = layoutWidth / 414
+            let yScale = layoutHeight / 896
             let textScale = min(xScale, yScale)
             let fieldWidth = 481 * xScale
-            let loginButtonBottom = safeTop + (730 + 91) * yScale
+            let loginButtonBottom = (687 + 63) * yScale
             let keyboardGap: CGFloat = 16
             let keyboardTop = min(keyboardState.topY, layoutHeight)
             let keyboardLift = max(0, loginButtonBottom + keyboardGap - keyboardTop)
@@ -24,29 +23,25 @@ struct ContentView: View {
             ZStack(alignment: .topLeading) {
                 AppDesign.pageBackground.ignoresSafeArea()
 
-                RoundedRectangle(cornerRadius: 42 * textScale, style: .continuous)
-                    .fill(AppDesign.surfaceBackground)
-                    .frame(width: 588 * xScale, height: 1244 * yScale)
-                    .offset(x: 6 * xScale, y: 8 * yScale)
+                Image("icon")
+                    .resizable()
+                    .renderingMode(.original)
+                    .scaledToFit()
+                    .frame(width: 154 * xScale, height: 184 * yScale)
+                    .offset(x: 130 * xScale, y: 121 * yScale)
 
-                Button(action: {}) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 30 * textScale, weight: .semibold))
-                        .foregroundStyle(AppDesign.accent)
-                        .frame(width: 63 * xScale, height: 62 * yScale)
-                        .background(
-                            RoundedRectangle(cornerRadius: 18 * textScale, style: .continuous)
-                                .fill(AppDesign.cardBackground)
-                        )
+                VStack(spacing: 0) {
+                    Text(" Welcome to ")
+                        .font(AppDesign.urbanistBold(size: 40 * textScale))
+                        .foregroundStyle(Color(red: 0.13, green: 0.13, blue: 0.13))
+                        .lineSpacing(0)
+                    Text("AtomGo")
+                        .font(AppDesign.urbanistBold(size: 40 * textScale))
+                        .foregroundStyle(Color(red: 0.13, green: 0.13, blue: 0.13))
+                        .lineSpacing(0)
                 }
-                .buttonStyle(.plain)
-                .offset(x: 54 * xScale, y: 69 * yScale)
-
-                Text("Login Your\nAccount")
-                    .font(.system(size: 78 * textScale, weight: .bold, design: .rounded))
-                    .foregroundStyle(AppDesign.titleText)
-                    .lineSpacing(-9 * textScale)
-                    .offset(x: 54 * xScale, y: 245 * yScale)
+                .frame(width: 382 * xScale)
+                .offset(x: 16 * xScale, y: 328 * yScale)
 
                 loginField(
                     xScale: xScale,
@@ -57,62 +52,73 @@ struct ContentView: View {
                     text: $viewModel.login,
                     accessibilityIdentifier: "login.loginField"
                 )
-                .frame(width: fieldWidth, height: 92 * yScale)
-                .offset(x: 54 * xScale, y: 436 * yScale)
+                .frame(width: 343 * xScale, height: 64 * yScale)
+                .offset(x: 35 * xScale, y: 477 * yScale)
 
                 passwordField(xScale: xScale, yScale: yScale, textScale: textScale)
-                    .frame(width: fieldWidth, height: 92 * yScale)
-                    .offset(x: 54 * xScale, y: 555 * yScale)
+                .frame(width: 343 * xScale, height: 64 * yScale)
+                .offset(x: 35 * xScale, y: 562 * yScale)
 
                 Text("Forget Password ?")
-                    .font(.system(size: 16 * textScale, weight: .semibold))
+                    .font(AppDesign.poppinsMedium(size: 14 * textScale))
                     .foregroundStyle(AppDesign.subtleText)
-                    .frame(width: fieldWidth, alignment: .trailing)
-                    .offset(x: 54 * xScale, y: 673 * yScale)
+                .frame(width: 343 * xScale, alignment: .trailing)
+                .offset(x: 35 * xScale, y: 642 * yScale)
 
-                HStack(spacing: 10 * xScale) {
-                    quickFillButton(
-                        title: "Клиент",
-                        xScale: xScale,
-                        yScale: yScale,
-                        textScale: textScale,
-                        accessibilityIdentifier: "login.quickFillClient",
-                        action: viewModel.fillClientCredentials
-                    )
-                    quickFillButton(
-                        title: "Админ",
-                        xScale: xScale,
-                        yScale: yScale,
-                        textScale: textScale,
-                        accessibilityIdentifier: "login.quickFillAdmin",
-                        action: viewModel.fillAdminCredentials
-                    )
+                if showQuickFillButtons {
+                    HStack(spacing: 10 * xScale) {
+                        quickFillButton(
+                            title: "Клиент",
+                            xScale: xScale,
+                            yScale: yScale,
+                            textScale: textScale,
+                            accessibilityIdentifier: "login.quickFillClient",
+                            action: viewModel.fillClientCredentials
+                        )
+                        quickFillButton(
+                            title: "Админ1",
+                            xScale: xScale,
+                            yScale: yScale,
+                            textScale: textScale,
+                            accessibilityIdentifier: "login.quickFillAdmin",
+                            action: viewModel.fillAdminCredentials
+                        )
+                        quickFillButton(
+                            title: "Админ2",
+                            xScale: xScale,
+                            yScale: yScale,
+                            textScale: textScale,
+                            accessibilityIdentifier: "login.quickFillAdminIp",
+                            action: viewModel.fillAdminIpCredentials
+                        )
+                    }
+                    .frame(width: fieldWidth)
+                    .offset(x: 35 * xScale, y: 760 * yScale)
                 }
-                .frame(width: fieldWidth)
-                .offset(x: 54 * xScale, y: 696 * yScale)
 
                 Button(action: viewModel.signIn) {
-                    Text(viewModel.isLoading ? "Logging in..." : "Login")
-                        .font(.system(size: 22 * textScale, weight: .semibold, design: .rounded))
-                        .frame(width: fieldWidth, height: 91 * yScale)
-                        .contentShape(RoundedRectangle(cornerRadius: 22 * textScale, style: .continuous))
+                    Text(viewModel.isLoading ? "Getting started..." : "Get Started")
+                        .font(AppDesign.poppinsMedium(size: 15 * textScale))
+                        .tracking(0.45 * textScale)
+                        .frame(width: 343 * xScale, height: 63 * yScale)
+                        .contentShape(RoundedRectangle(cornerRadius: 16 * textScale, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.white)
                 .background(AppDesign.accent)
-                .clipShape(RoundedRectangle(cornerRadius: 22 * textScale, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 16 * textScale, style: .continuous))
                 .disabled(viewModel.isLoading)
                 .accessibilityIdentifier("login.submitButton")
-                .offset(x: 54 * xScale, y: 730 * yScale)
+                .offset(x: 35 * xScale, y: 687 * yScale)
 
                 if viewModel.statusText != LoginViewModel.waitingStatusText {
                     Text(viewModel.statusText)
-                        .font(.system(size: 14 * textScale, weight: .regular))
+                        .font(AppDesign.poppinsMedium(size: 12 * textScale))
                         .foregroundStyle(statusColor)
                         .fixedSize(horizontal: false, vertical: true)
-                        .frame(width: fieldWidth, alignment: .leading)
+                        .frame(width: 343 * xScale, alignment: .leading)
                         .accessibilityIdentifier("login.statusText")
-                        .offset(x: 54 * xScale, y: 840 * yScale)
+                        .offset(x: 35 * xScale, y: 760 * yScale)
                 }
             }
             .offset(y: -keyboardLift)
@@ -130,15 +136,19 @@ struct ContentView: View {
         accessibilityIdentifier: String
     ) -> some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 18 * textScale, style: .continuous)
+            RoundedRectangle(cornerRadius: 12.84 * textScale, style: .continuous)
                 .fill(AppDesign.cardBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12.84 * textScale, style: .continuous)
+                        .stroke(.black, lineWidth: 1 * textScale)
+                )
 
-            HStack(spacing: 26 * xScale) {
+            HStack(spacing: 20 * xScale) {
                 Image(iconName)
                     .resizable()
                     .renderingMode(.original)
                     .scaledToFit()
-                    .frame(width: 30 * textScale)
+                    .frame(width: 20 * textScale)
 
                 TextField(
                     "",
@@ -148,17 +158,17 @@ struct ContentView: View {
                 )
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled(true)
-                .font(.system(size: 20 * textScale, weight: .semibold))
-                .foregroundStyle(AppDesign.titleText)
+                    .font(AppDesign.poppinsMedium(size: 24 * textScale / 1.7))
+                    .foregroundStyle(AppDesign.titleText)
                 .focused($focusedField, equals: .login)
                 .accessibilityIdentifier(accessibilityIdentifier)
 
                 Spacer(minLength: 0)
             }
-            .padding(.leading, 31 * xScale)
-            .padding(.trailing, 24 * xScale)
+            .padding(.leading, 22 * xScale)
+            .padding(.trailing, 16 * xScale)
         }
-        .contentShape(RoundedRectangle(cornerRadius: 18 * textScale, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 12.84 * textScale, style: .continuous))
         .onTapGesture {
             focusedField = .login
         }
@@ -166,15 +176,19 @@ struct ContentView: View {
 
     private func passwordField(xScale: CGFloat, yScale: CGFloat, textScale: CGFloat) -> some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 18 * textScale, style: .continuous)
+            RoundedRectangle(cornerRadius: 12.84 * textScale, style: .continuous)
                 .fill(AppDesign.cardBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12.84 * textScale, style: .continuous)
+                        .stroke(.black, lineWidth: 1 * textScale)
+                )
 
-            HStack(spacing: 26 * xScale) {
+            HStack(spacing: 20 * xScale) {
                 Image("Lock Icon")
                     .resizable()
                     .renderingMode(.original)
                     .scaledToFit()
-                    .frame(width: 30 * textScale)
+                    .frame(width: 20 * textScale)
 
                 passwordInput(textScale: textScale)
 
@@ -188,17 +202,17 @@ struct ContentView: View {
                         .resizable()
                         .renderingMode(.original)
                         .scaledToFit()
-                        .frame(width: 36 * textScale, height: 36 * textScale)
-                        .frame(width: 58 * xScale, height: 92 * yScale)
+                        .frame(width: 20 * textScale, height: 20 * textScale)
+                        .frame(width: 40 * xScale, height: 64 * yScale)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("login.passwordVisibilityButton")
             }
-            .padding(.leading, 31 * xScale)
-            .padding(.trailing, 14 * xScale)
+            .padding(.leading, 22 * xScale)
+            .padding(.trailing, 18 * xScale)
         }
-        .contentShape(RoundedRectangle(cornerRadius: 18 * textScale, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: 12.84 * textScale, style: .continuous))
         .onTapGesture {
             focusedField = .password
         }
@@ -215,7 +229,7 @@ struct ContentView: View {
             )
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled(true)
-            .font(.system(size: 20 * textScale, weight: .semibold))
+            .font(AppDesign.poppinsMedium(size: 14 * textScale))
             .foregroundStyle(AppDesign.titleText)
             .focused($focusedField, equals: .password)
             .accessibilityIdentifier("login.passwordField")
@@ -228,7 +242,7 @@ struct ContentView: View {
             )
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled(true)
-            .font(.system(size: 20 * textScale, weight: .semibold))
+            .font(AppDesign.poppinsMedium(size: 14 * textScale))
             .foregroundStyle(AppDesign.titleText)
             .focused($focusedField, equals: .password)
             .accessibilityIdentifier("login.passwordField")
@@ -245,7 +259,7 @@ struct ContentView: View {
     ) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 14 * textScale, weight: .semibold, design: .rounded))
+                .font(AppDesign.poppinsMedium(size: 13 * textScale))
                 .foregroundStyle(AppDesign.titleText)
                 .frame(maxWidth: .infinity)
                 .frame(height: 30 * yScale)

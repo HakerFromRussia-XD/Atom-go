@@ -47,6 +47,8 @@ struct ClientDashboardResponse: Decodable {
     let debtRub: Int
     let totalAdjustmentRub: Int
     let presets: ClientPaymentPresets
+    let taxMode: String?
+    let requiresReceiptEmail: Bool
 
     enum CodingKeys: String, CodingKey {
         case clientId = "client_id"
@@ -56,6 +58,8 @@ struct ClientDashboardResponse: Decodable {
         case debtRub = "debt_rub"
         case totalAdjustmentRub = "total_adjustment_rub"
         case presets
+        case taxMode = "tax_mode"
+        case requiresReceiptEmail = "requires_receipt_email"
     }
 }
 
@@ -157,6 +161,8 @@ struct PaymentCreationResponse: Decodable, Equatable {
     let confirmationUrl: String
     let idempotenceKey: String
     let status: String
+    var taxMode: String? = nil
+    var fiscalizationStatus: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case paymentId = "payment_id"
@@ -164,6 +170,8 @@ struct PaymentCreationResponse: Decodable, Equatable {
         case confirmationUrl = "confirmation_url"
         case idempotenceKey = "idempotence_key"
         case status
+        case taxMode = "tax_mode"
+        case fiscalizationStatus = "fiscalization_status"
     }
 }
 
@@ -174,6 +182,8 @@ struct PaymentStatusResponse: Decodable, Equatable {
     let providerPaymentId: String?
     let status: String
     let debtRub: Int?
+    var taxMode: String? = nil
+    var fiscalizationStatus: String? = nil
 
     enum CodingKeys: String, CodingKey {
         case paymentId = "payment_id"
@@ -182,6 +192,8 @@ struct PaymentStatusResponse: Decodable, Equatable {
         case providerPaymentId = "provider_payment_id"
         case status
         case debtRub = "debt_rub"
+        case taxMode = "tax_mode"
+        case fiscalizationStatus = "fiscalization_status"
     }
 }
 
@@ -291,6 +303,26 @@ struct UpdateRentalPayload {
 struct DeleteRentalResult: Equatable {
     let rentalId: String
     let deleted: Bool
+}
+
+struct DeleteClientResult: Decodable, Equatable {
+    let clientId: String
+    let deleted: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case clientId = "client_id"
+        case deleted
+    }
+}
+
+struct DeleteBikeResult: Decodable, Equatable {
+    let bikeId: String
+    let deleted: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case bikeId = "bike_id"
+        case deleted
+    }
 }
 
 enum DebtAdjustmentSign {

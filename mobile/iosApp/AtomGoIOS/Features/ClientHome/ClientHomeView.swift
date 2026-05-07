@@ -10,6 +10,9 @@ struct ClientHomeView: View {
     @State private var paymentSafariUrl: URL?
     @State private var activePaymentId: String?
     @State private var isSafariPresented = false
+    @State private var isReceiptEmailDialogPresented = false
+    @State private var pendingPaymentType: ClientPaymentType?
+    @State private var receiptEmail = ""
     private var shouldAutoOpenPaymentSafari: Bool {
         !ProcessInfo.processInfo.arguments.contains("-ATOMGO_DISABLE_PAYMENT_SAFARI_AUTOPEN")
     }
@@ -87,6 +90,36 @@ struct ClientHomeView: View {
                                     Text("Статус: \(payment.status)")
                                         .font(.subheadline)
                                         .foregroundStyle(AppDesign.subtleText)
+                                    if let taxMode = payment.taxMode {
+                                        Text("Налоговый режим: \(displayTaxMode(taxMode))")
+                                            .font(.subheadline)
+                                            .foregroundStyle(AppDesign.subtleText)
+                                            .accessibilityIdentifier("client.paymentTaxModeText")
+                                    }
+                                    if let fiscalizationStatus = payment.fiscalizationStatus {
+                                        Text("54-ФЗ: \(displayFiscalizationStatus(fiscalizationStatus))")
+                                            .font(.subheadline)
+                                            .foregroundStyle(AppDesign.subtleText)
+                                            .accessibilityIdentifier("client.paymentFiscalizationText")
+                                    }
+                                    Text(
+                                        [
+                                            payment.confirmationUrl,
+                                            payment.taxMode ?? "",
+                                            payment.fiscalizationStatus ?? ""
+                                        ].joined(separator: "|")
+                                    )
+                                    .font(.caption2)
+                                    .foregroundStyle(.clear)
+                                    .frame(width: 1, height: 1)
+                                    .accessibilityIdentifier("client.paymentMetadata")
+                                    .accessibilityValue(
+                                        [
+                                            payment.confirmationUrl,
+                                            payment.taxMode ?? "",
+                                            payment.fiscalizationStatus ?? ""
+                                        ].joined(separator: "|")
+                                    )
 
                                     Button("Открыть оплату повторно") {
                                         if let url = URL(string: payment.confirmationUrl) {
@@ -107,8 +140,6 @@ struct ClientHomeView: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .background(AppDesign.cardBackground)
                                 .cornerRadius(14)
-                                .accessibilityIdentifier("client.paymentCard")
-                                .accessibilityValue(payment.confirmationUrl)
                             }
                         }
                         .padding(16)
@@ -140,6 +171,7 @@ struct ClientHomeView: View {
                   payment.status != "succeeded",
                   payment.status != "canceled",
                   payment.status != "failed",
+                  !(payment.taxMode == "individual_entrepreneur" && payment.fiscalizationStatus == "fiscalization_not_configured"),
                   let url = URL(string: payment.confirmationUrl),
                   activePaymentId != payment.paymentId
             else { return }
@@ -148,8 +180,11 @@ struct ClientHomeView: View {
             isSafariPresented = true
         }
         .onChange(of: scenePhase) { phase in
-            if phase == .active, let activePaymentId {
-                viewModel.refreshPaymentStatus(paymentId: activePaymentId)
+            if phase == .active {
+                viewModel.load()
+                if let activePaymentId {
+                    viewModel.refreshPaymentStatus(paymentId: activePaymentId)
+                }
             }
         }
         .sheet(
@@ -172,12 +207,33 @@ struct ClientHomeView: View {
             if let presets = paymentDialogPresets {
                 ForEach(ClientPaymentType.allCases) { type in
                     Button("\(type.title) • \(amountFor(type, presets: presets)) ₽") {
-                        viewModel.createPayment(type: type)
+                        startPayment(type: type)
                     }
                     .disabled(type == .debtExact && presets.debtExactRub <= 0)
                 }
             }
             Button("Отмена", role: .cancel) {}
+        }
+        .alert("Email для чека", isPresented: $isReceiptEmailDialogPresented) {
+            TextField("email@example.com", text: $receiptEmail)
+                .keyboardType(.emailAddress)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .accessibilityIdentifier("client.receiptEmailField")
+            Button("Продолжить") {
+                if let pendingPaymentType {
+                    viewModel.createPayment(type: pendingPaymentType, receiptEmail: receiptEmail)
+                }
+                pendingPaymentType = nil
+                receiptEmail = ""
+            }
+            .accessibilityIdentifier("client.receiptEmailSubmitButton")
+            Button("Отмена", role: .cancel) {
+                pendingPaymentType = nil
+                receiptEmail = ""
+            }
+        } message: {
+            Text("Укажите email, куда ЮKassa отправит чек.")
         }
     }
 
@@ -235,6 +291,17 @@ struct ClientHomeView: View {
         .cornerRadius(14)
     }
 
+    private func startPayment(type: ClientPaymentType) {
+        guard case let .loaded(dashboard) = viewModel.state else { return }
+        if dashboard.requiresReceiptEmail {
+            pendingPaymentType = type
+            receiptEmail = ""
+            isReceiptEmailDialogPresented = true
+            return
+        }
+        viewModel.createPayment(type: type)
+    }
+
     private func amountFor(_ type: ClientPaymentType, presets: ClientPaymentPresets) -> Int {
         switch type {
         case .day:
@@ -247,6 +314,30 @@ struct ClientHomeView: View {
             return presets.monthRub
         case .debtExact:
             return presets.debtExactRub
+        }
+    }
+
+    private func displayTaxMode(_ taxMode: String) -> String {
+        switch taxMode {
+        case "individual_entrepreneur":
+            return "ИП"
+        case "self_employed":
+            return "Самозанятый"
+        default:
+            return taxMode
+        }
+    }
+
+    private func displayFiscalizationStatus(_ status: String) -> String {
+        switch status {
+        case "yookassa_receipt_pending":
+            return "чек ЮKassa ожидает регистрации"
+        case "npd_receipt_pending":
+            return "чек НПД ожидает регистрации"
+        case "fiscalization_not_configured":
+            return "не настроена в магазине ЮKassa"
+        default:
+            return status
         }
     }
 }

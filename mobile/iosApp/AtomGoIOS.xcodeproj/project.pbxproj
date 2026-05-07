@@ -19,6 +19,8 @@
 		9B33C85F7DD3AD0DC22BC7A9 /* AppDesign.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67DD284CB85AC16F87BA0F13 /* AppDesign.swift */; };
 		A01BE496BEF06FA4CA205127 /* ClientHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2AE583E4DEB4F7AC777CC5 /* ClientHomeView.swift */; };
 		A4D883E98FA3D8D41487CA8C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FCBDF83548DFF94997E4BEF3 /* Assets.xcassets */; };
+		A8D8E4A179DF4D32920C34A1 /* Poppins-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A8D8E4A279DF4D32920C34A1 /* Poppins-Medium.ttf */; };
+		A8D8E4A179DF4D32920C34A2 /* Urbanist-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A8D8E4A279DF4D32920C34A2 /* Urbanist-Variable.ttf */; };
 		AF45D347D006E922A45BC4A7 /* AppModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31F93C8EF3C90D4012005AAE /* AppModels.swift */; };
 		B7D05449E1D1732C82744DB6 /* AppViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2477B38675A2682D5677B0C9 /* AppViewModel.swift */; };
 		CFAE120B547EF0DA8409971B /* LoginViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0F3CCB189006AB76FED0B0E /* LoginViewModel.swift */; };
@@ -60,6 +62,8 @@
 		7CFFD5758E932F636AA8000B /* AtomGoIOSUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = AtomGoIOSUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7E2AE583E4DEB4F7AC777CC5 /* ClientHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientHomeView.swift; sourceTree = "<group>"; };
 		8681599C5E052529E85B8A40 /* AtomGoIOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtomGoIOSApp.swift; sourceTree = "<group>"; };
+		A8D8E4A279DF4D32920C34A1 /* Poppins-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Poppins-Medium.ttf"; sourceTree = "<group>"; };
+		A8D8E4A279DF4D32920C34A2 /* Urbanist-Variable.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Urbanist-Variable.ttf"; sourceTree = "<group>"; };
 		AB9DCC5AB764337899D966D9 /* CreateClientFormValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateClientFormValidator.swift; sourceTree = "<group>"; };
 		B437D964BE5A9D2150A1714A /* AdminHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminHomeView.swift; sourceTree = "<group>"; };
 		BAC50F2B0DB149A43363072E /* BackendReachabilityPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendReachabilityPolicyTests.swift; sourceTree = "<group>"; };
@@ -128,6 +132,7 @@
 			isa = PBXGroup;
 			children = (
 				FCBDF83548DFF94997E4BEF3 /* Assets.xcassets */,
+				A8D8E4A379DF4D32920C34A1 /* Fonts */,
 				8681599C5E052529E85B8A40 /* AtomGoIOSApp.swift */,
 				0B06085DBE1F31C40421BAE8 /* ContentView.swift */,
 				D57A96027742B435A96FA584 /* Info.plist */,
@@ -136,6 +141,15 @@
 				5B904D5E657AE06DBF777D3D /* Features */,
 			);
 			path = AtomGoIOS;
+			sourceTree = "<group>";
+		};
+		A8D8E4A379DF4D32920C34A1 /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				A8D8E4A279DF4D32920C34A1 /* Poppins-Medium.ttf */,
+				A8D8E4A279DF4D32920C34A2 /* Urbanist-Variable.ttf */,
+			);
+			path = Fonts;
 			sourceTree = "<group>";
 		};
 		5B904D5E657AE06DBF777D3D /* Features */ = {
@@ -304,6 +318,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				A4D883E98FA3D8D41487CA8C /* Assets.xcassets in Resources */,
+				A8D8E4A179DF4D32920C34A1 /* Poppins-Medium.ttf in Resources */,
+				A8D8E4A179DF4D32920C34A2 /* Urbanist-Variable.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

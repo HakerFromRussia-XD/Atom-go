@@ -9,6 +9,12 @@
 - `login`: `admin`
 - `password`: `admin123`
 - `role`: `admin`
+- `tax_mode`: `self_employed`
+
+- `login`: `admin_ip`
+- `password`: `adminip123`
+- `role`: `admin`
+- `tax_mode`: `individual_entrepreneur`
 
 ## Вход в клиентскую часть
 

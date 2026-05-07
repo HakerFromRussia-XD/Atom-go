@@ -188,7 +188,8 @@ final class CreateClientFlowUnitTests: XCTestCase {
     @MainActor
     func testViewModelCreatesClientAndRefreshesList() async {
         let service = MockAdminBackendService()
-        service.fetchClientsResult = .success([service.sampleSummary])
+        service.fetchRentsResult = .success([])
+        service.fetchClientCatalogResult = .success([service.sampleSummary])
         service.fetchBikesResult = .success([service.sampleBike])
         service.createClientResult = .success(service.sampleDetails)
         service.fetchClientDetailsResult = .success(service.sampleDetails)
@@ -210,11 +211,35 @@ final class CreateClientFlowUnitTests: XCTestCase {
         XCTAssertTrue(didCallOnSuccess)
         XCTAssertEqual(viewModel.operationSuccessMessage, "Клиент создан: Roman Sergeev")
         if case let .loaded(items) = viewModel.state {
-            XCTAssertEqual(items.count, 1)
-            XCTAssertEqual(items.first?.fullName, "Roman Sergeev")
+            XCTAssertEqual(items.count, 0)
         } else {
             XCTFail("Expected .loaded state after successful create")
         }
+        XCTAssertEqual(viewModel.clientCatalog.count, 1)
+        XCTAssertEqual(viewModel.clientCatalog.first?.fullName, "Roman Sergeev")
+    }
+
+    @MainActor
+    func testViewModelSeparatesClientsCatalogFromRentsForIpAdmin() async {
+        let service = MockAdminBackendService()
+        service.fetchRentsResult = .success([])
+        service.fetchClientCatalogResult = .success([service.sampleSummary])
+        service.fetchBikesResult = .success([])
+        let viewModel = AdminHomeViewModel(
+            session: AuthSession(accessToken: "token", role: .admin, userId: "admin-ip-001"),
+            apiService: service
+        )
+
+        viewModel.load()
+        await waitUntilAdminHomeLoads(viewModel)
+
+        if case let .loaded(rents) = viewModel.state {
+            XCTAssertTrue(rents.isEmpty)
+        } else {
+            XCTFail("Expected .loaded state")
+        }
+        XCTAssertEqual(viewModel.clientCatalog.count, 1)
+        XCTAssertEqual(viewModel.clientCatalog.first?.clientId, service.sampleSummary.clientId)
     }
 
     @MainActor
@@ -385,6 +410,42 @@ final class CreateClientFlowUnitTests: XCTestCase {
         XCTAssertNil(viewModel.operationSuccessMessage)
     }
 
+    @MainActor
+    func testViewModelCreatingBikeDoesNotPopulateRentList() async {
+        let service = MockAdminBackendService()
+        service.fetchRentsResult = .success([])
+        service.fetchClientCatalogResult = .success([service.sampleSummary])
+        service.fetchBikesResult = .success([])
+        service.createBikeResult = .success(service.sampleBike)
+        let viewModel = makeViewModel(service: service)
+
+        viewModel.load()
+        await waitUntilAdminHomeLoads(viewModel)
+        service.fetchRentsResult = .success([service.sampleSummary])
+
+        viewModel.createBike(
+            payload: CreateBikePayload(
+                photoUrl: nil,
+                bikeModel: "Монстер",
+                weeklyRateRub: 3000,
+                frameSerialNumber: "FRAME-1",
+                motorSerialNumber: "MOTOR-1",
+                batterySerialNumber1: "BAT-1",
+                batterySerialNumber2: "BAT-2"
+            )
+        )
+        await waitUntilOperationCompletes(viewModel)
+
+        if case let .loaded(rents) = viewModel.state {
+            XCTAssertTrue(rents.isEmpty)
+        } else {
+            XCTFail("Expected .loaded state")
+        }
+        XCTAssertEqual(viewModel.bikes.count, 1)
+        XCTAssertEqual(viewModel.bikes.first?.bikeId, service.sampleBike.bikeId)
+        XCTAssertEqual(service.fetchAdminRentsCallsCount, 1)
+    }
+
     func testBackendErrorParserMapsRentalIdRequired() {
         let error = BackendError.httpError(code: 400, body: #"{"message":"rentalId is required"}"#)
         XCTAssertEqual(error.localizedDescription, "Не указан идентификатор аренды.")
@@ -459,6 +520,17 @@ final class CreateClientFlowUnitTests: XCTestCase {
     }
 
     @MainActor
+    private func waitUntilAdminHomeLoads(_ viewModel: AdminHomeViewModel) async {
+        for _ in 0 ..< 200 {
+            if case .loaded = viewModel.state {
+                return
+            }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTFail("Admin home did not load in time")
+    }
+
+    @MainActor
     private func waitUntilClientDashboardLoads(_ viewModel: ClientHomeViewModel) async {
         for _ in 0 ..< 200 {
             if case .loaded = viewModel.state {
@@ -494,6 +566,8 @@ final class CreateClientFlowUnitTests: XCTestCase {
 
 private final class MockAdminBackendService: BackendServicing {
     var fetchClientsResult: Result<[AdminClientSummaryResponse], Error> = .success([])
+    var fetchRentsResult: Result<[AdminClientSummaryResponse], Error> = .success([])
+    var fetchClientCatalogResult: Result<[AdminClientSummaryResponse], Error> = .success([])
     var fetchBikesResult: Result<[AdminBikeResponse], Error> = .success([])
     var fetchClientDashboardResult: Result<ClientDashboardResponse, Error> = .failure(BackendError.invalidResponse)
     var createClientResult: Result<AdminClientDetailsResponse, Error> = .failure(BackendError.invalidResponse)
@@ -505,6 +579,7 @@ private final class MockAdminBackendService: BackendServicing {
     var deleteRentalResult: Result<DeleteRentalResult, Error> = .failure(BackendError.invalidResponse)
     var createPaymentResult: Result<PaymentCreationResponse, Error> = .failure(BackendError.invalidResponse)
     var paymentStatusResult: Result<PaymentStatusResponse, Error> = .failure(BackendError.invalidResponse)
+    var fetchAdminRentsCallsCount = 0
     var createRentalCallsCount = 0
     var updateRentalCallsCount = 0
     var deleteRentalCallsCount = 0
@@ -562,7 +637,9 @@ private final class MockAdminBackendService: BackendServicing {
             twoWeeksRub: 6000,
             monthRub: 12000,
             debtExactRub: 0
-        )
+        ),
+        taxMode: nil,
+        requiresReceiptEmail: false
     )
 
     let samplePayment = PaymentCreationResponse(
@@ -587,9 +664,20 @@ private final class MockAdminBackendService: BackendServicing {
         try fetchClientsResult.get()
     }
 
+    func fetchAdminRents(accessToken _: String) async throws -> [AdminClientSummaryResponse] {
+        fetchAdminRentsCallsCount += 1
+        return try fetchRentsResult.get()
+    }
+
+    func fetchAdminClientCatalog(accessToken _: String) async throws -> [AdminClientSummaryResponse] {
+        try fetchClientCatalogResult.get()
+    }
+
     func fetchAdminBikes(accessToken _: String) async throws -> [AdminBikeResponse] {
         try fetchBikesResult.get()
     }
+
+    func updateClientReceiptEmail(accessToken _: String, email _: String) async throws {}
 
     func createPayment(accessToken _: String, paymentType _: ClientPaymentType) async throws -> PaymentCreationResponse {
         try createPaymentResult.get()
@@ -615,12 +703,20 @@ private final class MockAdminBackendService: BackendServicing {
         try updateBikeResult.get()
     }
 
+    func deleteAdminBike(accessToken _: String, bikeId: String) async throws -> DeleteBikeResult {
+        DeleteBikeResult(bikeId: bikeId, deleted: true)
+    }
+
     func updateAdminClientProfile(
         accessToken _: String,
         clientId _: String,
         payload _: UpdateClientProfilePayload
     ) async throws -> AdminClientDetailsResponse {
         throw BackendError.invalidResponse
+    }
+
+    func deleteAdminClient(accessToken _: String, clientId: String) async throws -> DeleteClientResult {
+        DeleteClientResult(clientId: clientId, deleted: true)
     }
 
     func createAdminRental(

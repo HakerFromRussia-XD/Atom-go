@@ -61,7 +61,11 @@ data class ClientDashboardResponse(
     val debtRub: Int,
     @SerialName("total_adjustment_rub")
     val totalAdjustmentRub: Int,
-    val presets: ClientPaymentPresetsResponse
+    val presets: ClientPaymentPresetsResponse,
+    @SerialName("tax_mode")
+    val taxMode: String? = null,
+    @SerialName("requires_receipt_email")
+    val requiresReceiptEmail: Boolean = false
 )
 
 @Serializable
@@ -260,6 +264,20 @@ data class AdminDeleteRentalResponse(
 )
 
 @Serializable
+data class AdminDeleteClientResponse(
+    @SerialName("client_id")
+    val clientId: String,
+    val deleted: Boolean
+)
+
+@Serializable
+data class AdminDeleteBikeResponse(
+    @SerialName("bike_id")
+    val bikeId: String,
+    val deleted: Boolean
+)
+
+@Serializable
 data class AdminDebtAdjustmentRequest(
     @SerialName("amount_rub")
     val amountRub: Int,
@@ -314,6 +332,18 @@ data class CreatePaymentRequest(
 )
 
 @Serializable
+data class UpdateClientReceiptEmailRequest(
+    val email: String
+)
+
+@Serializable
+data class UpdateClientReceiptEmailResponse(
+    @SerialName("client_id")
+    val clientId: String,
+    val email: String
+)
+
+@Serializable
 data class CreatePaymentResponse(
     @SerialName("payment_id")
     val paymentId: String,
@@ -323,6 +353,10 @@ data class CreatePaymentResponse(
     val confirmationUrl: String,
     @SerialName("idempotence_key")
     val idempotenceKey: String,
+    @SerialName("tax_mode")
+    val taxMode: String? = null,
+    @SerialName("fiscalization_status")
+    val fiscalizationStatus: String? = null,
     val status: String
 )
 
@@ -337,6 +371,10 @@ data class PaymentStatusResponse(
     @SerialName("provider_payment_id")
     val providerPaymentId: String? = null,
     val status: String,
+    @SerialName("tax_mode")
+    val taxMode: String? = null,
+    @SerialName("fiscalization_status")
+    val fiscalizationStatus: String? = null,
     @SerialName("debt_rub")
     val debtRub: Int? = null
 )

@@ -551,6 +551,204 @@ class ApiIntegrationTest {
         )
     }
 
+    @Test
+    fun `admin accounts should see only their own clients rentals and tax pipelines`() = testApplication {
+        application { module() }
+        val selfEmployedAdminToken = loginAsAdmin()
+        val ipAdminToken = loginAsAdminIp()
+
+        val ipInitialClients = client.get("/api/v1/admin/clients") {
+            bearerAuth(ipAdminToken)
+        }
+        assertEquals(HttpStatusCode.OK, ipInitialClients.status)
+        assertEquals(0, json.parseToJsonElement(ipInitialClients.bodyAsText()).jsonArray.size)
+
+        val ipClientId = createClientAndGetId(
+            ipAdminToken,
+            fullName = "IP Client",
+            phone = "79005551122"
+        )
+
+        val ipClientsAfterProfileCreate = client.get("/api/v1/admin/clients") {
+            bearerAuth(ipAdminToken)
+        }
+        assertEquals(HttpStatusCode.OK, ipClientsAfterProfileCreate.status)
+        assertTrue(
+            json.parseToJsonElement(ipClientsAfterProfileCreate.bodyAsText()).jsonArray.any {
+                it.jsonObject["client_id"]?.jsonPrimitive?.content == ipClientId
+            }
+        )
+
+        val ipRentsAfterProfileCreate = client.get("/api/v1/admin/rents") {
+            bearerAuth(ipAdminToken)
+        }
+        assertEquals(HttpStatusCode.OK, ipRentsAfterProfileCreate.status)
+        assertTrue(
+            json.parseToJsonElement(ipRentsAfterProfileCreate.bodyAsText()).jsonArray.none {
+                it.jsonObject["client_id"]?.jsonPrimitive?.content == ipClientId
+            }
+        )
+
+        val ipBikeId = createBikeAndGetId(ipAdminToken, frameSerial = "IP-FRAME-1", motorSerial = "IP-MOTOR-1")
+
+        val createRental = client.post("/api/v1/admin/rentals") {
+            bearerAuth(ipAdminToken)
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "client_id":"$ipClientId",
+                  "bike_id":"$ipBikeId",
+                  "login":"ip.client",
+                  "password":"client123",
+                  "period_start":"2026-05-05"
+                }
+                """.trimIndent()
+            )
+        }
+        assertEquals(HttpStatusCode.Created, createRental.status)
+        val rentalBody = json.parseToJsonElement(createRental.bodyAsText()).jsonObject
+        assertEquals("individual_entrepreneur", rentalBody["tax_mode"]?.jsonPrimitive?.content)
+
+        val ipRentsAfterRentalCreate = client.get("/api/v1/admin/rents") {
+            bearerAuth(ipAdminToken)
+        }
+        assertEquals(HttpStatusCode.OK, ipRentsAfterRentalCreate.status)
+        assertTrue(
+            json.parseToJsonElement(ipRentsAfterRentalCreate.bodyAsText()).jsonArray.any {
+                it.jsonObject["client_id"]?.jsonPrimitive?.content == ipClientId
+            }
+        )
+
+        val selfEmployedClients = client.get("/api/v1/admin/clients") {
+            bearerAuth(selfEmployedAdminToken)
+        }
+        assertEquals(HttpStatusCode.OK, selfEmployedClients.status)
+        assertTrue(
+            json.parseToJsonElement(selfEmployedClients.bodyAsText()).jsonArray.none {
+                it.jsonObject["client_id"]?.jsonPrimitive?.content == ipClientId
+            }
+        )
+
+        val forbiddenDetails = client.get("/api/v1/admin/clients/$ipClientId") {
+            bearerAuth(selfEmployedAdminToken)
+        }
+        assertEquals(HttpStatusCode.Forbidden, forbiddenDetails.status)
+
+        val ipClientLogin = client.post("/api/v1/auth/login") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"login":"ip.client","password":"client123"}""")
+        }
+        assertEquals(HttpStatusCode.OK, ipClientLogin.status)
+        val clientToken = json.parseToJsonElement(ipClientLogin.bodyAsText())
+            .jsonObject["access_token"]
+            ?.jsonPrimitive
+            ?.content
+            ?: error("No client token")
+
+        val dashboardBeforeEmail = client.get("/api/v1/client/me/dashboard") {
+            bearerAuth(clientToken)
+        }
+        assertEquals(HttpStatusCode.OK, dashboardBeforeEmail.status)
+        val dashboardBeforeEmailBody = json.parseToJsonElement(dashboardBeforeEmail.bodyAsText()).jsonObject
+        assertEquals("individual_entrepreneur", dashboardBeforeEmailBody["tax_mode"]?.jsonPrimitive?.content)
+        assertEquals(true, dashboardBeforeEmailBody["requires_receipt_email"]?.jsonPrimitive?.content?.toBooleanStrict())
+
+        val paymentWithoutEmail = client.post("/api/v1/payments/create") {
+            bearerAuth(clientToken)
+            contentType(ContentType.Application.Json)
+            setBody("""{"payment_type":"day"}""")
+        }
+        assertEquals(HttpStatusCode.BadRequest, paymentWithoutEmail.status)
+
+        val saveReceiptEmail = client.post("/api/v1/client/me/receipt-email") {
+            bearerAuth(clientToken)
+            contentType(ContentType.Application.Json)
+            setBody("""{"email":"13romaroma13@gmail.com"}""")
+        }
+        assertEquals(HttpStatusCode.OK, saveReceiptEmail.status)
+
+        val dashboardAfterEmail = client.get("/api/v1/client/me/dashboard") {
+            bearerAuth(clientToken)
+        }
+        assertEquals(HttpStatusCode.OK, dashboardAfterEmail.status)
+        val dashboardAfterEmailBody = json.parseToJsonElement(dashboardAfterEmail.bodyAsText()).jsonObject
+        assertEquals(false, dashboardAfterEmailBody["requires_receipt_email"]?.jsonPrimitive?.content?.toBooleanStrict())
+
+        val payment = client.post("/api/v1/payments/create") {
+            bearerAuth(clientToken)
+            contentType(ContentType.Application.Json)
+            setBody("""{"payment_type":"day"}""")
+        }
+        assertEquals(HttpStatusCode.OK, payment.status)
+        val paymentBody = json.parseToJsonElement(payment.bodyAsText()).jsonObject
+        assertEquals("individual_entrepreneur", paymentBody["tax_mode"]?.jsonPrimitive?.content)
+        assertEquals("yookassa_receipt_pending", paymentBody["fiscalization_status"]?.jsonPrimitive?.content)
+    }
+
+    @Test
+    fun `admin should delete only clients and bikes without rental history`() = testApplication {
+        application { module() }
+        val adminToken = loginAsAdmin()
+
+        val draftClientId = createClientAndGetId(adminToken, fullName = "Draft Client", phone = "79005559901")
+        val deleteDraftClient = client.post("/api/v1/admin/clients/$draftClientId/delete") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, deleteDraftClient.status)
+
+        val spareBikeId = createBikeAndGetId(
+            adminToken = adminToken,
+            frameSerial = "DELETE-FRAME-1",
+            motorSerial = "DELETE-MOTOR-1"
+        )
+        val deleteSpareBike = client.post("/api/v1/admin/bikes/$spareBikeId/delete") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, deleteSpareBike.status)
+
+        val rentedClientId = createClientAndGetId(adminToken, fullName = "Rented Client", phone = "79005559902")
+        val rentedBikeId = createBikeAndGetId(
+            adminToken = adminToken,
+            frameSerial = "RENTED-FRAME-1",
+            motorSerial = "RENTED-MOTOR-1"
+        )
+        val createRental = client.post("/api/v1/admin/rentals") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "client_id":"$rentedClientId",
+                  "bike_id":"$rentedBikeId",
+                  "login":"delete.rules.client",
+                  "password":"client123",
+                  "period_start":"2026-05-06"
+                }
+                """.trimIndent()
+            )
+        }
+        assertEquals(HttpStatusCode.Created, createRental.status)
+
+        val deleteRentedClient = client.post("/api/v1/admin/clients/$rentedClientId/delete") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.Conflict, deleteRentedClient.status)
+        assertEquals(
+            "client is used by rentals",
+            json.parseToJsonElement(deleteRentedClient.bodyAsText()).jsonObject["message"]?.jsonPrimitive?.content
+        )
+
+        val deleteRentedBike = client.post("/api/v1/admin/bikes/$rentedBikeId/delete") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.Conflict, deleteRentedBike.status)
+        assertEquals(
+            "bike is used by rentals",
+            json.parseToJsonElement(deleteRentedBike.bodyAsText()).jsonObject["message"]?.jsonPrimitive?.content
+        )
+    }
+
     private suspend fun io.ktor.server.testing.ApplicationTestBuilder.loginAsAdmin(): String {
         val login = client.post("/api/v1/auth/login") {
             contentType(ContentType.Application.Json)
@@ -564,17 +762,39 @@ class ApiIntegrationTest {
             ?: error("No admin token")
     }
 
-    private suspend fun io.ktor.server.testing.ApplicationTestBuilder.createClientAndGetId(adminToken: String): String {
+    private suspend fun io.ktor.server.testing.ApplicationTestBuilder.loginAsAdminIp(): String {
+        val login = client.post("/api/v1/auth/login") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"login":"admin_ip","password":"adminip123"}""")
+        }
+        assertEquals(HttpStatusCode.OK, login.status)
+        return json.parseToJsonElement(login.bodyAsText())
+            .jsonObject["access_token"]
+            ?.jsonPrimitive
+            ?.content
+            ?: error("No admin IP token")
+    }
+
+    private suspend fun io.ktor.server.testing.ApplicationTestBuilder.createClientAndGetId(
+        adminToken: String,
+        fullName: String = "Roman Sergeev",
+        phone: String = "89859325907",
+        email: String? = null
+    ): String {
+        val emailContact = email?.let {
+            """,
+                  {"label":"Email","number":"$it"}"""
+        }.orEmpty()
         val createClient = client.post("/api/v1/admin/clients") {
             bearerAuth(adminToken)
             contentType(ContentType.Application.Json)
             setBody(
                 """
                 {
-                  "full_name":"Roman Sergeev",
-                  "address":"Moscow, 123",
-                  "passport_data":"1234 567890",
-                  "phones":[{"label":"Рабочий (TG)","number":"89859325907"}]
+	                  "full_name":"$fullName",
+	                  "address":"Moscow, 123",
+	                  "passport_data":"1234 567890",
+	                  "phones":[{"label":"Рабочий (TG)","number":"$phone"}$emailContact]
                 }
                 """.trimIndent()
             )
@@ -587,7 +807,11 @@ class ApiIntegrationTest {
             ?: error("No client_id")
     }
 
-    private suspend fun io.ktor.server.testing.ApplicationTestBuilder.createBikeAndGetId(adminToken: String): String {
+    private suspend fun io.ktor.server.testing.ApplicationTestBuilder.createBikeAndGetId(
+        adminToken: String,
+        frameSerial: String = "FRM-3200",
+        motorSerial: String = "MTR-3200"
+    ): String {
         val createBike = client.post("/api/v1/admin/bikes") {
             bearerAuth(adminToken)
             contentType(ContentType.Application.Json)
@@ -597,8 +821,8 @@ class ApiIntegrationTest {
                   "photo_url":"https://example.com/bikes/monster.png",
                   "bike_model":"Монстер",
                   "weekly_rate_rub":3200,
-                  "frame_serial_number":"FRM-3200",
-                  "motor_serial_number":"MTR-3200",
+	                  "frame_serial_number":"$frameSerial",
+	                  "motor_serial_number":"$motorSerial",
                   "battery_serial_number_1":"BAT1-3200",
                   "battery_serial_number_2":"BAT2-3200"
                 }

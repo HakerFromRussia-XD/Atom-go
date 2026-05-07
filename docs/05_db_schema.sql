@@ -5,6 +5,7 @@ create table app_user (
   role text not null check (role in ('admin', 'client')),
   login text not null unique,
   password_hash text not null,
+  tax_mode text not null default 'self_employed' check (tax_mode in ('self_employed', 'individual_entrepreneur')),
   is_active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -15,6 +16,7 @@ create table bike (
   model_name text not null,
   avatar_url text,
   serial_no text,
+  admin_id uuid references app_user(id),
   created_at timestamptz not null default now()
 );
 
@@ -23,6 +25,7 @@ create table client_profile (
   user_id uuid not null unique references app_user(id),
   full_name text not null,
   weekly_rate_rub integer not null check (weekly_rate_rub > 0),
+  admin_id uuid references app_user(id),
   address text,
   passport_data text,
   phones_json jsonb not null default '[]'::jsonb,
@@ -40,6 +43,8 @@ create table rental (
   video_url text,
   contract_url text,
   comment text,
+  admin_id uuid references app_user(id),
+  tax_mode text not null default 'self_employed' check (tax_mode in ('self_employed', 'individual_entrepreneur')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -80,6 +85,10 @@ create table payment (
   provider_payment_id text,
   idempotence_key text not null,
   confirmation_url text,
+  tax_mode text not null default 'self_employed' check (tax_mode in ('self_employed', 'individual_entrepreneur')),
+  fiscalization_status text not null default 'npd_receipt_pending' check (
+    fiscalization_status in ('npd_receipt_pending', 'yookassa_receipt_pending', 'fiscalization_not_configured')
+  ),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

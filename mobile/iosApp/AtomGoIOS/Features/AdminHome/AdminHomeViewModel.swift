@@ -10,6 +10,7 @@ enum AdminHomeState {
 @MainActor
 final class AdminHomeViewModel: ObservableObject {
     @Published private(set) var state: AdminHomeState = .idle
+    @Published private(set) var clientCatalog: [AdminClientSummaryResponse] = []
     @Published private(set) var bikes: [AdminBikeResponse] = []
     @Published private(set) var selectedClientDetails: AdminClientDetailsResponse?
     @Published var detailsErrorMessage: String?
@@ -33,11 +34,14 @@ final class AdminHomeViewModel: ObservableObject {
 
         Task {
             do {
-                async let clientsTask = apiService.fetchAdminClients(accessToken: session.accessToken)
+                async let clientsTask = apiService.fetchAdminRents(accessToken: session.accessToken)
+                async let clientCatalogTask = apiService.fetchAdminClientCatalog(accessToken: session.accessToken)
                 async let bikesTask = apiService.fetchAdminBikes(accessToken: session.accessToken)
                 let clients = try await clientsTask
+                let loadedClientCatalog = try await clientCatalogTask
                 let loadedBikes = try await bikesTask
                 state = .loaded(clients)
+                clientCatalog = loadedClientCatalog
                 bikes = loadedBikes
             } catch {
                 state = .failed(error.localizedDescription)
@@ -67,6 +71,21 @@ final class AdminHomeViewModel: ObservableObject {
         detailsErrorMessage = nil
     }
 
+    func refreshClientCatalog(onSuccess: (() -> Void)? = nil) {
+        operationErrorMessage = nil
+
+        Task {
+            do {
+                clientCatalog = try await apiService.fetchAdminClientCatalog(accessToken: session.accessToken)
+                await MainActor.run {
+                    onSuccess?()
+                }
+            } catch {
+                operationErrorMessage = error.localizedDescription
+            }
+        }
+    }
+
     func createClient(payload: CreateClientPayload, onSuccess: (() -> Void)? = nil) {
         isOperationInProgress = true
         operationErrorMessage = nil
@@ -79,7 +98,7 @@ final class AdminHomeViewModel: ObservableObject {
                     payload: payload
                 )
                 operationSuccessMessage = "Клиент создан: \(details.fullName)"
-                await refreshAfterMutation(openDetailsFor: details.clientId)
+                await refreshAfterMutation(openDetailsFor: nil)
                 await MainActor.run {
                     onSuccess?()
                 }
@@ -102,7 +121,7 @@ final class AdminHomeViewModel: ObservableObject {
                     payload: payload
                 )
                 operationSuccessMessage = "Велосипед создан: \(bike.bikeModel)"
-                await refreshAfterMutation(openDetailsFor: nil)
+                upsertBike(bike)
                 await MainActor.run {
                     onSuccess?()
                 }
@@ -136,6 +155,29 @@ final class AdminHomeViewModel: ObservableObject {
         }
     }
 
+    func deleteBike(bikeId: String, onSuccess: (() -> Void)? = nil) {
+        isOperationInProgress = true
+        operationErrorMessage = nil
+        operationSuccessMessage = nil
+
+        Task {
+            do {
+                let result = try await apiService.deleteAdminBike(
+                    accessToken: session.accessToken,
+                    bikeId: bikeId
+                )
+                operationSuccessMessage = result.deleted ? "Велосипед удален" : "Удаление завершено"
+                await refreshAfterMutation(openDetailsFor: nil)
+                await MainActor.run {
+                    onSuccess?()
+                }
+            } catch {
+                operationErrorMessage = error.localizedDescription
+            }
+            isOperationInProgress = false
+        }
+    }
+
     func updateClientProfile(clientId: String, payload: UpdateClientProfilePayload) {
         isOperationInProgress = true
         operationErrorMessage = nil
@@ -150,6 +192,30 @@ final class AdminHomeViewModel: ObservableObject {
                 )
                 operationSuccessMessage = "Профиль клиента обновлен: \(details.fullName)"
                 await refreshAfterMutation(openDetailsFor: clientId)
+            } catch {
+                operationErrorMessage = error.localizedDescription
+            }
+            isOperationInProgress = false
+        }
+    }
+
+    func deleteClient(clientId: String, onSuccess: (() -> Void)? = nil) {
+        isOperationInProgress = true
+        operationErrorMessage = nil
+        operationSuccessMessage = nil
+
+        Task {
+            do {
+                let result = try await apiService.deleteAdminClient(
+                    accessToken: session.accessToken,
+                    clientId: clientId
+                )
+                operationSuccessMessage = result.deleted ? "Клиент удален" : "Удаление завершено"
+                selectedClientDetails = nil
+                await refreshAfterMutation(openDetailsFor: nil)
+                await MainActor.run {
+                    onSuccess?()
+                }
             } catch {
                 operationErrorMessage = error.localizedDescription
             }
@@ -301,11 +367,14 @@ final class AdminHomeViewModel: ObservableObject {
 
     private func refreshAfterMutation(openDetailsFor clientId: String?) async {
         do {
-            async let clientsTask = apiService.fetchAdminClients(accessToken: session.accessToken)
+            async let clientsTask = apiService.fetchAdminRents(accessToken: session.accessToken)
+            async let clientCatalogTask = apiService.fetchAdminClientCatalog(accessToken: session.accessToken)
             async let bikesTask = apiService.fetchAdminBikes(accessToken: session.accessToken)
             let clients = try await clientsTask
+            let loadedClientCatalog = try await clientCatalogTask
             let loadedBikes = try await bikesTask
             state = .loaded(clients)
+            clientCatalog = loadedClientCatalog
             bikes = loadedBikes
             if let clientId {
                 selectedClientDetails = try? await apiService.fetchAdminClientDetails(
@@ -316,5 +385,14 @@ final class AdminHomeViewModel: ObservableObject {
         } catch {
             state = .failed(error.localizedDescription)
         }
+    }
+
+    private func upsertBike(_ bike: AdminBikeResponse) {
+        if let index = bikes.firstIndex(where: { $0.bikeId == bike.bikeId }) {
+            bikes[index] = bike
+        } else {
+            bikes.append(bike)
+        }
+        bikes.sort { $0.bikeModel.localizedCaseInsensitiveCompare($1.bikeModel) == .orderedAscending }
     }
 }

@@ -79,6 +79,20 @@ private struct NativeCreatePaymentRequest: Encodable {
     }
 }
 
+private struct NativeUpdateReceiptEmailRequest: Encodable {
+    let email: String
+}
+
+private struct NativeUpdateReceiptEmailResponse: Decodable {
+    let clientId: String
+    let email: String
+
+    enum CodingKeys: String, CodingKey {
+        case clientId = "client_id"
+        case email
+    }
+}
+
 private struct NativeEmptyRequest: Encodable {}
 
 protocol BackendServicing {
@@ -86,18 +100,23 @@ protocol BackendServicing {
     func login(login: String, password: String) async throws -> AuthSession
     func fetchClientDashboard(accessToken: String) async throws -> ClientDashboardResponse
     func fetchAdminClients(accessToken: String) async throws -> [AdminClientSummaryResponse]
+    func fetchAdminRents(accessToken: String) async throws -> [AdminClientSummaryResponse]
+    func fetchAdminClientCatalog(accessToken: String) async throws -> [AdminClientSummaryResponse]
     func fetchAdminBikes(accessToken: String) async throws -> [AdminBikeResponse]
+    func updateClientReceiptEmail(accessToken: String, email: String) async throws
     func createPayment(accessToken: String, paymentType: ClientPaymentType) async throws -> PaymentCreationResponse
     func fetchPaymentStatus(accessToken: String, paymentId: String) async throws -> PaymentStatusResponse
     func fetchAdminClientDetails(accessToken: String, clientId: String) async throws -> AdminClientDetailsResponse
     func createAdminClient(accessToken: String, payload: CreateClientPayload) async throws -> AdminClientDetailsResponse
     func createAdminBike(accessToken: String, payload: CreateBikePayload) async throws -> AdminBikeResponse
     func updateAdminBike(accessToken: String, payload: UpdateBikePayload) async throws -> AdminBikeResponse
+    func deleteAdminBike(accessToken: String, bikeId: String) async throws -> DeleteBikeResult
     func updateAdminClientProfile(
         accessToken: String,
         clientId: String,
         payload: UpdateClientProfilePayload
     ) async throws -> AdminClientDetailsResponse
+    func deleteAdminClient(accessToken: String, clientId: String) async throws -> DeleteClientResult
     func createAdminRental(
         accessToken: String,
         payload: CreateRentalPayload
@@ -196,9 +215,13 @@ private enum BackendErrorMessageParser {
         "client not found": "Клиент не найден.",
         "rental not found": "Аренда не найдена.",
         "bike not found": "Велосипед не найден.",
+        "client is used by rentals": "Клиента с историей аренд нельзя удалить. Можно только редактировать профиль.",
+        "bike is used by rentals": "Велосипед уже используется в арендах и не может быть удален.",
         "yookassa payment creation failed": "Не удалось создать платеж в ЮKassa. Попробуйте ещё раз.",
         "yookassa payment status check failed": "Не удалось проверить статус платежа в ЮKassa. Попробуйте ещё раз.",
         "yookassa is not configured": "ЮKassa не настроена на backend. Проверьте YOOKASSA_SECRET_KEY и YOOKASSA_PUBLIC_BASE_URL.",
+        "client email is invalid": "Укажите корректный email для чека.",
+        "client email is required for yookassa receipt": "Укажите email для чека перед оплатой.",
         "payment not found": "Платеж не найден.",
         "unknown payment_type": "Неизвестный тип платежа.",
         "amount is zero. nothing to pay.": "Сейчас нечего оплачивать."
@@ -354,24 +377,11 @@ final class BackendService: BackendServicing {
     }
 
     func fetchClientDashboard(accessToken: String) async throws -> ClientDashboardResponse {
-        let response: shared.ClientDashboardResponse = try await awaitResult { completion in
-            self.apiClient.fetchClientDashboard(accessToken: accessToken, completionHandler: completion)
-        }
-
-        return ClientDashboardResponse(
-            clientId: response.clientId,
-            bikeModel: response.bikeModel,
-            rentalStart: response.rentalStart,
-            paidUntil: response.paidUntil,
-            debtRub: Int(response.debtRub),
-            totalAdjustmentRub: Int(response.totalAdjustmentRub),
-            presets: ClientPaymentPresets(
-                dayRub: Int(response.presets.dayRub),
-                weekRub: Int(response.presets.weekRub),
-                twoWeeksRub: Int(response.presets.twoWeeksRub),
-                monthRub: Int(response.presets.monthRub),
-                debtExactRub: Int(response.presets.debtExactRub)
-            )
+        try await sendNativeRequest(
+            path: "/client/me/dashboard",
+            method: "GET",
+            accessToken: accessToken,
+            body: Optional<NativeEmptyRequest>.none
         )
     }
 
@@ -380,20 +390,40 @@ final class BackendService: BackendServicing {
             self.apiClient.fetchAdminClients(accessToken: accessToken, completionHandler: completion)
         }
 
-        return clients.map { client in
-            AdminClientSummaryResponse(
-                clientId: client.clientId,
-                clientLogin: client.clientLogin,
-                fullName: client.fullName,
-                bikeModel: client.bikeModel,
-                bikeAvatarUrl: client.bikeAvatarUrl,
-                statusText: client.statusText,
-                paidUntil: client.paidUntil,
-                debtRub: Int(client.debtRub),
-                profitRub: Int(client.profitRub),
-                totalAdjustmentRub: Int(client.totalAdjustmentRub)
-            )
-        }
+        return clients.map(mapAdminClientSummary)
+    }
+
+    func fetchAdminRents(accessToken: String) async throws -> [AdminClientSummaryResponse] {
+        try await sendNativeRequest(
+            path: "/admin/rents",
+            method: "GET",
+            accessToken: accessToken,
+            body: Optional<NativeEmptyRequest>.none
+        )
+    }
+
+    func fetchAdminClientCatalog(accessToken: String) async throws -> [AdminClientSummaryResponse] {
+        try await sendNativeRequest(
+            path: "/admin/clients",
+            method: "GET",
+            accessToken: accessToken,
+            body: Optional<NativeEmptyRequest>.none
+        )
+    }
+
+    private func mapAdminClientSummary(_ client: shared.AdminClientSummaryResponse) -> AdminClientSummaryResponse {
+        AdminClientSummaryResponse(
+            clientId: client.clientId,
+            clientLogin: client.clientLogin,
+            fullName: client.fullName,
+            bikeModel: client.bikeModel,
+            bikeAvatarUrl: client.bikeAvatarUrl,
+            statusText: client.statusText,
+            paidUntil: client.paidUntil,
+            debtRub: Int(client.debtRub),
+            profitRub: Int(client.profitRub),
+            totalAdjustmentRub: Int(client.totalAdjustmentRub)
+        )
     }
 
     func fetchAdminBikes(accessToken: String) async throws -> [AdminBikeResponse] {
@@ -491,6 +521,15 @@ final class BackendService: BackendServicing {
             motorSerialNumber: bike.motorSerialNumber,
             batterySerialNumber1: bike.batterySerialNumber1,
             batterySerialNumber2: bike.batterySerialNumber2
+        )
+    }
+
+    func deleteAdminBike(accessToken: String, bikeId: String) async throws -> DeleteBikeResult {
+        try await sendNativeRequest(
+            path: "/admin/bikes/\(bikeId)/delete",
+            method: "POST",
+            accessToken: accessToken,
+            body: Optional<NativeEmptyRequest>.none
         )
     }
 
@@ -601,6 +640,15 @@ final class BackendService: BackendServicing {
         return mapAdminClientDetails(details)
     }
 
+    func deleteAdminClient(accessToken: String, clientId: String) async throws -> DeleteClientResult {
+        try await sendNativeRequest(
+            path: "/admin/clients/\(clientId)/delete",
+            method: "POST",
+            accessToken: accessToken,
+            body: Optional<NativeEmptyRequest>.none
+        )
+    }
+
     func adjustAdminClientDebt(
         accessToken: String,
         clientId: String,
@@ -660,6 +708,15 @@ final class BackendService: BackendServicing {
             rentalId: response.rentalId,
             videoUrl: response.videoUrl,
             contractUrl: response.contractUrl
+        )
+    }
+
+    func updateClientReceiptEmail(accessToken: String, email: String) async throws {
+        let _: NativeUpdateReceiptEmailResponse = try await sendNativeRequest(
+            path: "/client/me/receipt-email",
+            method: "POST",
+            accessToken: accessToken,
+            body: NativeUpdateReceiptEmailRequest(email: email)
         )
     }
 
@@ -910,9 +967,27 @@ final class LazyBackendService: BackendServicing {
         }
     }
 
+    func fetchAdminRents(accessToken: String) async throws -> [AdminClientSummaryResponse] {
+        try await withFallback { service in
+            try await service.fetchAdminRents(accessToken: accessToken)
+        }
+    }
+
+    func fetchAdminClientCatalog(accessToken: String) async throws -> [AdminClientSummaryResponse] {
+        try await withFallback { service in
+            try await service.fetchAdminClientCatalog(accessToken: accessToken)
+        }
+    }
+
     func fetchAdminBikes(accessToken: String) async throws -> [AdminBikeResponse] {
         try await withFallback { service in
             try await service.fetchAdminBikes(accessToken: accessToken)
+        }
+    }
+
+    func updateClientReceiptEmail(accessToken: String, email: String) async throws {
+        try await withFallback { service in
+            try await service.updateClientReceiptEmail(accessToken: accessToken, email: email)
         }
     }
 
@@ -952,6 +1027,12 @@ final class LazyBackendService: BackendServicing {
         }
     }
 
+    func deleteAdminBike(accessToken: String, bikeId: String) async throws -> DeleteBikeResult {
+        try await withFallback { service in
+            try await service.deleteAdminBike(accessToken: accessToken, bikeId: bikeId)
+        }
+    }
+
     func updateAdminClientProfile(
         accessToken: String,
         clientId: String,
@@ -963,6 +1044,12 @@ final class LazyBackendService: BackendServicing {
                 clientId: clientId,
                 payload: payload
             )
+        }
+    }
+
+    func deleteAdminClient(accessToken: String, clientId: String) async throws -> DeleteClientResult {
+        try await withFallback { service in
+            try await service.deleteAdminClient(accessToken: accessToken, clientId: clientId)
         }
     }
 
