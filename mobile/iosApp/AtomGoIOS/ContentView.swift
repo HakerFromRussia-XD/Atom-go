@@ -9,16 +9,21 @@ struct ContentView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let layoutWidth = geometry.size.width
-            let layoutHeight = geometry.size.height
+            let screenBounds = UIScreen.main.bounds
+            let layoutWidth = max(geometry.size.width, screenBounds.width)
+            let layoutHeight = max(geometry.size.height, screenBounds.height)
+            let safeTop = geometry.safeAreaInsets.top
             let xScale = layoutWidth / 414
             let yScale = layoutHeight / 896
             let textScale = min(xScale, yScale)
             let fieldWidth = 481 * xScale
-            let loginButtonBottom = (687 + 63) * yScale
+            let designTopOffset = -58 * yScale
+            let loginFieldBottom = safeTop + (477 + 64) * yScale
+            let loginButtonBottom = safeTop + (687 + 63) * yScale
+            let keyboardAnchorBottom = focusedField == .login ? loginFieldBottom : loginButtonBottom
             let keyboardGap: CGFloat = 16
             let keyboardTop = min(keyboardState.topY, layoutHeight)
-            let keyboardLift = max(0, loginButtonBottom + keyboardGap - keyboardTop)
+            let keyboardLift = max(0, keyboardAnchorBottom + keyboardGap - keyboardTop)
 
             ZStack(alignment: .topLeading) {
                 AppDesign.pageBackground.ignoresSafeArea()
@@ -121,6 +126,7 @@ struct ContentView: View {
                         .offset(x: 35 * xScale, y: 760 * yScale)
                 }
             }
+            .offset(y: designTopOffset)
             .offset(y: -keyboardLift)
             .animation(.easeOut(duration: 0.2), value: keyboardTop)
         }
