@@ -202,8 +202,9 @@ struct ContentView: View {
                 } label: {
                     Image(isPasswordVisible ? "View_light" : "View_hide_light")
                         .resizable()
-                        .renderingMode(.original)
+                        .renderingMode(.template)
                         .scaledToFit()
+                        .foregroundStyle(.black)
                         .frame(width: 20 * textScale, height: 20 * textScale)
                         .frame(width: 40 * xScale, height: 64 * yScale)
                         .contentShape(Rectangle())

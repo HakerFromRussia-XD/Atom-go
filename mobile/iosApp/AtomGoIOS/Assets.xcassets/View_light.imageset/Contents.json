@@ -1,17 +1,17 @@
 {
   "images" : [
     {
-      "filename" : "View_light.png",
+      "filename" : "Eye On Icon.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
-      "filename" : "View_light 1.png",
+      "filename" : "Eye On Icon 1.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
     {
-      "filename" : "View_light 2.png",
+      "filename" : "Eye On Icon 2.png",
       "idiom" : "universal",
       "scale" : "3x"
     }
