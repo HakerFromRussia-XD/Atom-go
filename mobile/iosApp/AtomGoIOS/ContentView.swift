@@ -17,13 +17,10 @@ struct ContentView: View {
             let yScale = layoutHeight / 896
             let textScale = min(xScale, yScale)
             let fieldWidth = 481 * xScale
-            let designTopOffset = -58 * yScale
-            let loginFieldBottom = safeTop + (477 + 64) * yScale
             let loginButtonBottom = safeTop + (687 + 63) * yScale
-            let keyboardAnchorBottom = focusedField == .login ? loginFieldBottom : loginButtonBottom
             let keyboardGap: CGFloat = 16
             let keyboardTop = min(keyboardState.topY, layoutHeight)
-            let keyboardLift = max(0, keyboardAnchorBottom + keyboardGap - keyboardTop)
+            let keyboardLift = max(0, loginButtonBottom + keyboardGap - keyboardTop)
 
             ZStack(alignment: .topLeading) {
                 AppDesign.pageBackground.ignoresSafeArea()
@@ -126,7 +123,6 @@ struct ContentView: View {
                         .offset(x: 35 * xScale, y: 760 * yScale)
                 }
             }
-            .offset(y: designTopOffset)
             .offset(y: -keyboardLift)
             .animation(.easeOut(duration: 0.2), value: keyboardTop)
         }
