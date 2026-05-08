@@ -2,6 +2,14 @@ package com.atomgo.backend.domain
 
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
+import kotlin.math.roundToInt
+
+data class BillingProjection(
+    val paidUntilDate: LocalDate,
+    val debtRub: Int,
+    val balanceRub: Int,
+    val statusText: String
+)
 
 object LedgerCalculator {
 
@@ -64,8 +72,65 @@ object LedgerCalculator {
         val paid = totalPaidRub(entries, clientId, rentalId)
         val adjustment = totalAdjustmentRub(entries, clientId, rentalId)
         val effectivePaid = (paid - adjustment).coerceAtLeast(0)
-        val coveredWeeks = effectivePaid / weeklyRateRub
-        val coveredDays = coveredWeeks * 7L
-        return rentalStartDate.plusDays(coveredDays)
+        val coveredDays = rubToDays(effectivePaid, weeklyRateRub)
+        return rentalStartDate.plusDays(coveredDays.toLong())
+    }
+
+    fun billingProjection(
+        clientId: String,
+        rentalStartDate: LocalDate,
+        weeklyRateRub: Int,
+        entries: List<LedgerEntry>,
+        asOf: LocalDate,
+        rentalId: String? = null
+    ): BillingProjection {
+        val paidUntil = paidUntilDate(
+            clientId = clientId,
+            rentalStartDate = rentalStartDate,
+            weeklyRateRub = weeklyRateRub,
+            entries = entries,
+            rentalId = rentalId
+        )
+        val debt = debtRub(
+            clientId = clientId,
+            rentalStartDate = rentalStartDate,
+            weeklyRateRub = weeklyRateRub,
+            entries = entries,
+            asOf = asOf,
+            rentalId = rentalId
+        )
+
+        if (debt > 0) {
+            val debtDays = rubToDays(debt, weeklyRateRub)
+            return BillingProjection(
+                paidUntilDate = paidUntil,
+                debtRub = debt,
+                balanceRub = 0,
+                statusText = "Долг за $debtDays дн."
+            )
+        }
+
+        val daysLeft = ChronoUnit.DAYS.between(asOf, paidUntil).toInt().coerceAtLeast(0)
+        return BillingProjection(
+            paidUntilDate = paidUntil,
+            debtRub = 0,
+            balanceRub = roundToTens(daysLeft * dailyRateRub(weeklyRateRub)),
+            statusText = "Оплачено еще на $daysLeft дн."
+        )
+    }
+
+    private fun rubToDays(amountRub: Int, weeklyRateRub: Int): Int {
+        val dailyRate = dailyRateRub(weeklyRateRub)
+        if (dailyRate <= 0.0) return 0
+        return (amountRub / dailyRate).roundToInt().coerceAtLeast(0)
+    }
+
+    private fun dailyRateRub(weeklyRateRub: Int): Double {
+        if (weeklyRateRub <= 0) return 0.0
+        return weeklyRateRub / 7.0
+    }
+
+    private fun roundToTens(value: Double): Int {
+        return (value / 10.0).roundToInt() * 10
     }
 }

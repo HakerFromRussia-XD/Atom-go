@@ -630,6 +630,7 @@ private final class MockAdminBackendService: BackendServicing {
         rentalStart: "2026-05-01",
         paidUntil: "2026-05-08",
         debtRub: 0,
+        balanceRub: 3000,
         totalAdjustmentRub: 0,
         presets: ClientPaymentPresets(
             dayRub: 430,

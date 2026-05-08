@@ -323,7 +323,7 @@ struct ClientHomeView: View {
 
                 statItem(
                     title: "ОПЛАЧЕН ДО",
-                    value: adjustedPaidUntilText(for: dashboard),
+                    value: paidUntilText(for: dashboard),
                     valueColor: ClientColors.mainText,
                     scale: scale,
                     alignTrailing: true,
@@ -343,62 +343,17 @@ struct ClientHomeView: View {
     }
 
     private func debtDisplay(for dashboard: ClientDashboardResponse) -> (title: String, amountRub: Int, color: Color) {
-        let coverageRub = adjustedCoverageRub(for: dashboard)
-        if coverageRub < 0 {
-            return ("ДОЛГ", abs(coverageRub), ClientColors.debt)
+        if dashboard.debtRub > 0 {
+            return ("ДОЛГ", dashboard.debtRub, ClientColors.debt)
         }
-        return ("ОСТАТОК", coverageRub, ClientColors.success)
+        return ("ОСТАТОК", dashboard.balanceRub ?? 0, ClientColors.success)
     }
 
-    private func adjustedCoverageRub(for dashboard: ClientDashboardResponse) -> Int {
-        let adjusted = effectiveCoverageRubRaw(for: dashboard)
-        let rounded = Int(adjusted.rounded())
-        return roundedToTens(max(-1_000_000_000, min(1_000_000_000, rounded)))
-    }
-
-    private func effectiveCoverageRubRaw(for dashboard: ClientDashboardResponse) -> Double {
-        let dayRub = rubPerPaidDay(for: dashboard)
-        let daysLeft = max(0, remainingPaidDays(until: dashboard.paidUntil))
-        let baseBalance = dayRub * Double(daysLeft)
-        let baseDebt = Double(max(0, dashboard.debtRub))
-        return baseBalance - baseDebt - Double(dashboard.totalAdjustmentRub)
-    }
-
-    private func rubPerPaidDay(for dashboard: ClientDashboardResponse) -> Double {
-        let weekBased = Double(dashboard.presets.weekRub) / 7.0
-        if weekBased > 0 {
-            return weekBased
+    private func paidUntilText(for dashboard: ClientDashboardResponse) -> String {
+        guard let paidUntilDate = Self.apiDateFormatter.date(from: dashboard.paidUntil) else {
+            return dashboard.paidUntil
         }
-        let monthBased = Double(dashboard.presets.monthRub) / 28.0
-        return max(monthBased, 1.0)
-    }
-
-    private func adjustedPaidUntilText(for dashboard: ClientDashboardResponse) -> String {
-        let dayRub = rubPerPaidDay(for: dashboard)
-        let effectiveCoverage = effectiveCoverageRubRaw(for: dashboard)
-        let coveredDays = Int((effectiveCoverage / dayRub).rounded())
-
-        let calendar = Calendar(identifier: .gregorian)
-        let today = calendar.startOfDay(for: Date())
-        let adjustedDate = calendar.date(byAdding: .day, value: coveredDays, to: today) ?? today
-        return displayDateText(from: adjustedDate)
-    }
-
-    private func roundedToTens(_ value: Int) -> Int {
-        let sign = value >= 0 ? 1 : -1
-        let absValue = abs(value)
-        let rounded = Int((Double(absValue) / 10.0).rounded() * 10.0)
-        return rounded * sign
-    }
-
-    private func remainingPaidDays(until rawDate: String) -> Int {
-        guard let paidUntilDate = Self.apiDateFormatter.date(from: rawDate) else {
-            return 0
-        }
-        let calendar = Calendar(identifier: .gregorian)
-        let today = calendar.startOfDay(for: Date())
-        let target = calendar.startOfDay(for: paidUntilDate)
-        return calendar.dateComponents([.day], from: today, to: target).day ?? 0
+        return displayDateText(from: paidUntilDate)
     }
 
     private func statItem(
@@ -442,7 +397,7 @@ struct ClientHomeView: View {
                         ProgressView()
                             .tint(.white)
                     } else {
-                        Text("Оплатить весь долг · \(moneyText(max(0, -adjustedCoverageRub(for: dashboard))))")
+                        Text("Оплатить весь долг · \(moneyText(max(0, dashboard.debtRub)))")
                             .font(.system(size: 14 * scale, weight: .bold))
                             .tracking(0.28 * scale)
                             .foregroundStyle(Color.white)
@@ -453,7 +408,7 @@ struct ClientHomeView: View {
                 .contentShape(RoundedRectangle(cornerRadius: 16 * scale, style: .continuous))
             }
             .buttonStyle(.plain)
-            .disabled(viewModel.isCreatingPayment || max(0, -adjustedCoverageRub(for: dashboard)) <= 0)
+            .disabled(viewModel.isCreatingPayment || dashboard.debtRub <= 0)
             .accessibilityIdentifier("client.quickPayDebtButton")
 
             Button {

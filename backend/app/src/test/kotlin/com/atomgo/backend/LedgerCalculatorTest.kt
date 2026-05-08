@@ -31,4 +31,46 @@ class LedgerCalculatorTest {
         )
         assertEquals(1500, debt)
     }
+
+    @Test
+    fun `billing projection should add negative adjustment to paid days`() {
+        val entries = listOf(
+            LedgerEntry("p1", "c1", LedgerType.PAYMENT, -1, 7000, Instant.now(), rentalId = "r1"),
+            LedgerEntry("a1", "c1", LedgerType.ADJUSTMENT, -1, 1000, Instant.now(), rentalId = "r1")
+        )
+
+        val projection = LedgerCalculator.billingProjection(
+            clientId = "c1",
+            rentalStartDate = LocalDate.parse("2026-05-01"),
+            weeklyRateRub = 3500,
+            entries = entries,
+            asOf = LocalDate.parse("2026-05-08"),
+            rentalId = "r1"
+        )
+
+        assertEquals(0, projection.debtRub)
+        assertEquals(4500, projection.balanceRub)
+        assertEquals(LocalDate.parse("2026-05-17"), projection.paidUntilDate)
+        assertEquals("Оплачено еще на 9 дн.", projection.statusText)
+    }
+
+    @Test
+    fun `billing projection should show debt days from money amount`() {
+        val entries = listOf(
+            LedgerEntry("p1", "c1", LedgerType.PAYMENT, -1, 3500, Instant.now(), rentalId = "r1")
+        )
+
+        val projection = LedgerCalculator.billingProjection(
+            clientId = "c1",
+            rentalStartDate = LocalDate.parse("2026-05-01"),
+            weeklyRateRub = 3500,
+            entries = entries,
+            asOf = LocalDate.parse("2026-05-08"),
+            rentalId = "r1"
+        )
+
+        assertEquals(3500, projection.debtRub)
+        assertEquals(0, projection.balanceRub)
+        assertEquals("Долг за 7 дн.", projection.statusText)
+    }
 }

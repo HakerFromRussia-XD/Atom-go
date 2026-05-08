@@ -63,6 +63,7 @@ class ClientHomeActivity : AppCompatActivity() {
                         appendLine("Аренда с: ${dashboard.rentalStart}")
                         appendLine("Оплачено до: ${dashboard.paidUntil}")
                         appendLine("Долг: ${dashboard.debtRub} ₽")
+                        appendLine("Остаток: ${dashboard.balanceRub} ₽")
                         appendLine("Корректировка: ${dashboard.totalAdjustmentRub} ₽")
                         appendLine()
                         appendLine("Оплата:")

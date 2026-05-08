@@ -59,6 +59,8 @@ data class ClientDashboardResponse(
     val paidUntil: String,
     @SerialName("debt_rub")
     val debtRub: Int,
+    @SerialName("balance_rub")
+    val balanceRub: Int = 0,
     @SerialName("total_adjustment_rub")
     val totalAdjustmentRub: Int,
     val presets: ClientPaymentPresetsResponse,

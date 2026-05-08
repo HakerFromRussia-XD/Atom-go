@@ -29,6 +29,7 @@ Response 200:
   "rental_start": "2026-04-12",
   "paid_until": "2026-05-03",
   "debt_rub": 1500,
+  "balance_rub": 0,
   "total_adjustment_rub": -1500,
   "presets": {
     "day_rub": 430,

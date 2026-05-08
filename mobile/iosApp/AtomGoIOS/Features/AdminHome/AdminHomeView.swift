@@ -30,9 +30,6 @@ struct AdminHomeView: View {
     @State private var detailsClientId: String?
     @State private var debtAdjustmentContext: DebtAdjustmentContext?
     @State private var ignoredNextTapClientId: String?
-    @State private var now = Date()
-
-    private let dateTicker = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
     var body: some View {
         NavigationStack {
@@ -267,12 +264,8 @@ struct AdminHomeView: View {
             )
             .presentationDetents([.medium])
         }
-        .onReceive(dateTicker) { newDate in
-            now = newDate
-        }
         .onChange(of: scenePhase) { newPhase in
             if newPhase == .active {
-                now = Date()
                 viewModel.load()
             }
         }
@@ -315,16 +308,14 @@ struct AdminHomeView: View {
     }
 
     private func clientCard(_ client: AdminClientSummaryResponse) -> some View {
-        let statusText = paymentStatusText(for: client, asOf: now)
-
-        return HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: 12) {
             bikeAvatar(urlString: client.bikeAvatarUrl)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(client.fullName)
                     .font(.headline)
                     .foregroundStyle(AppDesign.titleText)
-                Text(statusText)
+                Text(client.statusText)
                     .font(.subheadline)
                     .foregroundStyle(client.debtRub > 0 ? AppDesign.danger : AppDesign.subtleText)
                 Text(client.bikeModel)
@@ -374,34 +365,6 @@ struct AdminHomeView: View {
             viewModel.openClientDetails(clientId: client.clientId)
         }
     }
-
-    private func paymentStatusText(for client: AdminClientSummaryResponse, asOf date: Date) -> String {
-        guard
-            let paidUntil = client.paidUntil,
-            let paidUntilDate = Self.summaryDateFormatter.date(from: paidUntil)
-        else {
-            return client.statusText
-        }
-
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: date)
-        let paidDay = calendar.startOfDay(for: paidUntilDate)
-        let dayDiff = calendar.dateComponents([.day], from: today, to: paidDay).day ?? 0
-
-        if dayDiff >= 0 {
-            return "Оплачено еще на \(dayDiff) дн."
-        }
-        return "Долг за \(-dayDiff) дн."
-    }
-
-    private static let summaryDateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter
-    }()
 
     private func bikeAvatar(urlString: String) -> some View {
         BikePhotoView(source: urlString) {

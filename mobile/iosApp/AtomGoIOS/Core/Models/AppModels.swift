@@ -45,6 +45,7 @@ struct ClientDashboardResponse: Decodable {
     let rentalStart: String
     let paidUntil: String
     let debtRub: Int
+    let balanceRub: Int?
     let totalAdjustmentRub: Int
     let presets: ClientPaymentPresets
     let taxMode: String?
@@ -56,6 +57,7 @@ struct ClientDashboardResponse: Decodable {
         case rentalStart = "rental_start"
         case paidUntil = "paid_until"
         case debtRub = "debt_rub"
+        case balanceRub = "balance_rub"
         case totalAdjustmentRub = "total_adjustment_rub"
         case presets
         case taxMode = "tax_mode"

@@ -51,7 +51,6 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.coroutines.CancellationException
 import java.time.LocalDate
-import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 private fun JsonObject.string(name: String): String? = this[name]?.jsonPrimitive?.contentOrNull
@@ -107,6 +106,8 @@ private data class ApiClientDashboardResponse(
     val paidUntil: String,
     @SerialName("debt_rub")
     val debtRub: Int,
+    @SerialName("balance_rub")
+    val balanceRub: Int,
     @SerialName("total_adjustment_rub")
     val totalAdjustmentRub: Int,
     val presets: ApiClientPaymentPresetsResponse,
@@ -766,8 +767,8 @@ private fun buildAdminClientSummary(
     adminId: String? = null
 ): ApiAdminClientSummaryResponse {
     val snapshot = resolveClientBillingSnapshot(client.id, store, now, adminId)
-    val debt = if (snapshot != null) {
-        LedgerCalculator.debtRub(
+    val projection = if (snapshot != null) {
+        LedgerCalculator.billingProjection(
             clientId = client.id,
             rentalStartDate = snapshot.rentalStartDate,
             weeklyRateRub = snapshot.weeklyRateRub,
@@ -776,31 +777,13 @@ private fun buildAdminClientSummary(
             rentalId = snapshot.rentalId
         )
     } else {
-        0
+        null
     }
+    val debt = projection?.debtRub ?: 0
     val paid = LedgerCalculator.totalPaidRub(store.ledger, client.id, snapshot?.rentalId)
     val profit = if (debt == 0) paid else 0
-    val paidUntil = if (snapshot == null) {
-        null
-    } else {
-        LedgerCalculator.paidUntilDate(
-            clientId = client.id,
-            rentalStartDate = snapshot.rentalStartDate,
-            weeklyRateRub = snapshot.weeklyRateRub,
-            entries = store.ledger,
-            rentalId = snapshot.rentalId
-        )
-    }
-    val statusText = if (paidUntil == null) {
-        "Нет активной аренды"
-    } else {
-        val dayDiff = ChronoUnit.DAYS.between(now, paidUntil).toInt()
-        if (dayDiff >= 0) {
-            "Оплачено еще на $dayDiff дн."
-        } else {
-            "Долг за ${-dayDiff} дн."
-        }
-    }
+    val paidUntil = projection?.paidUntilDate
+    val statusText = projection?.statusText ?: "Нет активной аренды"
 
     return ApiAdminClientSummaryResponse(
         clientId = client.id,
@@ -823,8 +806,8 @@ private fun buildAdminClientDetails(
     adminId: String? = null
 ): ApiAdminClientDetailsResponse {
     val snapshot = resolveClientBillingSnapshot(client.id, store, now, adminId)
-    val debt = if (snapshot != null) {
-        LedgerCalculator.debtRub(
+    val projection = if (snapshot != null) {
+        LedgerCalculator.billingProjection(
             clientId = client.id,
             rentalStartDate = snapshot.rentalStartDate,
             weeklyRateRub = snapshot.weeklyRateRub,
@@ -833,19 +816,10 @@ private fun buildAdminClientDetails(
             rentalId = snapshot.rentalId
         )
     } else {
-        0
+        null
     }
-    val paidUntil = if (snapshot != null) {
-        LedgerCalculator.paidUntilDate(
-            clientId = client.id,
-            rentalStartDate = snapshot.rentalStartDate,
-            weeklyRateRub = snapshot.weeklyRateRub,
-            entries = store.ledger,
-            rentalId = snapshot.rentalId
-        ).toString()
-    } else {
-        ""
-    }
+    val debt = projection?.debtRub ?: 0
+    val paidUntil = projection?.paidUntilDate?.toString() ?: ""
     val totalPaid = LedgerCalculator.totalPaidRub(store.ledger, client.id, snapshot?.rentalId)
     val totalAdjustment = LedgerCalculator.totalAdjustmentRub(store.ledger, client.id, snapshot?.rentalId)
     val rentals = store.rentals
@@ -1009,8 +983,8 @@ fun Application.module() {
                 }
                 val now = LocalDate.now()
                 val snapshot = resolveClientBillingSnapshot(client.id, store, now)
-                val debt = if (snapshot != null) {
-                    LedgerCalculator.debtRub(
+                val projection = if (snapshot != null) {
+                    LedgerCalculator.billingProjection(
                         clientId = client.id,
                         rentalStartDate = snapshot.rentalStartDate,
                         weeklyRateRub = snapshot.weeklyRateRub,
@@ -1019,19 +993,11 @@ fun Application.module() {
                         rentalId = snapshot.rentalId
                     )
                 } else {
-                    0
+                    null
                 }
-                val paidUntil = if (snapshot != null) {
-                    LedgerCalculator.paidUntilDate(
-                        clientId = client.id,
-                        rentalStartDate = snapshot.rentalStartDate,
-                        weeklyRateRub = snapshot.weeklyRateRub,
-                        entries = store.ledger,
-                        rentalId = snapshot.rentalId
-                    ).toString()
-                } else {
-                    ""
-                }
+                val debt = projection?.debtRub ?: 0
+                val paidUntil = projection?.paidUntilDate?.toString() ?: ""
+                val balanceRub = projection?.balanceRub ?: 0
                 val totalAdjustment = LedgerCalculator.totalAdjustmentRub(store.ledger, client.id, snapshot?.rentalId)
                 val weeklyRate = snapshot?.weeklyRateRub ?: 0
 
@@ -1042,6 +1008,7 @@ fun Application.module() {
                         rentalStart = snapshot?.rentalStartDate?.toString() ?: "",
                         paidUntil = paidUntil,
                         debtRub = debt,
+                        balanceRub = balanceRub,
                         totalAdjustmentRub = totalAdjustment,
                         presets = ApiClientPaymentPresetsResponse(
                             dayRub = PricingRules.dayAmount(weeklyRate),
