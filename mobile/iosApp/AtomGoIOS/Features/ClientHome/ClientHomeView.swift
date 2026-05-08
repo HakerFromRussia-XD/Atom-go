@@ -307,21 +307,27 @@ struct ClientHomeView: View {
                     title: debtDisplay.title,
                     value: moneyText(debtDisplay.amountRub),
                     valueColor: debtDisplay.color,
-                    scale: scale
+                    scale: scale,
+                    alignTrailing: false,
+                    textLeadingInsideBlock: false
                 )
 
                 statItem(
                     title: "КОРРЕКТ.",
                     value: moneyText(dashboard.totalAdjustmentRub),
                     valueColor: ClientColors.mainText,
-                    scale: scale
+                    scale: scale,
+                    alignTrailing: false,
+                    textLeadingInsideBlock: false
                 )
 
                 statItem(
-                    title: "ОПЛАЧ. ДО",
-                    value: paidUntilText(dashboard.paidUntil),
+                    title: "ОПЛАЧЕН ДО",
+                    value: adjustedPaidUntilText(for: dashboard),
                     valueColor: ClientColors.mainText,
-                    scale: scale
+                    scale: scale,
+                    alignTrailing: true,
+                    textLeadingInsideBlock: true
                 )
             }
         }
@@ -337,15 +343,52 @@ struct ClientHomeView: View {
     }
 
     private func debtDisplay(for dashboard: ClientDashboardResponse) -> (title: String, amountRub: Int, color: Color) {
-        if dashboard.debtRub > 0 {
-            return ("ДОЛГ", dashboard.debtRub, ClientColors.debt)
+        let coverageRub = adjustedCoverageRub(for: dashboard)
+        if coverageRub < 0 {
+            return ("ДОЛГ", abs(coverageRub), ClientColors.debt)
         }
+        return ("ОСТАТОК", coverageRub, ClientColors.success)
+    }
 
+    private func adjustedCoverageRub(for dashboard: ClientDashboardResponse) -> Int {
+        let adjusted = effectiveCoverageRubRaw(for: dashboard)
+        let rounded = Int(adjusted.rounded())
+        return roundedToTens(max(-1_000_000_000, min(1_000_000_000, rounded)))
+    }
+
+    private func effectiveCoverageRubRaw(for dashboard: ClientDashboardResponse) -> Double {
+        let dayRub = rubPerPaidDay(for: dashboard)
         let daysLeft = max(0, remainingPaidDays(until: dashboard.paidUntil))
-        let perDay = Double(dashboard.presets.monthRub) / 28.0
-        let rawBalance = perDay * Double(daysLeft)
-        let roundedToTens = Int((rawBalance / 10.0).rounded() * 10.0)
-        return ("ОСТАТОК", max(0, roundedToTens), ClientColors.success)
+        let baseBalance = dayRub * Double(daysLeft)
+        let baseDebt = Double(max(0, dashboard.debtRub))
+        return baseBalance - baseDebt - Double(dashboard.totalAdjustmentRub)
+    }
+
+    private func rubPerPaidDay(for dashboard: ClientDashboardResponse) -> Double {
+        let weekBased = Double(dashboard.presets.weekRub) / 7.0
+        if weekBased > 0 {
+            return weekBased
+        }
+        let monthBased = Double(dashboard.presets.monthRub) / 28.0
+        return max(monthBased, 1.0)
+    }
+
+    private func adjustedPaidUntilText(for dashboard: ClientDashboardResponse) -> String {
+        let dayRub = rubPerPaidDay(for: dashboard)
+        let effectiveCoverage = effectiveCoverageRubRaw(for: dashboard)
+        let coveredDays = Int((effectiveCoverage / dayRub).rounded())
+
+        let calendar = Calendar(identifier: .gregorian)
+        let today = calendar.startOfDay(for: Date())
+        let adjustedDate = calendar.date(byAdding: .day, value: coveredDays, to: today) ?? today
+        return displayDateText(from: adjustedDate)
+    }
+
+    private func roundedToTens(_ value: Int) -> Int {
+        let sign = value >= 0 ? 1 : -1
+        let absValue = abs(value)
+        let rounded = Int((Double(absValue) / 10.0).rounded() * 10.0)
+        return rounded * sign
     }
 
     private func remainingPaidDays(until rawDate: String) -> Int {
@@ -362,9 +405,11 @@ struct ClientHomeView: View {
         title: String,
         value: String,
         valueColor: Color,
-        scale: CGFloat
+        scale: CGFloat,
+        alignTrailing: Bool,
+        textLeadingInsideBlock: Bool
     ) -> some View {
-        VStack(alignment: .leading, spacing: 3 * scale) {
+        VStack(alignment: textLeadingInsideBlock ? .leading : (alignTrailing ? .trailing : .leading), spacing: 3 * scale) {
             Text(title)
                 .font(.system(size: 9 * scale, weight: .medium))
                 .foregroundStyle(ClientColors.subtleText)
@@ -376,7 +421,7 @@ struct ClientHomeView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: alignTrailing ? .trailing : .leading)
     }
 
     private func quickPaymentSection(dashboard: ClientDashboardResponse, scale: CGFloat) -> some View {
@@ -397,7 +442,7 @@ struct ClientHomeView: View {
                         ProgressView()
                             .tint(.white)
                     } else {
-                        Text("Оплатить весь долг · \(moneyText(dashboard.debtRub))")
+                        Text("Оплатить весь долг · \(moneyText(max(0, -adjustedCoverageRub(for: dashboard))))")
                             .font(.system(size: 14 * scale, weight: .bold))
                             .tracking(0.28 * scale)
                             .foregroundStyle(Color.white)
@@ -408,7 +453,7 @@ struct ClientHomeView: View {
                 .contentShape(RoundedRectangle(cornerRadius: 16 * scale, style: .continuous))
             }
             .buttonStyle(.plain)
-            .disabled(viewModel.isCreatingPayment || dashboard.presets.debtExactRub <= 0)
+            .disabled(viewModel.isCreatingPayment || max(0, -adjustedCoverageRub(for: dashboard)) <= 0)
             .accessibilityIdentifier("client.quickPayDebtButton")
 
             Button {
@@ -533,28 +578,37 @@ struct ClientHomeView: View {
         isSelected: Bool,
         scale: CGFloat
     ) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(paymentType.title)
-                .font(.system(size: 11 * scale, weight: .medium))
-                .foregroundStyle(ClientColors.subtleText)
+        let horizontalInset = (isSelected ? 16.0 : 15.0) * scale
+        let topInset = (isSelected ? 14.0 : 13.0) * scale
+        let bottomInset = (isSelected ? 14.0 : 13.0) * scale
 
-            Spacer(minLength: 0)
+        return ZStack(alignment: .bottomTrailing) {
+            VStack(spacing: 0) {
+                Text(paymentType.title)
+                    .font(.system(size: 11 * scale, weight: .medium))
+                    .foregroundStyle(ClientColors.subtleText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, topInset)
+                    .padding(.leading, horizontalInset)
 
-            Text(moneyText(amount))
-                .font(.system(size: 13 * scale, weight: .bold))
-                .foregroundStyle(ClientColors.mainText)
+                Spacer(minLength: 0)
+
+                Text(moneyText(amount))
+                    .font(.system(size: 13 * scale, weight: .bold))
+                    .foregroundStyle(ClientColors.mainText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.bottom, bottomInset)
+                    .padding(.leading, horizontalInset)
+            }
+
+            TariffIllustrationView(paymentType: paymentType, scale: scale)
+                .opacity(0.95)
+                .padding(.trailing, -8 * scale)
+                .padding(.bottom, -8 * scale)
         }
-        .padding(.horizontal, isSelected ? 16 * scale : 15 * scale)
-        .padding(.vertical, isSelected ? 14 * scale : 13 * scale)
         .frame(maxWidth: .infinity)
         .frame(height: isSelected ? 124 * scale : 122 * scale)
         .background(ClientColors.card)
-        .overlay(alignment: .bottomTrailing) {
-            TariffIllustrationView(paymentType: paymentType, scale: scale)
-                .opacity(0.9)
-                .padding(.trailing, -6 * scale)
-                .padding(.bottom, -6 * scale)
-        }
         .overlay(
             RoundedRectangle(cornerRadius: 14 * scale, style: .continuous)
                 .stroke(
@@ -598,11 +652,7 @@ struct ClientHomeView: View {
         }
     }
 
-    private func paidUntilText(_ rawDate: String) -> String {
-        guard let date = Self.apiDateFormatter.date(from: rawDate) else {
-            return rawDate
-        }
-
+    private func displayDateText(from date: Date) -> String {
         let day = Self.dayFormatter.string(from: date)
         let year = Self.yearFormatter.string(from: date)
         let monthIndex = Calendar(identifier: .gregorian).component(.month, from: date) - 1
@@ -660,6 +710,9 @@ private enum ClientColors {
     static let debt = Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255)
     static let success = Color(red: 35 / 255, green: 143 / 255, blue: 71 / 255)
     static let sheetHandle = Color(red: 211 / 255, green: 215 / 255, blue: 221 / 255)
+    static let iconFill = Color(red: 190 / 255, green: 192 / 255, blue: 198 / 255)
+    static let iconStroke = Color(red: 198 / 255, green: 201 / 255, blue: 208 / 255)
+    static let iconCanvas = Color(red: 235 / 255, green: 236 / 255, blue: 239 / 255)
 }
 
 private struct BikePlaceholderView: View {
@@ -703,14 +756,23 @@ private struct TariffIllustrationView: View {
     var body: some View {
         switch paymentType {
         case .day:
-            Image(systemName: "sun.max.fill")
-                .font(.system(size: 42 * scale, weight: .regular))
-                .foregroundStyle(Color(red: 201 / 255, green: 203 / 255, blue: 208 / 255))
+            ZStack {
+                Circle()
+                    .fill(ClientColors.iconFill)
+                    .frame(width: 30 * scale, height: 30 * scale)
+                ForEach(0..<8, id: \.self) { idx in
+                    RoundedRectangle(cornerRadius: 2 * scale, style: .continuous)
+                        .fill(ClientColors.iconFill)
+                        .frame(width: 4 * scale, height: 11 * scale)
+                        .offset(y: -25 * scale)
+                        .rotationEffect(.degrees(Double(idx) * 45))
+                }
+            }
+            .frame(width: 66 * scale, height: 66 * scale)
 
         case .week:
-            Image(systemName: "calendar")
-                .font(.system(size: 48 * scale, weight: .regular))
-                .foregroundStyle(Color(red: 201 / 255, green: 203 / 255, blue: 208 / 255))
+            CalendarMiniIcon(scale: scale, accentClock: false)
+                .frame(width: 84 * scale, height: 84 * scale)
 
         case .twoWeeks:
             HStack(spacing: 4 * scale) {
@@ -722,12 +784,68 @@ private struct TariffIllustrationView: View {
             .foregroundStyle(Color(red: 201 / 255, green: 203 / 255, blue: 208 / 255))
 
         case .month:
-            Image(systemName: "calendar.badge.clock")
-                .font(.system(size: 50 * scale, weight: .regular))
-                .foregroundStyle(Color(red: 201 / 255, green: 203 / 255, blue: 208 / 255))
+            CalendarMiniIcon(scale: scale, accentClock: true)
+                .frame(width: 86 * scale, height: 86 * scale)
 
         case .debtExact:
             EmptyView()
+        }
+    }
+}
+
+private struct CalendarMiniIcon: View {
+    let scale: CGFloat
+    let accentClock: Bool
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            RoundedRectangle(cornerRadius: 10 * scale, style: .continuous)
+                .fill(ClientColors.iconFill)
+                .frame(width: 74 * scale, height: 74 * scale)
+
+            VStack(spacing: 5 * scale) {
+                HStack(spacing: 8 * scale) {
+                    RoundedRectangle(cornerRadius: 1.5 * scale, style: .continuous)
+                        .fill(ClientColors.iconStroke)
+                        .frame(width: 2.6 * scale, height: 9 * scale)
+                    Spacer(minLength: 0)
+                    RoundedRectangle(cornerRadius: 1.5 * scale, style: .continuous)
+                        .fill(ClientColors.iconStroke)
+                        .frame(width: 2.6 * scale, height: 9 * scale)
+                }
+                .padding(.horizontal, 16 * scale)
+                .padding(.top, 6 * scale)
+
+                RoundedRectangle(cornerRadius: 5 * scale, style: .continuous)
+                    .fill(ClientColors.iconCanvas)
+                    .frame(width: 58 * scale, height: 48 * scale)
+                    .overlay {
+                        VStack(spacing: 6 * scale) {
+                            ForEach(0..<3, id: \.self) { _ in
+                                HStack(spacing: 6 * scale) {
+                                    ForEach(0..<3, id: \.self) { _ in
+                                        RoundedRectangle(cornerRadius: 1.5 * scale, style: .continuous)
+                                            .fill(ClientColors.iconStroke)
+                                            .frame(width: 7 * scale, height: 7 * scale)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding(.bottom, 6 * scale)
+            }
+
+            if accentClock {
+                Circle()
+                    .fill(ClientColors.iconFill)
+                    .frame(width: 34 * scale, height: 34 * scale)
+                    .overlay {
+                        Image(systemName: "clock.fill")
+                            .font(.system(size: 14 * scale, weight: .semibold))
+                            .foregroundStyle(ClientColors.iconCanvas)
+                    }
+                    .offset(x: 5 * scale, y: 5 * scale)
+            }
         }
     }
 }
