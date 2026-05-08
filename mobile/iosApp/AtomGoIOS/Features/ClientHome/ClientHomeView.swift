@@ -389,23 +389,25 @@ struct ClientHomeView: View {
             Button {
                 startPayment(type: .debtExact)
             } label: {
-                if viewModel.isCreatingPayment {
-                    ProgressView()
-                        .tint(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50 * scale)
-                } else {
-                    Text("Оплатить весь долг · \(moneyText(dashboard.debtRub))")
-                        .font(.system(size: 14 * scale, weight: .bold))
-                        .tracking(0.28 * scale)
-                        .foregroundStyle(Color.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 50 * scale)
+                ZStack {
+                    RoundedRectangle(cornerRadius: 16 * scale, style: .continuous)
+                        .fill(ClientColors.primaryButton)
+
+                    if viewModel.isCreatingPayment {
+                        ProgressView()
+                            .tint(.white)
+                    } else {
+                        Text("Оплатить весь долг · \(moneyText(dashboard.debtRub))")
+                            .font(.system(size: 14 * scale, weight: .bold))
+                            .tracking(0.28 * scale)
+                            .foregroundStyle(Color.white)
+                    }
                 }
+                .frame(maxWidth: .infinity)
+                .frame(height: 50 * scale)
+                .contentShape(RoundedRectangle(cornerRadius: 16 * scale, style: .continuous))
             }
             .buttonStyle(.plain)
-            .background(ClientColors.primaryButton)
-            .clipShape(RoundedRectangle(cornerRadius: 16 * scale, style: .continuous))
             .disabled(viewModel.isCreatingPayment || dashboard.presets.debtExactRub <= 0)
             .accessibilityIdentifier("client.quickPayDebtButton")
 
@@ -415,16 +417,20 @@ struct ClientHomeView: View {
                     isTariffSheetPresented = true
                 }
             } label: {
-                Text("Выбрать тариф ↑")
-                    .font(.system(size: 14 * scale, weight: .bold))
-                    .tracking(0.28 * scale)
-                    .foregroundStyle(Color.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 50 * scale)
+                ZStack {
+                    RoundedRectangle(cornerRadius: 16 * scale, style: .continuous)
+                        .fill(ClientColors.primaryButton)
+
+                    Text("Выбрать тариф ↑")
+                        .font(.system(size: 14 * scale, weight: .bold))
+                        .tracking(0.28 * scale)
+                        .foregroundStyle(Color.white)
+                }
+                .contentShape(RoundedRectangle(cornerRadius: 16 * scale, style: .continuous))
+                .frame(maxWidth: .infinity)
+                .frame(height: 50 * scale)
             }
             .buttonStyle(.plain)
-            .background(ClientColors.primaryButton)
-            .clipShape(RoundedRectangle(cornerRadius: 16 * scale, style: .continuous))
             .accessibilityIdentifier("client.paymentButton")
         }
     }
@@ -479,27 +485,29 @@ struct ClientHomeView: View {
                 }
                 startPayment(type: selectedPaymentType)
             } label: {
-                if viewModel.isCreatingPayment {
-                    ProgressView()
-                        .tint(ClientColors.mainText)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 52 * scale)
-                } else {
-                    Text("Оплатить выбранный · \(moneyText(amountFor(selectedPaymentType, presets: dashboard.presets)))")
-                        .font(.system(size: 14 * scale, weight: .bold))
-                        .tracking(0.28 * scale)
-                        .foregroundStyle(ClientColors.mainText)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 52 * scale)
+                ZStack {
+                    RoundedRectangle(cornerRadius: 16 * scale, style: .continuous)
+                        .fill(Color.white)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16 * scale, style: .continuous)
+                                .stroke(ClientColors.mainText, lineWidth: 1)
+                        )
+
+                    if viewModel.isCreatingPayment {
+                        ProgressView()
+                            .tint(ClientColors.mainText)
+                    } else {
+                        Text("Оплатить выбранный · \(moneyText(amountFor(selectedPaymentType, presets: dashboard.presets)))")
+                            .font(.system(size: 14 * scale, weight: .bold))
+                            .tracking(0.28 * scale)
+                            .foregroundStyle(ClientColors.mainText)
+                    }
                 }
+                .frame(maxWidth: .infinity)
+                .frame(height: 52 * scale)
+                .contentShape(RoundedRectangle(cornerRadius: 16 * scale, style: .continuous))
             }
             .buttonStyle(.plain)
-            .background(Color.white)
-            .overlay(
-                RoundedRectangle(cornerRadius: 16 * scale, style: .continuous)
-                    .stroke(ClientColors.mainText, lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 16 * scale, style: .continuous))
             .padding(.horizontal, 23 * scale)
             .padding(.top, 16 * scale)
             .padding(.bottom, 24 * scale)
