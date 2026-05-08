@@ -278,7 +278,9 @@ struct ClientHomeView: View {
     }
 
     private func bikeCard(dashboard: ClientDashboardResponse, scale: CGFloat) -> some View {
-        VStack(spacing: 16 * scale) {
+        let debtDisplay = debtDisplay(for: dashboard)
+
+        return VStack(spacing: 16 * scale) {
             HStack(spacing: 16 * scale) {
                 BikePlaceholderView(scale: scale)
 
@@ -302,9 +304,9 @@ struct ClientHomeView: View {
 
             HStack(alignment: .top, spacing: 10 * scale) {
                 statItem(
-                    title: "ДОЛГ",
-                    value: moneyText(dashboard.debtRub),
-                    valueColor: ClientColors.debt,
+                    title: debtDisplay.title,
+                    value: moneyText(debtDisplay.amountRub),
+                    valueColor: debtDisplay.color,
                     scale: scale
                 )
 
@@ -332,6 +334,28 @@ struct ClientHomeView: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: 15 * scale, style: .continuous))
         .shadow(color: Color.black.opacity(0.08), radius: 15 * scale, x: 0, y: 20 * scale)
+    }
+
+    private func debtDisplay(for dashboard: ClientDashboardResponse) -> (title: String, amountRub: Int, color: Color) {
+        if dashboard.debtRub > 0 {
+            return ("ДОЛГ", dashboard.debtRub, ClientColors.debt)
+        }
+
+        let daysLeft = max(0, remainingPaidDays(until: dashboard.paidUntil))
+        let perDay = Double(dashboard.presets.monthRub) / 28.0
+        let rawBalance = perDay * Double(daysLeft)
+        let roundedToTens = Int((rawBalance / 10.0).rounded() * 10.0)
+        return ("ОСТАТОК", max(0, roundedToTens), ClientColors.success)
+    }
+
+    private func remainingPaidDays(until rawDate: String) -> Int {
+        guard let paidUntilDate = Self.apiDateFormatter.date(from: rawDate) else {
+            return 0
+        }
+        let calendar = Calendar(identifier: .gregorian)
+        let today = calendar.startOfDay(for: Date())
+        let target = calendar.startOfDay(for: paidUntilDate)
+        return calendar.dateComponents([.day], from: today, to: target).day ?? 0
     }
 
     private func statItem(
