@@ -100,6 +100,8 @@ private data class ApiClientDashboardResponse(
     val clientId: String,
     @SerialName("bike_model")
     val bikeModel: String,
+    @SerialName("bike_avatar_url")
+    val bikeAvatarUrl: String,
     @SerialName("rental_start")
     val rentalStart: String,
     @SerialName("paid_until")
@@ -1005,6 +1007,7 @@ fun Application.module() {
                     ApiClientDashboardResponse(
                         clientId = client.id,
                         bikeModel = snapshot?.bikeModel ?: "",
+                        bikeAvatarUrl = snapshot?.bikePhotoUrl ?: "",
                         rentalStart = snapshot?.rentalStartDate?.toString() ?: "",
                         paidUntil = paidUntil,
                         debtRub = debt,

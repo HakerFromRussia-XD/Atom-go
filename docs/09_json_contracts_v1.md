@@ -26,6 +26,7 @@ Response 200:
 {
   "client_id": "client-001",
   "bike_model": "Ninebot E-Bike Pro",
+  "bike_avatar_url": "https://example.com/bikes/ninebot-pro.png",
   "rental_start": "2026-04-12",
   "paid_until": "2026-05-03",
   "debt_rub": 1500,

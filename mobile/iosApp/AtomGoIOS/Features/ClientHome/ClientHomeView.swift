@@ -282,7 +282,11 @@ struct ClientHomeView: View {
 
         return VStack(spacing: 16 * scale) {
             HStack(spacing: 16 * scale) {
-                BikePlaceholderView(scale: scale)
+                ClientBikePhotoView(source: dashboard.bikeAvatarUrl) {
+                    BikePlaceholderView(scale: scale)
+                }
+                .frame(width: 84 * scale, height: 84 * scale)
+                .clipShape(RoundedRectangle(cornerRadius: 18 * scale, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 4 * scale) {
                     Text(dashboard.bikeModel)
@@ -404,7 +408,7 @@ struct ClientHomeView: View {
                     }
                 }
                 .frame(maxWidth: .infinity)
-                .frame(height: 50 * scale)
+                .frame(height: 63 * scale)
                 .contentShape(RoundedRectangle(cornerRadius: 16 * scale, style: .continuous))
             }
             .buttonStyle(.plain)
@@ -428,7 +432,7 @@ struct ClientHomeView: View {
                 }
                 .contentShape(RoundedRectangle(cornerRadius: 16 * scale, style: .continuous))
                 .frame(maxWidth: .infinity)
-                .frame(height: 50 * scale)
+                .frame(height: 63 * scale)
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("client.paymentButton")
@@ -504,7 +508,7 @@ struct ClientHomeView: View {
                     }
                 }
                 .frame(maxWidth: .infinity)
-                .frame(height: 52 * scale)
+                .frame(height: 63 * scale)
                 .contentShape(RoundedRectangle(cornerRadius: 16 * scale, style: .continuous))
             }
             .buttonStyle(.plain)
@@ -514,6 +518,7 @@ struct ClientHomeView: View {
             .disabled(viewModel.isCreatingPayment)
         }
         .frame(maxWidth: .infinity)
+        .frame(height: 429 * scale, alignment: .top)
         .background(Color.white)
         .overlay(alignment: .top) {
             Rectangle()
@@ -524,7 +529,6 @@ struct ClientHomeView: View {
         .clipShape(RoundedRectangle(cornerRadius: 24 * scale, style: .continuous))
         .shadow(color: Color.black.opacity(0.12), radius: 15 * scale, x: 0, y: -10 * scale)
         .padding(.horizontal, 0)
-        .offset(y: 26 * scale)
     }
 
     private func tariffCard(
@@ -701,6 +705,61 @@ private struct BikePlaceholderView: View {
         }
         .frame(width: size, height: size)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+    }
+}
+
+private struct ClientBikePhotoView<Placeholder: View>: View {
+    let source: String?
+    @ViewBuilder let placeholder: () -> Placeholder
+
+    var body: some View {
+        if let decodedImage {
+            Image(uiImage: decodedImage)
+                .resizable()
+                .scaledToFill()
+        } else if let remoteURL {
+            AsyncImage(url: remoteURL) { phase in
+                switch phase {
+                case let .success(image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                default:
+                    placeholder()
+                }
+            }
+        } else {
+            placeholder()
+        }
+    }
+
+    private var normalizedSource: String? {
+        let value = source?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return value.isEmpty ? nil : value
+    }
+
+    private var remoteURL: URL? {
+        guard let normalizedSource, !normalizedSource.lowercased().hasPrefix("data:image") else {
+            return nil
+        }
+        return URL(string: normalizedSource)
+    }
+
+    private var decodedImage: UIImage? {
+        guard let normalizedSource, normalizedSource.lowercased().hasPrefix("data:image") else {
+            return nil
+        }
+        guard
+            let commaIndex = normalizedSource.firstIndex(of: ","),
+            normalizedSource[..<commaIndex].lowercased().contains(";base64")
+        else {
+            return nil
+        }
+        let encoded = String(normalizedSource[normalizedSource.index(after: commaIndex)...])
+        guard let data = Data(base64Encoded: encoded) else {
+            return nil
+        }
+        return UIImage(data: data)
     }
 }
 

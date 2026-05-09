@@ -627,6 +627,7 @@ private final class MockAdminBackendService: BackendServicing {
     let sampleDashboard = ClientDashboardResponse(
         clientId: "client-001",
         bikeModel: "Монстер",
+        bikeAvatarUrl: "",
         rentalStart: "2026-05-01",
         paidUntil: "2026-05-08",
         debtRub: 0,

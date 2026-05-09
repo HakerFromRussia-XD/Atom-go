@@ -53,6 +53,8 @@ data class ClientDashboardResponse(
     val clientId: String,
     @SerialName("bike_model")
     val bikeModel: String,
+    @SerialName("bike_avatar_url")
+    val bikeAvatarUrl: String = "",
     @SerialName("rental_start")
     val rentalStart: String,
     @SerialName("paid_until")

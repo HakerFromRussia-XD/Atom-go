@@ -42,6 +42,7 @@ struct ClientPaymentPresets: Decodable {
 struct ClientDashboardResponse: Decodable {
     let clientId: String
     let bikeModel: String
+    let bikeAvatarUrl: String?
     let rentalStart: String
     let paidUntil: String
     let debtRub: Int
@@ -54,6 +55,7 @@ struct ClientDashboardResponse: Decodable {
     enum CodingKeys: String, CodingKey {
         case clientId = "client_id"
         case bikeModel = "bike_model"
+        case bikeAvatarUrl = "bike_avatar_url"
         case rentalStart = "rental_start"
         case paidUntil = "paid_until"
         case debtRub = "debt_rub"
