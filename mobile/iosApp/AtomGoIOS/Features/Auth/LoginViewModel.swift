@@ -12,6 +12,8 @@ final class LoginViewModel: ObservableObject {
     static let waitingStatusText = "Статус: ожидание"
     private static let startupHealthCheckAttempts = 3
     private static let startupHealthCheckRetryDelayNs: UInt64 = 300_000_000
+    private static let defaultLogin = "admin"
+    private static let defaultPassword = "admin123"
     private static let defaultClientLogin = "ip.ui.54fz"
     private static let defaultClientPassword = "client123"
 
@@ -28,8 +30,8 @@ final class LoginViewModel: ObservableObject {
 
     init(apiService: BackendServicing) {
         self.apiService = apiService
-        self.login = ProcessInfo.processInfo.environment["ATOMGO_TEST_LOGIN"] ?? Self.defaultClientLogin
-        self.password = ProcessInfo.processInfo.environment["ATOMGO_TEST_PASSWORD"] ?? Self.defaultClientPassword
+        self.login = ProcessInfo.processInfo.environment["ATOMGO_TEST_LOGIN"] ?? Self.defaultLogin
+        self.password = ProcessInfo.processInfo.environment["ATOMGO_TEST_PASSWORD"] ?? Self.defaultPassword
         checkServerOnStart()
     }
 

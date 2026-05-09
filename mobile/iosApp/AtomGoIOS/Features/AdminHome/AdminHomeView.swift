@@ -80,7 +80,7 @@ struct AdminHomeView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                     case let .loaded(clients):
-                        adminPipelineLoadedView(clients: clients, safeTop: geometry.safeAreaInsets.top)
+                        adminPipelineLoadedView(clients: clients)
                     }
                 }
                 .confirmationDialog("Действия", isPresented: $isAdminMenuPresented, titleVisibility: .visible) {
@@ -260,7 +260,7 @@ struct AdminHomeView: View {
         }
     }
 
-    private func adminPipelineLoadedView(clients: [AdminClientSummaryResponse], safeTop: CGFloat) -> some View {
+    private func adminPipelineLoadedView(clients: [AdminClientSummaryResponse]) -> some View {
         let topBarHeight: CGFloat = 62
         let searchTopPadding: CGFloat = 6
         let searchHeight: CGFloat = 46
@@ -268,7 +268,7 @@ struct AdminHomeView: View {
         let chipsHeight: CGFloat = 80
         let cardsInitialTop: CGFloat = 260
         let tabBarHeight: CGFloat = 76
-        let searchTop = safeTop + topBarHeight + searchTopPadding
+        let searchTop = topBarHeight + searchTopPadding
         let chipsTop = searchTop + searchHeight + chipsTopGap
         let filtersVisibility = cardsListMinY > chipsTop + chipsHeight - 12 ? 1.0 : 0.0
 
@@ -339,7 +339,6 @@ struct AdminHomeView: View {
                 .zIndex(3)
 
             VStack(spacing: 0) {
-                Color.clear.frame(height: safeTop)
                 topBar
                     .frame(height: topBarHeight)
                 searchField

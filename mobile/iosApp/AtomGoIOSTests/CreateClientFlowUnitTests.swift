@@ -737,6 +737,14 @@ private final class MockAdminBackendService: BackendServicing {
         return try updateRentalResult.get()
     }
 
+    func updateAdminRentalPipelineStatus(
+        accessToken _: String,
+        rentalId _: String,
+        pipelineStatus _: String
+    ) async throws {}
+
+    func finishAdminRental(accessToken _: String, rentalId _: String) async throws {}
+
     func deleteAdminRental(accessToken _: String, rentalId _: String) async throws -> DeleteRentalResult {
         deleteRentalCallsCount += 1
         return try deleteRentalResult.get()
