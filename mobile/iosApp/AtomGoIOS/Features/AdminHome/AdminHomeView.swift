@@ -21,6 +21,53 @@ private enum AdminRentFilter {
     case soonReturn
     case debtors
     case mine
+
+    var accessibilityIdentifier: String {
+        switch self {
+        case .all:
+            return "admin.filter.all"
+        case .soonReturn:
+            return "admin.filter.soonReturn"
+        case .debtors:
+            return "admin.filter.debtors"
+        case .mine:
+            return "admin.filter.mine"
+        }
+    }
+
+    var accessibilityLabel: String {
+        switch self {
+        case .all:
+            return "Все"
+        case .soonReturn:
+            return "Скоро вернут"
+        case .debtors:
+            return "Должники"
+        case .mine:
+            return "У меня"
+        }
+    }
+
+    var accessibilityValue: String {
+        switch self {
+        case .all:
+            return "all"
+        case .soonReturn:
+            return "soonReturn"
+        case .debtors:
+            return "debtors"
+        case .mine:
+            return "mine"
+        }
+    }
+}
+
+private struct AdminCardsTopKey: PreferenceKey {
+    static var defaultValue: CGFloat = .greatestFiniteMagnitude
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
 }
 
 struct AdminHomeView: View {
@@ -41,6 +88,8 @@ struct AdminHomeView: View {
     @State private var selectedFilter: AdminRentFilter = .all
     @State private var isAdminMenuPresented = false
     @State private var pipelineMenuClientId: String?
+    @State private var areFiltersInteractive = true
+    @State private var initialCardsTopY: CGFloat?
 
     var body: some View {
         NavigationStack {
@@ -260,12 +309,24 @@ struct AdminHomeView: View {
         let cardsInitialTop: CGFloat = 200
         let tabBarHeight: CGFloat = 76
         let searchTop = topBarHeight + searchTopPadding
+        let searchMaskHeight = searchTop + searchHeight / 2
         let chipsTop = searchTop + searchHeight + chipsTopGap
+        let chipsBottom = chipsTop + chipsHeight
 
         return ZStack(alignment: .top) {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 12) {
-                    Color.clear.frame(height: cardsInitialTop)
+                    Color.clear
+                        .frame(height: cardsInitialTop)
+                        .background {
+                            GeometryReader { proxy in
+                                Color.clear.preference(
+                                    key: AdminCardsTopKey.self,
+                                    value: proxy.frame(in: .named("adminPipeline")).maxY
+                                )
+                            }
+                        }
+                        .allowsHitTesting(false)
 
                     VStack(alignment: .leading, spacing: 15) {
                         if let errorText = viewModel.operationErrorMessage {
@@ -300,18 +361,44 @@ struct AdminHomeView: View {
                 .padding(.horizontal, 22)
                 .padding(.bottom, tabBarHeight + 44)
             }
-            .coordinateSpace(name: "adminRentsScroll")
+            .accessibilityIdentifier("admin.rents.scroll")
+            .onPreferenceChange(AdminCardsTopKey.self) { cardsTopY in
+                guard cardsTopY.isFinite else { return }
+                if initialCardsTopY == nil || cardsTopY > (initialCardsTopY ?? cardsTopY) {
+                    initialCardsTopY = cardsTopY
+                    if !areFiltersInteractive {
+                        areFiltersInteractive = true
+                    }
+                    return
+                }
+                guard let initialCardsTopY else { return }
+                let overlapDistance = max(10, initialCardsTopY - chipsBottom + 2)
+                let scrollDistance = max(0, initialCardsTopY - cardsTopY)
+                let nextInteractive = scrollDistance < overlapDistance
+                if nextInteractive != areFiltersInteractive {
+                    areFiltersInteractive = nextInteractive
+                }
+            }
             .zIndex(2)
 
             chipRows(clients: clients)
                 .padding(.horizontal, 22)
                 .frame(height: chipsHeight, alignment: .topLeading)
                 .offset(y: chipsTop)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
                 .zIndex(1)
+
+            filterHitLayer
+                .padding(.horizontal, 22)
+                .frame(height: chipsHeight, alignment: .topLeading)
+                .offset(y: chipsTop)
+                .allowsHitTesting(areFiltersInteractive)
+                .zIndex(3.5)
 
             Rectangle()
                 .fill(AppDesign.pageBackground)
-                .frame(height: searchTop)
+                .frame(height: searchMaskHeight)
                 .ignoresSafeArea(edges: .top)
                 .zIndex(3)
 
@@ -327,7 +414,16 @@ struct AdminHomeView: View {
 
             adminBottomTabBar
                 .zIndex(5)
+
+            Text(selectedFilter.accessibilityValue)
+                .foregroundStyle(.clear)
+                .frame(width: 1, height: 1)
+                .accessibilityIdentifier("admin.selectedFilter")
+                .accessibilityValue(selectedFilter.accessibilityValue)
+                .allowsHitTesting(false)
+                .zIndex(6)
         }
+        .coordinateSpace(name: "adminPipeline")
     }
 
     private func filteredClients(_ clients: [AdminClientSummaryResponse]) -> [AdminClientSummaryResponse] {
@@ -372,6 +468,7 @@ struct AdminHomeView: View {
                 .stroke(AppDesign.accent, lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: 12.84, style: .continuous))
+        .accessibilityIdentifier("admin.searchField")
     }
 
     private func chipRows(clients: [AdminClientSummaryResponse]) -> some View {
@@ -383,6 +480,31 @@ struct AdminHomeView: View {
             }
             filterChip(.mine, title: "У меня", count: clients.filter { !$0.rentalIsActive }.count)
         }
+    }
+
+    private var filterHitLayer: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                filterHitTarget(.all, width: 84)
+                filterHitTarget(.soonReturn, width: 112)
+                filterHitTarget(.debtors, width: 132)
+            }
+            filterHitTarget(.mine, width: 108)
+        }
+    }
+
+    private func filterHitTarget(_ filter: AdminRentFilter, width: CGFloat) -> some View {
+        Button {
+            selectedFilter = filter
+        } label: {
+            Color.white.opacity(0.001)
+                .frame(width: width, height: 36)
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(filter.accessibilityLabel)
+        .accessibilityIdentifier(filter.accessibilityIdentifier)
+        .accessibilityValue(selectedFilter == filter ? "selected" : "normal")
     }
 
     private func filterChip(_ filter: AdminRentFilter, title: String, count: Int, isDark: Bool = false) -> some View {
@@ -417,18 +539,30 @@ struct AdminHomeView: View {
 
     private var topBar: some View {
         HStack {
-            topIconButton(systemName: "rectangle.portrait.and.arrow.right", action: onLogout)
+            topIconButton(
+                systemName: "rectangle.portrait.and.arrow.right",
+                accessibilityIdentifier: "admin.logoutButton",
+                action: onLogout
+            )
             Spacer()
             Text("All rent's")
                 .font(.system(size: 18, weight: .bold))
                 .foregroundStyle(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
             Spacer()
-            topIconButton(systemName: "ellipsis", action: { isAdminMenuPresented = true })
+            topIconButton(
+                systemName: "ellipsis",
+                accessibilityIdentifier: "admin.openServiceButton",
+                action: { isAdminMenuPresented = true }
+            )
         }
         .padding(.horizontal, 22)
     }
 
-    private func topIconButton(systemName: String, action: @escaping () -> Void) -> some View {
+    private func topIconButton(
+        systemName: String,
+        accessibilityIdentifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(Color.white)
@@ -444,6 +578,7 @@ struct AdminHomeView: View {
                 .frame(width: 47, height: 47)
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier(accessibilityIdentifier)
     }
 
     private var adminBottomTabBar: some View {
@@ -583,6 +718,8 @@ struct AdminHomeView: View {
         .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
         .shadow(color: Color(red: 25 / 255, green: 28 / 255, blue: 50 / 255).opacity(0.08), radius: 15, x: 0, y: 20)
         .contentShape(Rectangle())
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("admin.rent.card.\(client.clientId)")
         .onTapGesture {
             if ignoredNextTapClientId == client.clientId {
                 ignoredNextTapClientId = nil

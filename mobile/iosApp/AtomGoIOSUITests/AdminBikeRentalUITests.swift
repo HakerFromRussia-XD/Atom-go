@@ -181,6 +181,63 @@ final class AdminBikeRentalUITests: XCTestCase {
         XCTAssertTrue(paymentMetadata.contains("yookassa_receipt_pending"), "IP payment must be marked for YooKassa 54-FZ receipt. Metadata: \(paymentMetadata)")
     }
 
+    func testAdminRentFiltersClickUntilCardsOverlapThenListHandlesTap() throws {
+        let allFilter = app.buttons["admin.filter.all"]
+        let soonReturnFilter = app.buttons["admin.filter.soonReturn"]
+        let debtorsFilter = app.buttons["admin.filter.debtors"]
+        let selectedFilter = app.staticTexts["admin.selectedFilter"]
+
+        XCTAssertTrue(allFilter.waitForExistence(timeout: 8), "All filter hit target is missing")
+        XCTAssertTrue(soonReturnFilter.waitForExistence(timeout: 2), "Soon-return filter hit target is missing")
+        XCTAssertTrue(debtorsFilter.waitForExistence(timeout: 2), "Debtors filter hit target is missing")
+        XCTAssertTrue(selectedFilter.waitForExistence(timeout: 2), "Selected filter marker is missing")
+        XCTAssertTrue(allFilter.isHittable, "Filters must be tappable before the cards overlap them")
+
+        debtorsFilter.tap()
+        XCTAssertEqual(selectedFilter.stringValue, "debtors")
+
+        allFilter.tap()
+        XCTAssertEqual(selectedFilter.stringValue, "all")
+
+        let searchField = app.descendants(matching: .any)["admin.searchField"]
+        let firstCard = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", "admin.rent.card."))
+            .firstMatch
+        XCTAssertTrue(searchField.waitForExistence(timeout: 3), "Search field is missing")
+        XCTAssertTrue(firstCard.waitForExistence(timeout: 8), "At least one rental card is required")
+        XCTAssertGreaterThan(firstCard.frame.minY, allFilter.frame.maxY, "Initial card position must leave filters visible")
+
+        let overlappedListTapPoint = soonReturnFilter.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        let overlappedListTapY = soonReturnFilter.frame.midY
+        var didOverlapFilters = false
+        for _ in 0..<5 {
+            app.swipeUp()
+            if firstCard.frame.minY <= overlappedListTapY && firstCard.frame.maxY >= overlappedListTapY {
+                didOverlapFilters = true
+                break
+            }
+        }
+        XCTAssertTrue(didOverlapFilters, "Top card should move over the filter zone while scrolling")
+        XCTAssertFalse(allFilter.isHittable, "Filter hit target must deactivate once cards overlap it")
+
+        overlappedListTapPoint.tap()
+        XCTAssertTrue(
+            app.buttons["clientDetails.addRentalButton"].waitForExistence(timeout: 5),
+            "Tap in the overlapped filter zone must be handled by the card/list"
+        )
+
+        app.buttons["Закрыть"].firstMatch.tap()
+
+        for _ in 0..<4 {
+            app.swipeUp()
+        }
+        XCTAssertLessThanOrEqual(
+            firstCard.frame.minY,
+            searchField.frame.midY + 8,
+            "Cards should reach the middle of the search field zone"
+        )
+    }
+
     private struct IpPaymentFixture {
         let clientLogin: String
         let clientPassword: String
@@ -488,7 +545,7 @@ final class AdminBikeRentalUITests: XCTestCase {
         }
         submit.tap()
 
-        guard app.buttons["admin.openServiceButton"].waitForExistence(timeout: 12) else {
+        guard app.buttons["admin.openServiceButton"].waitForExistence(timeout: 30) else {
             throw XCTSkip("Admin screen did not open (backend may be unavailable)")
         }
     }
@@ -510,7 +567,7 @@ final class AdminBikeRentalUITests: XCTestCase {
         }
         submit.tap()
 
-        guard app.buttons["admin.openServiceButton"].waitForExistence(timeout: 12) else {
+        guard app.buttons["admin.openServiceButton"].waitForExistence(timeout: 30) else {
             throw XCTSkip("IP admin screen did not open (backend may be unavailable)")
         }
     }
@@ -627,6 +684,10 @@ final class AdminBikeRentalUITests: XCTestCase {
 }
 
 private extension XCUIElement {
+    var stringValue: String {
+        (value as? String) ?? label
+    }
+
     func enterText(_ text: String) {
         tap()
         typeText(text)
