@@ -23,14 +23,6 @@ private enum AdminRentFilter {
     case mine
 }
 
-private struct AdminRentScrollOffsetKey: PreferenceKey {
-    static var defaultValue: CGFloat = .zero
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
-
 struct AdminHomeView: View {
     @ObservedObject var viewModel: AdminHomeViewModel
     let onLogout: () -> Void
@@ -48,7 +40,6 @@ struct AdminHomeView: View {
     @State private var searchText = ""
     @State private var selectedFilter: AdminRentFilter = .all
     @State private var isAdminMenuPresented = false
-    @State private var cardsListMinY: CGFloat = .greatestFiniteMagnitude
     @State private var pipelineMenuClientId: String?
 
     var body: some View {
@@ -266,11 +257,10 @@ struct AdminHomeView: View {
         let searchHeight: CGFloat = 46
         let chipsTopGap: CGFloat = 10
         let chipsHeight: CGFloat = 80
-        let cardsInitialTop: CGFloat = 260
+        let cardsInitialTop: CGFloat = 200
         let tabBarHeight: CGFloat = 76
         let searchTop = topBarHeight + searchTopPadding
         let chipsTop = searchTop + searchHeight + chipsTopGap
-        let filtersVisibility = cardsListMinY > chipsTop + chipsHeight - 12 ? 1.0 : 0.0
 
         return ZStack(alignment: .top) {
             ScrollView(showsIndicators: false) {
@@ -306,31 +296,18 @@ struct AdminHomeView: View {
                     }
                     .padding(.top, 1)
                     .background(AppDesign.pageBackground)
-                    .overlay(alignment: .top) {
-                        GeometryReader { proxy in
-                            Color.clear.preference(
-                                key: AdminRentScrollOffsetKey.self,
-                                value: proxy.frame(in: .global).minY
-                            )
-                        }
-                    }
                 }
                 .padding(.horizontal, 22)
                 .padding(.bottom, tabBarHeight + 44)
             }
             .coordinateSpace(name: "adminRentsScroll")
-            .onPreferenceChange(AdminRentScrollOffsetKey.self) { cardListMinY in
-                cardsListMinY = cardListMinY
-            }
-            .zIndex(1)
+            .zIndex(2)
 
             chipRows(clients: clients)
                 .padding(.horizontal, 22)
                 .frame(height: chipsHeight, alignment: .topLeading)
                 .offset(y: chipsTop)
-                .opacity(filtersVisibility)
-                .allowsHitTesting(filtersVisibility > 0.5)
-                .zIndex(2)
+                .zIndex(1)
 
             Rectangle()
                 .fill(AppDesign.pageBackground)
