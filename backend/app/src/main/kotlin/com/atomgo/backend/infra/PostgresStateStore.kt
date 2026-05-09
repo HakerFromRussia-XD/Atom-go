@@ -12,6 +12,7 @@ import com.atomgo.backend.domain.PaymentRecord
 import com.atomgo.backend.domain.PaymentStatus
 import com.atomgo.backend.domain.PaymentType
 import com.atomgo.backend.domain.RentalRecord
+import com.atomgo.backend.domain.RentalPipelineStatus
 import com.atomgo.backend.domain.Role
 import com.atomgo.backend.domain.UserSession
 import kotlinx.serialization.Serializable
@@ -128,12 +129,14 @@ class PostgresStateStore private constructor(
                     contract_url TEXT,
                     comment TEXT,
                     admin_id TEXT,
-                    tax_mode TEXT NOT NULL DEFAULT 'SELF_EMPLOYED'
+                    tax_mode TEXT NOT NULL DEFAULT 'SELF_EMPLOYED',
+                    pipeline_status TEXT NOT NULL DEFAULT 'LONG_TERM'
                 )
                 """.trimIndent()
             )
             statement.execute("ALTER TABLE atomgo_rentals ADD COLUMN IF NOT EXISTS admin_id TEXT")
             statement.execute("ALTER TABLE atomgo_rentals ADD COLUMN IF NOT EXISTS tax_mode TEXT NOT NULL DEFAULT 'SELF_EMPLOYED'")
+            statement.execute("ALTER TABLE atomgo_rentals ADD COLUMN IF NOT EXISTS pipeline_status TEXT NOT NULL DEFAULT 'LONG_TERM'")
             statement.execute(
                 """
                 CREATE TABLE IF NOT EXISTS atomgo_ledger_entries (
@@ -440,7 +443,7 @@ class PostgresStateStore private constructor(
         val rentals = mutableListOf<RentalRecord>()
         connection.prepareStatement(
             """
-            SELECT id, client_id, bike_id, start_date, end_date, video_url, contract_url, comment, admin_id, tax_mode
+            SELECT id, client_id, bike_id, start_date, end_date, video_url, contract_url, comment, admin_id, tax_mode, pipeline_status
             FROM atomgo_rentals
             ORDER BY start_date DESC, id
             """.trimIndent()
@@ -457,7 +460,8 @@ class PostgresStateStore private constructor(
                         contractUrl = rs.getString("contract_url"),
                         comment = rs.getString("comment"),
                         adminId = rs.getString("admin_id"),
-                        taxMode = enumValueOf<AdminTaxMode>(rs.getString("tax_mode"))
+                        taxMode = enumValueOf<AdminTaxMode>(rs.getString("tax_mode")),
+                        pipelineStatus = enumValueOf<RentalPipelineStatus>(rs.getString("pipeline_status"))
                     )
                 }
             }
@@ -658,9 +662,10 @@ class PostgresStateStore private constructor(
                 contract_url,
                 comment,
                 admin_id,
-                tax_mode
+                tax_mode,
+                pipeline_status
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent()
         ).use { statement ->
             state.rentals.forEach { rental ->
@@ -674,6 +679,7 @@ class PostgresStateStore private constructor(
                 statement.setString(8, rental.comment)
                 statement.setString(9, rental.adminId)
                 statement.setString(10, rental.taxMode.name)
+                statement.setString(11, rental.pipelineStatus.name)
                 statement.addBatch()
             }
             statement.executeBatch()
@@ -956,7 +962,8 @@ private object InMemoryStoreJsonMapper {
         val contractUrl: String? = null,
         val comment: String? = null,
         val adminId: String? = null,
-        val taxMode: String = AdminTaxMode.SELF_EMPLOYED.name
+        val taxMode: String = AdminTaxMode.SELF_EMPLOYED.name,
+        val pipelineStatus: String = RentalPipelineStatus.LONG_TERM.name
     )
 
     @Serializable
@@ -1163,7 +1170,8 @@ private object InMemoryStoreJsonMapper {
                 contractUrl = rental.contractUrl,
                 comment = rental.comment,
                 adminId = rental.adminId,
-                taxMode = enumValueOf<AdminTaxMode>(rental.taxMode)
+                taxMode = enumValueOf<AdminTaxMode>(rental.taxMode),
+                pipelineStatus = enumValueOf<RentalPipelineStatus>(rental.pipelineStatus)
             )
         }.toMutableList()
 

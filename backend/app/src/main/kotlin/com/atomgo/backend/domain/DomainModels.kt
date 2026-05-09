@@ -34,6 +34,24 @@ enum class PaymentType {
 
 enum class LedgerType { CHARGE, PAYMENT, ADJUSTMENT }
 
+enum class RentalPipelineStatus {
+    LONG_TERM,
+    SOON_RETURN;
+
+    companion object {
+        fun fromApi(value: String): RentalPipelineStatus? = when (value) {
+            "long_term" -> LONG_TERM
+            "soon_return" -> SOON_RETURN
+            else -> null
+        }
+
+        fun toApi(value: RentalPipelineStatus): String = when (value) {
+            LONG_TERM -> "long_term"
+            SOON_RETURN -> "soon_return"
+        }
+    }
+}
+
 data class UserSession(
     val userId: String,
     val role: Role,
@@ -73,7 +91,8 @@ data class RentalRecord(
     var contractUrl: String?,
     var comment: String?,
     val adminId: String? = null,
-    val taxMode: AdminTaxMode = AdminTaxMode.SELF_EMPLOYED
+    val taxMode: AdminTaxMode = AdminTaxMode.SELF_EMPLOYED,
+    val pipelineStatus: RentalPipelineStatus = RentalPipelineStatus.LONG_TERM
 )
 
 data class BikeAccount(

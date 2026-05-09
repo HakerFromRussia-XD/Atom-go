@@ -12,6 +12,7 @@ import com.atomgo.backend.domain.BikeAccount
 import com.atomgo.backend.domain.ClientAccount
 import com.atomgo.backend.domain.ClientPhone
 import com.atomgo.backend.domain.RentalRecord
+import com.atomgo.backend.domain.RentalPipelineStatus
 import com.atomgo.backend.infra.AuthService
 import com.atomgo.backend.infra.FiscalizationConfig
 import com.atomgo.backend.infra.InMemoryStore
@@ -123,6 +124,8 @@ private data class ApiClientDashboardResponse(
 private data class ApiAdminClientSummaryResponse(
     @SerialName("client_id")
     val clientId: String,
+    @SerialName("rental_id")
+    val rentalId: String? = null,
     @SerialName("client_login")
     val clientLogin: String? = null,
     @SerialName("full_name")
@@ -135,6 +138,10 @@ private data class ApiAdminClientSummaryResponse(
     val statusText: String,
     @SerialName("paid_until")
     val paidUntil: String? = null,
+    @SerialName("rental_pipeline_status")
+    val rentalPipelineStatus: String? = null,
+    @SerialName("rental_is_active")
+    val rentalIsActive: Boolean = false,
     @SerialName("debt_rub")
     val debtRub: Int,
     @SerialName("profit_rub")
@@ -357,6 +364,28 @@ private data class ApiAdminUpdateRentalRequest(
 )
 
 @Serializable
+private data class ApiAdminUpdateRentalPipelineStatusRequest(
+    @SerialName("pipeline_status")
+    val pipelineStatus: String
+)
+
+@Serializable
+private data class ApiAdminUpdateRentalPipelineStatusResponse(
+    @SerialName("rental_id")
+    val rentalId: String,
+    @SerialName("pipeline_status")
+    val pipelineStatus: String
+)
+
+@Serializable
+private data class ApiAdminFinishRentalResponse(
+    @SerialName("rental_id")
+    val rentalId: String,
+    @SerialName("period_end")
+    val periodEnd: String
+)
+
+@Serializable
 private data class ApiAdminDeleteRentalResponse(
     @SerialName("rental_id")
     val rentalId: String,
@@ -449,8 +478,14 @@ private data class ClientBillingSnapshot(
     val weeklyRateRub: Int,
     val bikeModel: String,
     val bikePhotoUrl: String?,
-    val taxMode: AdminTaxMode
+    val taxMode: AdminTaxMode,
+    val pipelineStatus: RentalPipelineStatus,
+    val isActive: Boolean
 )
+
+private fun RentalRecord.isActiveAt(asOf: LocalDate): Boolean {
+    return startDate <= asOf && (endDate == null || endDate.isAfter(asOf))
+}
 
 private fun resolveCurrentRental(
     clientId: String,
@@ -466,9 +501,7 @@ private fun resolveCurrentRental(
         .toList()
     if (clientRentals.isEmpty()) return null
 
-    return clientRentals.firstOrNull { rental ->
-        rental.startDate <= asOf && (rental.endDate == null || !rental.endDate.isBefore(asOf))
-    } ?: clientRentals.first()
+    return clientRentals.firstOrNull { rental -> rental.isActiveAt(asOf) } ?: clientRentals.first()
 }
 
 private fun resolveClientBillingSnapshot(
@@ -485,7 +518,9 @@ private fun resolveClientBillingSnapshot(
         weeklyRateRub = bike.weeklyRateRub,
         bikeModel = bike.model,
         bikePhotoUrl = bike.photoUrl,
-        taxMode = rental.taxMode
+        taxMode = rental.taxMode,
+        pipelineStatus = rental.pipelineStatus,
+        isActive = rental.isActiveAt(asOf)
     )
 }
 
@@ -769,7 +804,7 @@ private fun buildAdminClientSummary(
     adminId: String? = null
 ): ApiAdminClientSummaryResponse {
     val snapshot = resolveClientBillingSnapshot(client.id, store, now, adminId)
-    val projection = if (snapshot != null) {
+    val projection = if (snapshot?.isActive == true) {
         LedgerCalculator.billingProjection(
             clientId = client.id,
             rentalStartDate = snapshot.rentalStartDate,
@@ -789,12 +824,15 @@ private fun buildAdminClientSummary(
 
     return ApiAdminClientSummaryResponse(
         clientId = client.id,
+        rentalId = snapshot?.rentalId,
         clientLogin = clientLoginByClientId(store, client.id),
         fullName = client.fullName,
         bikeModel = snapshot?.bikeModel ?: "-",
         bikeAvatarUrl = snapshot?.bikePhotoUrl ?: "",
         statusText = statusText,
         paidUntil = paidUntil?.toString(),
+        rentalPipelineStatus = snapshot?.pipelineStatus?.let(RentalPipelineStatus::toApi),
+        rentalIsActive = snapshot?.isActive == true,
         debtRub = debt,
         profitRub = profit,
         totalAdjustmentRub = LedgerCalculator.totalAdjustmentRub(store.ledger, client.id, snapshot?.rentalId)
@@ -808,7 +846,7 @@ private fun buildAdminClientDetails(
     adminId: String? = null
 ): ApiAdminClientDetailsResponse {
     val snapshot = resolveClientBillingSnapshot(client.id, store, now, adminId)
-    val projection = if (snapshot != null) {
+    val projection = if (snapshot?.isActive == true) {
         LedgerCalculator.billingProjection(
             clientId = client.id,
             rentalStartDate = snapshot.rentalStartDate,
@@ -985,7 +1023,7 @@ fun Application.module() {
                 }
                 val now = LocalDate.now()
                 val snapshot = resolveClientBillingSnapshot(client.id, store, now)
-                val projection = if (snapshot != null) {
+                val projection = if (snapshot?.isActive == true) {
                     LedgerCalculator.billingProjection(
                         clientId = client.id,
                         rentalStartDate = snapshot.rentalStartDate,
@@ -1576,7 +1614,7 @@ fun Application.module() {
                     persistState()
                     val now = LocalDate.now()
                     val snapshot = resolveClientBillingSnapshot(client.id, store, now, session.userId)
-                    val debt = if (snapshot != null) {
+                    val debt = if (snapshot?.isActive == true) {
                         LedgerCalculator.debtRub(
                             clientId = client.id,
                             rentalStartDate = snapshot.rentalStartDate,
@@ -1772,6 +1810,100 @@ fun Application.module() {
                     is ApiAdminRentalHistoryItemResponse -> call.respond(HttpStatusCode.OK, updatedRental)
                     else -> call.respond(HttpStatusCode.InternalServerError, ApiErrorResponse(message = "internal server error"))
                 }
+            }
+
+            post("/admin/rentals/{rentalId}/pipeline-status") {
+                val session = authService.resolveSession(call.request.header("Authorization"))
+                if (session == null || session.role != Role.ADMIN) {
+                    call.respond(HttpStatusCode.Unauthorized, ApiErrorResponse(message = "Unauthorized"))
+                    return@post
+                }
+
+                val rentalId = call.parameters["rentalId"]
+                if (rentalId.isNullOrBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "rentalId is required"))
+                    return@post
+                }
+
+                val request = call.receive<ApiAdminUpdateRentalPipelineStatusRequest>()
+                val pipelineStatus = RentalPipelineStatus.fromApi(request.pipelineStatus.trim())
+                if (pipelineStatus == null) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "pipeline_status is invalid"))
+                    return@post
+                }
+
+                val updated = synchronized(stateLock) {
+                    val rentalIndex = store.rentals.indexOfFirst { it.id == rentalId }
+                    if (rentalIndex < 0) {
+                        null
+                    } else {
+                        val current = store.rentals[rentalIndex]
+                        if (current.adminId != session.userId) {
+                            return@synchronized null
+                        }
+                        val next = current.copy(pipelineStatus = pipelineStatus)
+                        store.rentals[rentalIndex] = next
+                        persistState()
+                        next
+                    }
+                }
+
+                if (updated == null) {
+                    call.respond(HttpStatusCode.NotFound, ApiErrorResponse(message = "Rental not found"))
+                    return@post
+                }
+
+                call.respond(
+                    HttpStatusCode.OK,
+                    ApiAdminUpdateRentalPipelineStatusResponse(
+                        rentalId = updated.id,
+                        pipelineStatus = RentalPipelineStatus.toApi(updated.pipelineStatus)
+                    )
+                )
+            }
+
+            post("/admin/rentals/{rentalId}/finish") {
+                val session = authService.resolveSession(call.request.header("Authorization"))
+                if (session == null || session.role != Role.ADMIN) {
+                    call.respond(HttpStatusCode.Unauthorized, ApiErrorResponse(message = "Unauthorized"))
+                    return@post
+                }
+
+                val rentalId = call.parameters["rentalId"]
+                if (rentalId.isNullOrBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "rentalId is required"))
+                    return@post
+                }
+
+                val today = LocalDate.now()
+                val updated = synchronized(stateLock) {
+                    val rentalIndex = store.rentals.indexOfFirst { it.id == rentalId }
+                    if (rentalIndex < 0) {
+                        null
+                    } else {
+                        val current = store.rentals[rentalIndex]
+                        if (current.adminId != session.userId) {
+                            return@synchronized null
+                        }
+                        val next = current.copy(endDate = today)
+                        store.rentals[rentalIndex] = next
+                        persistState()
+                        next
+                    }
+                }
+
+                if (updated == null) {
+                    call.respond(HttpStatusCode.NotFound, ApiErrorResponse(message = "Rental not found"))
+                    return@post
+                }
+
+                call.respond(
+                    HttpStatusCode.OK,
+                    ApiAdminFinishRentalResponse(
+                        rentalId = updated.id,
+                        periodEnd = updated.endDate?.toString() ?: today.toString()
+                    )
+                )
             }
 
             post("/admin/rentals/{rentalId}/delete") {

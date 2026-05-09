@@ -352,7 +352,7 @@ class PaymentService(
 
         val activeRental = clientRentals
             .firstOrNull { rental ->
-                rental.startDate <= asOf && (rental.endDate == null || !rental.endDate.isBefore(asOf))
+                rental.startDate <= asOf && (rental.endDate == null || rental.endDate.isAfter(asOf))
             }
             ?: clientRentals.first()
 

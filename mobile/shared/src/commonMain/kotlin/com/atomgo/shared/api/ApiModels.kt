@@ -76,6 +76,8 @@ data class ClientDashboardResponse(
 data class AdminClientSummaryResponse(
     @SerialName("client_id")
     val clientId: String,
+    @SerialName("rental_id")
+    val rentalId: String? = null,
     @SerialName("client_login")
     val clientLogin: String? = null,
     @SerialName("full_name")
@@ -88,6 +90,10 @@ data class AdminClientSummaryResponse(
     val statusText: String,
     @SerialName("paid_until")
     val paidUntil: String? = null,
+    @SerialName("rental_pipeline_status")
+    val rentalPipelineStatus: String? = null,
+    @SerialName("rental_is_active")
+    val rentalIsActive: Boolean = false,
     @SerialName("debt_rub")
     val debtRub: Int,
     @SerialName("profit_rub")

@@ -287,6 +287,47 @@ final class AdminHomeViewModel: ObservableObject {
         }
     }
 
+    func updateRentalPipelineStatus(clientId: String, rentalId: String, pipelineStatus: String) {
+        isOperationInProgress = true
+        operationErrorMessage = nil
+        operationSuccessMessage = nil
+
+        Task {
+            do {
+                try await apiService.updateAdminRentalPipelineStatus(
+                    accessToken: session.accessToken,
+                    rentalId: rentalId,
+                    pipelineStatus: pipelineStatus
+                )
+                operationSuccessMessage = "Статус аренды обновлен"
+                await refreshAfterMutation(openDetailsFor: nil)
+            } catch {
+                operationErrorMessage = error.localizedDescription
+            }
+            isOperationInProgress = false
+        }
+    }
+
+    func finishRental(clientId: String, rentalId: String) {
+        isOperationInProgress = true
+        operationErrorMessage = nil
+        operationSuccessMessage = nil
+
+        Task {
+            do {
+                try await apiService.finishAdminRental(
+                    accessToken: session.accessToken,
+                    rentalId: rentalId
+                )
+                operationSuccessMessage = "Аренда завершена"
+                await refreshAfterMutation(openDetailsFor: nil)
+            } catch {
+                operationErrorMessage = error.localizedDescription
+            }
+            isOperationInProgress = false
+        }
+    }
+
     func adjustDebt(clientId: String, amountRub: Int, sign: DebtAdjustmentSign, comment: String?) {
         isOperationInProgress = true
         operationErrorMessage = nil

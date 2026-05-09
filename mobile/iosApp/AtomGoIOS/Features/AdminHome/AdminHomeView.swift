@@ -16,6 +16,21 @@ private struct CreateClientPhoneDraft: Identifiable {
     var number: String
 }
 
+private enum AdminRentFilter {
+    case all
+    case soonReturn
+    case debtors
+    case mine
+}
+
+private struct AdminRentScrollOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = .zero
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
 struct AdminHomeView: View {
     @ObservedObject var viewModel: AdminHomeViewModel
     let onLogout: () -> Void
@@ -30,87 +45,61 @@ struct AdminHomeView: View {
     @State private var detailsClientId: String?
     @State private var debtAdjustmentContext: DebtAdjustmentContext?
     @State private var ignoredNextTapClientId: String?
+    @State private var searchText = ""
+    @State private var selectedFilter: AdminRentFilter = .all
+    @State private var isAdminMenuPresented = false
+    @State private var cardsListMinY: CGFloat = .greatestFiniteMagnitude
+    @State private var pipelineMenuClientId: String?
 
     var body: some View {
         NavigationStack {
-            Group {
-                switch viewModel.state {
-                case .idle, .loading:
-                    ProgressView("Загружаем список аренд...")
+            GeometryReader { geometry in
+                ZStack(alignment: .top) {
+                    AppDesign.pageBackground.ignoresSafeArea()
+
+                    switch viewModel.state {
+                    case .idle, .loading:
+                        ProgressView("Загружаем список аренд...")
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                    case let .failed(message):
+                        VStack(spacing: 12) {
+                            Text("Не удалось загрузить аренды")
+                                .font(.headline)
+                                .foregroundStyle(AppDesign.titleText)
+                            Text(message)
+                                .font(.subheadline)
+                                .foregroundStyle(AppDesign.subtleText)
+                                .multilineTextAlignment(.center)
+                            Button("Повторить") {
+                                viewModel.load()
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+                        .padding(24)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                case let .failed(message):
-                    VStack(spacing: 12) {
-                        Text("Не удалось загрузить аренды")
-                            .font(.headline)
-                            .foregroundStyle(AppDesign.titleText)
-                        Text(message)
-                            .font(.subheadline)
-                            .foregroundStyle(AppDesign.subtleText)
-                            .multilineTextAlignment(.center)
-                        Button("Повторить") {
-                            viewModel.load()
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
-                    .padding(24)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                case let .loaded(clients):
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 12) {
-                            if let errorText = viewModel.operationErrorMessage {
-                                messageBanner(
-                                    title: "Ошибка операции",
-                                    text: errorText,
-                                    color: AppDesign.danger
-                                )
-                            }
-
-                            if let successText = viewModel.operationSuccessMessage {
-                                messageBanner(
-                                    title: "Успешно",
-                                    text: successText,
-                                    color: AppDesign.success
-                                )
-                            }
-
-                            if clients.isEmpty {
-                                emptyRentalsView
-                            } else {
-                                ForEach(clients) { client in
-                                    clientCard(client)
-                                }
-                            }
-                        }
-                        .padding(16)
-                    }
-                    .background(AppDesign.pageBackground.ignoresSafeArea())
-                }
-            }
-            .navigationTitle("Admin")
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Выйти") {
-                        onLogout()
+                    case let .loaded(clients):
+                        adminPipelineLoadedView(clients: clients, safeTop: geometry.safeAreaInsets.top)
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
+                .confirmationDialog("Действия", isPresented: $isAdminMenuPresented, titleVisibility: .visible) {
                     Button("Сервис") {
                         isServiceSheetPresented = true
                     }
-                    .accessibilityIdentifier("admin.openServiceButton")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
                     Button("Новая аренда") {
                         isCreateRentalSheetPresented = true
                     }
-                    .accessibilityIdentifier("admin.addRentalButton")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Обновить") { viewModel.load() }
+                    Button("Обновить") {
+                        viewModel.load()
+                    }
+                    Button("Выйти", role: .destructive) {
+                        onLogout()
+                    }
+                    Button("Отмена", role: .cancel) {}
                 }
             }
+            .toolbar(.hidden, for: .navigationBar)
         }
         .task {
             if case .idle = viewModel.state {
@@ -271,6 +260,253 @@ struct AdminHomeView: View {
         }
     }
 
+    private func adminPipelineLoadedView(clients: [AdminClientSummaryResponse], safeTop: CGFloat) -> some View {
+        let topBarHeight: CGFloat = 62
+        let searchTopPadding: CGFloat = 6
+        let searchHeight: CGFloat = 46
+        let chipsTopGap: CGFloat = 10
+        let chipsHeight: CGFloat = 80
+        let cardsInitialTop: CGFloat = 260
+        let tabBarHeight: CGFloat = 76
+        let searchTop = safeTop + topBarHeight + searchTopPadding
+        let chipsTop = searchTop + searchHeight + chipsTopGap
+        let filtersVisibility = cardsListMinY > chipsTop + chipsHeight - 12 ? 1.0 : 0.0
+
+        return ZStack(alignment: .top) {
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Color.clear.frame(height: cardsInitialTop)
+
+                    VStack(alignment: .leading, spacing: 15) {
+                        if let errorText = viewModel.operationErrorMessage {
+                            messageBanner(
+                                title: "Ошибка операции",
+                                text: errorText,
+                                color: AppDesign.danger
+                            )
+                        }
+
+                        if let successText = viewModel.operationSuccessMessage {
+                            messageBanner(
+                                title: "Успешно",
+                                text: successText,
+                                color: AppDesign.success
+                            )
+                        }
+
+                        let visibleClients = filteredClients(clients)
+
+                        if visibleClients.isEmpty {
+                            emptyRentalsView
+                        } else {
+                            ForEach(visibleClients, id: \.id) { client in
+                                clientCard(client)
+                            }
+                        }
+                    }
+                    .padding(.top, 1)
+                    .background(AppDesign.pageBackground)
+                    .overlay(alignment: .top) {
+                        GeometryReader { proxy in
+                            Color.clear.preference(
+                                key: AdminRentScrollOffsetKey.self,
+                                value: proxy.frame(in: .global).minY
+                            )
+                        }
+                    }
+                }
+                .padding(.horizontal, 22)
+                .padding(.bottom, tabBarHeight + 44)
+            }
+            .coordinateSpace(name: "adminRentsScroll")
+            .onPreferenceChange(AdminRentScrollOffsetKey.self) { cardListMinY in
+                cardsListMinY = cardListMinY
+            }
+            .zIndex(1)
+
+            chipRows(clients: clients)
+                .padding(.horizontal, 22)
+                .frame(height: chipsHeight, alignment: .topLeading)
+                .offset(y: chipsTop)
+                .opacity(filtersVisibility)
+                .allowsHitTesting(filtersVisibility > 0.5)
+                .zIndex(2)
+
+            Rectangle()
+                .fill(AppDesign.pageBackground)
+                .frame(height: searchTop)
+                .ignoresSafeArea(edges: .top)
+                .zIndex(3)
+
+            VStack(spacing: 0) {
+                Color.clear.frame(height: safeTop)
+                topBar
+                    .frame(height: topBarHeight)
+                searchField
+                    .padding(.horizontal, 22)
+                    .padding(.top, searchTopPadding)
+                Spacer(minLength: 0)
+            }
+            .zIndex(4)
+
+            adminBottomTabBar
+                .zIndex(5)
+        }
+    }
+
+    private func filteredClients(_ clients: [AdminClientSummaryResponse]) -> [AdminClientSummaryResponse] {
+        let searched = clients.filter { client in
+            let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !query.isEmpty else { return true }
+            let lower = query.lowercased()
+            return client.fullName.lowercased().contains(lower)
+                || client.bikeModel.lowercased().contains(lower)
+                || (client.clientLogin?.lowercased().contains(lower) ?? false)
+        }
+
+        switch selectedFilter {
+        case .all:
+            return searched
+        case .soonReturn:
+            return searched.filter { $0.rentalIsActive && $0.rentalPipelineStatus == "soon_return" }
+        case .debtors:
+            return searched.filter { $0.debtRub > 0 }
+        case .mine:
+            return searched.filter { !$0.rentalIsActive }
+        }
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(AppDesign.titleText)
+
+            TextField("Поиск по клиенту, велосипеду...", text: $searchText)
+                .font(.system(size: 13, weight: .regular))
+                .foregroundStyle(AppDesign.titleText)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+        }
+        .padding(.horizontal, 15)
+        .frame(height: 46)
+        .background(Color.white)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12.84, style: .continuous)
+                .stroke(AppDesign.accent, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12.84, style: .continuous))
+    }
+
+    private func chipRows(clients: [AdminClientSummaryResponse]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                filterChip(.all, title: "Все", count: clients.count, isDark: true)
+                filterChip(.soonReturn, title: "Скоро вернут", count: clients.filter { $0.rentalIsActive && $0.rentalPipelineStatus == "soon_return" }.count)
+                filterChip(.debtors, title: "Должники", count: clients.filter { $0.debtRub > 0 }.count)
+            }
+            filterChip(.mine, title: "У меня", count: clients.filter { !$0.rentalIsActive }.count)
+        }
+    }
+
+    private func filterChip(_ filter: AdminRentFilter, title: String, count: Int, isDark: Bool = false) -> some View {
+        let isSelected = selectedFilter == filter
+        let dark = isSelected
+
+        return Button {
+            selectedFilter = filter
+        } label: {
+            HStack(spacing: 6) {
+                Text(title)
+                    .font(.system(size: 12, weight: .bold))
+                Text("\(count)")
+                    .font(.system(size: 10, weight: .bold))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background((dark ? Color.white.opacity(0.2) : Color.black.opacity(0.08)))
+                    .clipShape(Capsule())
+            }
+            .foregroundStyle(dark ? Color.white : AppDesign.accent)
+            .padding(.horizontal, 15)
+            .frame(height: 36)
+            .background(dark ? AppDesign.accent : Color.white)
+            .overlay(
+                RoundedRectangle(cornerRadius: 999, style: .continuous)
+                    .stroke(AppDesign.accent, lineWidth: 1)
+            )
+            .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var topBar: some View {
+        HStack {
+            topIconButton(systemName: "rectangle.portrait.and.arrow.right", action: onLogout)
+            Spacer()
+            Text("All rent's")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
+            Spacer()
+            topIconButton(systemName: "ellipsis", action: { isAdminMenuPresented = true })
+        }
+        .padding(.horizontal, 22)
+    }
+
+    private func topIconButton(systemName: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(AppDesign.accent, lineWidth: 1)
+                )
+                .overlay(
+                    Image(systemName: systemName)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(AppDesign.accent)
+                )
+                .frame(width: 47, height: 47)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var adminBottomTabBar: some View {
+        VStack {
+            Spacer()
+            HStack(spacing: 76) {
+                VStack(spacing: 12) {
+                    Image(systemName: "house.fill")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundStyle(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
+                    Circle()
+                        .fill(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
+                        .frame(width: 6, height: 6)
+                }
+                .frame(width: 44)
+
+                Button {
+                    isServiceSheetPresented = true
+                } label: {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 26, weight: .regular))
+                        .foregroundStyle(AppDesign.iconSoft)
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.plain)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 18)
+            .padding(.bottom, 28)
+            .background(.ultraThinMaterial)
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(Color(red: 218 / 255, green: 218 / 255, blue: 218 / 255))
+                    .frame(height: 1)
+            }
+        }
+        .ignoresSafeArea(edges: .bottom)
+    }
+
     private var emptyRentalsView: some View {
         VStack(spacing: 14) {
             Image(systemName: "calendar.badge.clock")
@@ -308,25 +544,43 @@ struct AdminHomeView: View {
     }
 
     private func clientCard(_ client: AdminClientSummaryResponse) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            bikeAvatar(urlString: client.bikeAvatarUrl)
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(client.fullName)
-                    .font(.headline)
-                    .foregroundStyle(AppDesign.titleText)
-                Text(client.statusText)
-                    .font(.subheadline)
-                    .foregroundStyle(client.debtRub > 0 ? AppDesign.danger : AppDesign.subtleText)
-                Text(client.bikeModel)
-                    .font(.caption)
-                    .foregroundStyle(AppDesign.subtleText)
-                Text("Корректировка: \(client.totalAdjustmentRub) ₽")
-                    .font(.caption)
-                    .foregroundStyle(AppDesign.subtleText)
+        HStack(alignment: .center, spacing: 16) {
+            Button {
+                pipelineMenuClientId = client.clientId
+            } label: {
+                bikeAvatar(urlString: client.bikeAvatarUrl, borderColor: avatarBorderColor(for: client))
+            }
+            .buttonStyle(.plain)
+            .popover(
+                isPresented: Binding(
+                    get: { pipelineMenuClientId == client.clientId },
+                    set: { isPresented in
+                        if !isPresented {
+                            pipelineMenuClientId = nil
+                        }
+                    }
+                ),
+                attachmentAnchor: .rect(.bounds),
+                arrowEdge: .leading
+            ) {
+                rentalPipelinePopoverContent(for: client)
             }
 
-            Spacer(minLength: 8)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(client.fullName)
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(Color(red: 17 / 255, green: 24 / 255, blue: 39 / 255))
+                    .lineLimit(1)
+                Text(client.bikeModel)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color(red: 17 / 255, green: 24 / 255, blue: 39 / 255).opacity(0.5))
+                    .lineLimit(1)
+                Text("Корректировка: \(formattedRub(client.totalAdjustmentRub))")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color(red: 17 / 255, green: 24 / 255, blue: 39 / 255).opacity(0.5))
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             Button {
                 ignoredNextTapClientId = client.clientId
@@ -336,24 +590,22 @@ struct AdminHomeView: View {
                     currentDebtRub: client.debtRub
                 )
             } label: {
-                VStack(spacing: 4) {
-                    Text(client.debtRub > 0 ? "Долг" : "Прибыль")
-                        .font(.caption2.weight(.semibold))
-                    Text("\(client.debtRub > 0 ? client.debtRub : client.profitRub) ₽")
-                        .font(.subheadline.weight(.bold))
-                }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(client.debtRub > 0 ? AppDesign.danger : AppDesign.success)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                statusPill(for: client)
             }
             .buttonStyle(.plain)
         }
-        .padding(12)
+        .padding(.leading, 19)
+        .padding(.trailing, 8)
+        .padding(.vertical, 22)
+        .frame(height: 110)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppDesign.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(Color(red: 250 / 255, green: 251 / 255, blue: 251 / 255))
+        .overlay(
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .stroke(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .shadow(color: Color(red: 25 / 255, green: 28 / 255, blue: 50 / 255).opacity(0.08), radius: 15, x: 0, y: 20)
         .contentShape(Rectangle())
         .onTapGesture {
             if ignoredNextTapClientId == client.clientId {
@@ -366,14 +618,210 @@ struct AdminHomeView: View {
         }
     }
 
-    private func bikeAvatar(urlString: String) -> some View {
+    private func bikeAvatar(urlString: String, borderColor: Color) -> some View {
         BikePhotoView(source: urlString) {
             placeholderBikeAvatar
         }
-        .frame(width: 58, height: 58)
-        .background(AppDesign.surfaceBackground)
+        .frame(width: 44, height: 44)
+        .background(Color(red: 227 / 255, green: 230 / 255, blue: 235 / 255))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(borderColor, lineWidth: 3)
+        )
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
+
+    private func rentalPipelinePopover(for client: AdminClientSummaryResponse) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            rentalPipelineRow(
+                title: "Долгосрочная аренда",
+                color: Color(red: 52 / 255, green: 199 / 255, blue: 89 / 255),
+                isSelected: client.rentalIsActive && client.rentalPipelineStatus != "soon_return"
+            ) {
+                updatePipelineStatus(for: client, status: "long_term")
+            }
+
+            rentalPipelineRow(
+                title: "Вернут в течении недели",
+                color: Color(red: 255 / 255, green: 204 / 255, blue: 0),
+                isSelected: client.rentalIsActive && client.rentalPipelineStatus == "soon_return"
+            ) {
+                updatePipelineStatus(for: client, status: "soon_return")
+            }
+
+            rentalPipelineRow(
+                title: "Велосипед у меня",
+                color: Color(red: 203 / 255, green: 48 / 255, blue: 224 / 255),
+                isSelected: !client.rentalIsActive
+            ) {
+                finishRental(for: client)
+            }
+        }
+        .padding(7)
+        .background(Color.white)
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(AppDesign.accent, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .shadow(color: Color(red: 25 / 255, green: 28 / 255, blue: 50 / 255).opacity(0.18), radius: 14, x: 0, y: 12)
+    }
+
+    @ViewBuilder
+    private func rentalPipelinePopoverContent(for client: AdminClientSummaryResponse) -> some View {
+        if #available(iOS 16.4, *) {
+            rentalPipelinePopover(for: client)
+                .presentationCompactAdaptation(.popover)
+        } else {
+            rentalPipelinePopover(for: client)
+        }
+    }
+
+    private func rentalPipelineRow(
+        title: String,
+        color: Color,
+        isSelected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(color, lineWidth: 3)
+                    .frame(width: 20, height: 20)
+
+                Text(title)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(AppDesign.accent)
+                    .lineLimit(1)
+            }
+            .padding(.leading, 10)
+            .padding(.trailing, 34)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(isSelected ? Color(red: 243 / 255, green: 244 / 255, blue: 246 / 255) : Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func updatePipelineStatus(for client: AdminClientSummaryResponse, status: String) {
+        guard let rentalId = client.rentalId else {
+            pipelineMenuClientId = nil
+            return
+        }
+        pipelineMenuClientId = nil
+        viewModel.updateRentalPipelineStatus(
+            clientId: client.clientId,
+            rentalId: rentalId,
+            pipelineStatus: status
+        )
+    }
+
+    private func finishRental(for client: AdminClientSummaryResponse) {
+        guard let rentalId = client.rentalId else {
+            pipelineMenuClientId = nil
+            return
+        }
+        pipelineMenuClientId = nil
+        viewModel.finishRental(clientId: client.clientId, rentalId: rentalId)
+    }
+
+    private func statusPill(for client: AdminClientSummaryResponse) -> some View {
+        let status = rentStatus(for: client)
+
+        return VStack(spacing: 1) {
+            Text(status.title)
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(Color.white.opacity(0.85))
+                .lineLimit(1)
+            Text(status.value)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(Color.white)
+                .lineLimit(1)
+        }
+        .frame(width: status.width, height: 48)
+        .background(status.color)
+        .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+    }
+
+    private func rentStatus(for client: AdminClientSummaryResponse) -> (title: String, value: String, color: Color, width: CGFloat) {
+        if !client.rentalIsActive {
+            return ("У меня", "—", Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255), 128)
+        }
+
+        if client.debtRub > 0 {
+            return ("Долг", formattedRub(client.debtRub), Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255), 124)
+        }
+
+        return (
+            "Оплачено на",
+            paidDaysText(for: client),
+            Color(red: 35 / 255, green: 143 / 255, blue: 71 / 255),
+            124
+        )
+    }
+
+    private func avatarBorderColor(for client: AdminClientSummaryResponse) -> Color {
+        if !client.rentalIsActive {
+            return Color(red: 203 / 255, green: 48 / 255, blue: 224 / 255)
+        }
+        if client.rentalPipelineStatus == "soon_return" {
+            return Color(red: 255 / 255, green: 204 / 255, blue: 0)
+        }
+        if client.debtRub > 0 {
+            return Color(red: 52 / 255, green: 199 / 255, blue: 89 / 255)
+        }
+        return Color(red: 52 / 255, green: 199 / 255, blue: 89 / 255)
+    }
+
+    private func paidDaysText(for client: AdminClientSummaryResponse) -> String {
+        let status = client.statusText.lowercased()
+        if let days = firstInteger(in: status) {
+            return daysText(days)
+        }
+
+        guard let paidUntil = client.paidUntil,
+              let date = DateFormatter.apiDate.date(from: paidUntil) else {
+            return "—"
+        }
+
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let endDate = calendar.startOfDay(for: date)
+        let days = max(0, calendar.dateComponents([.day], from: today, to: endDate).day ?? 0)
+        return daysText(days)
+    }
+
+    private func firstInteger(in text: String) -> Int? {
+        let digits = text.split { !$0.isNumber }.first
+        return digits.flatMap { Int($0) }
+    }
+
+    private func daysText(_ days: Int) -> String {
+        let mod10 = days % 10
+        let mod100 = days % 100
+
+        if mod10 == 1 && mod100 != 11 {
+            return "\(days) день"
+        }
+        if (2 ... 4).contains(mod10) && !(12 ... 14).contains(mod100) {
+            return "\(days) дня"
+        }
+        return "\(days) дней"
+    }
+
+    private func formattedRub(_ amount: Int) -> String {
+        let formatted = Self.rubFormatter.string(from: NSNumber(value: amount)) ?? "\(amount)"
+        return "\(formatted.replacingOccurrences(of: "\u{00A0}", with: " ")) ₽"
+    }
+
+    private static let rubFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.groupingSeparator = " "
+        formatter.locale = Locale(identifier: "ru_RU")
+        return formatter
+    }()
 
     private var placeholderBikeAvatar: some View {
         Image(systemName: "bicycle")

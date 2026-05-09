@@ -95,6 +95,34 @@ private struct NativeUpdateReceiptEmailResponse: Decodable {
 
 private struct NativeEmptyRequest: Encodable {}
 
+private struct NativeUpdateRentalPipelineStatusRequest: Encodable {
+    let pipelineStatus: String
+
+    enum CodingKeys: String, CodingKey {
+        case pipelineStatus = "pipeline_status"
+    }
+}
+
+private struct NativeUpdateRentalPipelineStatusResponse: Decodable {
+    let rentalId: String
+    let pipelineStatus: String
+
+    enum CodingKeys: String, CodingKey {
+        case rentalId = "rental_id"
+        case pipelineStatus = "pipeline_status"
+    }
+}
+
+private struct NativeFinishRentalResponse: Decodable {
+    let rentalId: String
+    let periodEnd: String
+
+    enum CodingKeys: String, CodingKey {
+        case rentalId = "rental_id"
+        case periodEnd = "period_end"
+    }
+}
+
 protocol BackendServicing {
     func isServerReachable() async -> Bool
     func login(login: String, password: String) async throws -> AuthSession
@@ -129,6 +157,15 @@ protocol BackendServicing {
         accessToken: String,
         rentalId: String
     ) async throws -> DeleteRentalResult
+    func updateAdminRentalPipelineStatus(
+        accessToken: String,
+        rentalId: String,
+        pipelineStatus: String
+    ) async throws
+    func finishAdminRental(
+        accessToken: String,
+        rentalId: String
+    ) async throws
     func adjustAdminClientDebt(
         accessToken: String,
         clientId: String,
@@ -194,6 +231,7 @@ private enum BackendErrorMessageParser {
         "period_start must be YYYY-MM-DD": "Дата начала аренды должна быть в формате YYYY-MM-DD.",
         "period_end must be YYYY-MM-DD": "Дата окончания аренды должна быть в формате YYYY-MM-DD.",
         "period_end must be after or equal to period_start": "Дата окончания не может быть раньше даты начала.",
+        "pipeline_status is invalid": "Некорректный статус аренды.",
         "bikeid is required": "Не указан идентификатор велосипеда.",
         "clientid is required": "Не указан идентификатор клиента.",
         "rentalid is required": "Не указан идентификатор аренды.",
@@ -414,12 +452,15 @@ final class BackendService: BackendServicing {
     private func mapAdminClientSummary(_ client: shared.AdminClientSummaryResponse) -> AdminClientSummaryResponse {
         AdminClientSummaryResponse(
             clientId: client.clientId,
+            rentalId: client.rentalId,
             clientLogin: client.clientLogin,
             fullName: client.fullName,
             bikeModel: client.bikeModel,
             bikeAvatarUrl: client.bikeAvatarUrl,
             statusText: client.statusText,
             paidUntil: client.paidUntil,
+            rentalPipelineStatus: client.rentalPipelineStatus,
+            rentalIsActive: client.rentalIsActive,
             debtRub: Int(client.debtRub),
             profitRub: Int(client.profitRub),
             totalAdjustmentRub: Int(client.totalAdjustmentRub)
@@ -612,6 +653,31 @@ final class BackendService: BackendServicing {
         return DeleteRentalResult(
             rentalId: response.rentalId,
             deleted: response.deleted
+        )
+    }
+
+    func updateAdminRentalPipelineStatus(
+        accessToken: String,
+        rentalId: String,
+        pipelineStatus: String
+    ) async throws {
+        let _: NativeUpdateRentalPipelineStatusResponse = try await sendNativeRequest(
+            path: "/admin/rentals/\(rentalId)/pipeline-status",
+            method: "POST",
+            accessToken: accessToken,
+            body: NativeUpdateRentalPipelineStatusRequest(pipelineStatus: pipelineStatus)
+        )
+    }
+
+    func finishAdminRental(
+        accessToken: String,
+        rentalId: String
+    ) async throws {
+        let _: NativeFinishRentalResponse = try await sendNativeRequest(
+            path: "/admin/rentals/\(rentalId)/finish",
+            method: "POST",
+            accessToken: accessToken,
+            body: Optional<NativeEmptyRequest>.none
         )
     }
 
@@ -1083,6 +1149,32 @@ final class LazyBackendService: BackendServicing {
     ) async throws -> DeleteRentalResult {
         try await withFallback { service in
             try await service.deleteAdminRental(
+                accessToken: accessToken,
+                rentalId: rentalId
+            )
+        }
+    }
+
+    func updateAdminRentalPipelineStatus(
+        accessToken: String,
+        rentalId: String,
+        pipelineStatus: String
+    ) async throws {
+        try await withFallback { service in
+            try await service.updateAdminRentalPipelineStatus(
+                accessToken: accessToken,
+                rentalId: rentalId,
+                pipelineStatus: pipelineStatus
+            )
+        }
+    }
+
+    func finishAdminRental(
+        accessToken: String,
+        rentalId: String
+    ) async throws {
+        try await withFallback { service in
+            try await service.finishAdminRental(
                 accessToken: accessToken,
                 rentalId: rentalId
             )

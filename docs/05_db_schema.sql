@@ -45,6 +45,7 @@ create table rental (
   comment text,
   admin_id uuid references app_user(id),
   tax_mode text not null default 'self_employed' check (tax_mode in ('self_employed', 'individual_entrepreneur')),
+  pipeline_status text not null default 'long_term' check (pipeline_status in ('long_term', 'soon_return')),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

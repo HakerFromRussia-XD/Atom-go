@@ -69,12 +69,15 @@ struct ClientDashboardResponse: Decodable {
 
 struct AdminClientSummaryResponse: Decodable, Identifiable {
     let clientId: String
+    let rentalId: String?
     let clientLogin: String?
     let fullName: String
     let bikeModel: String
     let bikeAvatarUrl: String
     let statusText: String
     let paidUntil: String?
+    let rentalPipelineStatus: String?
+    let rentalIsActive: Bool
     let debtRub: Int
     let profitRub: Int
     let totalAdjustmentRub: Int
@@ -83,23 +86,29 @@ struct AdminClientSummaryResponse: Decodable, Identifiable {
 
     init(
         clientId: String,
+        rentalId: String? = nil,
         clientLogin: String?,
         fullName: String,
         bikeModel: String,
         bikeAvatarUrl: String,
         statusText: String,
         paidUntil: String? = nil,
+        rentalPipelineStatus: String? = nil,
+        rentalIsActive: Bool = true,
         debtRub: Int,
         profitRub: Int,
         totalAdjustmentRub: Int
     ) {
         self.clientId = clientId
+        self.rentalId = rentalId
         self.clientLogin = clientLogin
         self.fullName = fullName
         self.bikeModel = bikeModel
         self.bikeAvatarUrl = bikeAvatarUrl
         self.statusText = statusText
         self.paidUntil = paidUntil
+        self.rentalPipelineStatus = rentalPipelineStatus
+        self.rentalIsActive = rentalIsActive
         self.debtRub = debtRub
         self.profitRub = profitRub
         self.totalAdjustmentRub = totalAdjustmentRub
@@ -107,15 +116,35 @@ struct AdminClientSummaryResponse: Decodable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case clientId = "client_id"
+        case rentalId = "rental_id"
         case clientLogin = "client_login"
         case fullName = "full_name"
         case bikeModel = "bike_model"
         case bikeAvatarUrl = "bike_avatar_url"
         case statusText = "status_text"
         case paidUntil = "paid_until"
+        case rentalPipelineStatus = "rental_pipeline_status"
+        case rentalIsActive = "rental_is_active"
         case debtRub = "debt_rub"
         case profitRub = "profit_rub"
         case totalAdjustmentRub = "total_adjustment_rub"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        clientId = try container.decode(String.self, forKey: .clientId)
+        rentalId = try container.decodeIfPresent(String.self, forKey: .rentalId)
+        clientLogin = try container.decodeIfPresent(String.self, forKey: .clientLogin)
+        fullName = try container.decode(String.self, forKey: .fullName)
+        bikeModel = try container.decode(String.self, forKey: .bikeModel)
+        bikeAvatarUrl = try container.decode(String.self, forKey: .bikeAvatarUrl)
+        statusText = try container.decode(String.self, forKey: .statusText)
+        paidUntil = try container.decodeIfPresent(String.self, forKey: .paidUntil)
+        rentalPipelineStatus = try container.decodeIfPresent(String.self, forKey: .rentalPipelineStatus)
+        rentalIsActive = try container.decodeIfPresent(Bool.self, forKey: .rentalIsActive) ?? true
+        debtRub = try container.decode(Int.self, forKey: .debtRub)
+        profitRub = try container.decode(Int.self, forKey: .profitRub)
+        totalAdjustmentRub = try container.decode(Int.self, forKey: .totalAdjustmentRub)
     }
 }
 
