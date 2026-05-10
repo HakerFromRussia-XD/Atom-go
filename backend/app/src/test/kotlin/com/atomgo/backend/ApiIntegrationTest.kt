@@ -371,6 +371,75 @@ class ApiIntegrationTest {
     }
 
     @Test
+    fun `finish rental should detach client auth and move rent to mine state`() = testApplication {
+        application { module() }
+        val adminToken = loginAsAdmin()
+        val clientId = createClientAndGetId(adminToken, fullName = "Detach Client", phone = "79005550001")
+        val bikeId = createBikeAndGetId(
+            adminToken = adminToken,
+            frameSerial = "DETACH-FRAME-1",
+            motorSerial = "DETACH-MOTOR-1"
+        )
+
+        val createRental = client.post("/api/v1/admin/rentals") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "client_id":"$clientId",
+                  "bike_id":"$bikeId",
+                  "login":"detach.client",
+                  "password":"client123",
+                  "period_start":"2026-05-05"
+                }
+                """.trimIndent()
+            )
+        }
+        assertEquals(HttpStatusCode.Created, createRental.status)
+        val rentalId = json.parseToJsonElement(createRental.bodyAsText()).jsonObject["rental_id"]?.jsonPrimitive?.content
+            ?: error("No rental id")
+
+        val clientLogin = client.post("/api/v1/auth/login") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"login":"detach.client","password":"client123"}""")
+        }
+        assertEquals(HttpStatusCode.OK, clientLogin.status)
+        val clientToken = json.parseToJsonElement(clientLogin.bodyAsText())
+            .jsonObject["access_token"]
+            ?.jsonPrimitive
+            ?.content
+            ?: error("No client token")
+
+        val finish = client.post("/api/v1/admin/rentals/$rentalId/finish") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, finish.status)
+
+        val rentsAfterFinish = client.get("/api/v1/admin/rents") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, rentsAfterFinish.status)
+        val rentEntry = json.parseToJsonElement(rentsAfterFinish.bodyAsText())
+            .jsonArray
+            .firstOrNull { it.jsonObject["client_id"]?.jsonPrimitive?.content == clientId }
+            ?.jsonObject
+            ?: error("Client rent not found after finish")
+        assertEquals(false, rentEntry["rental_is_active"]?.jsonPrimitive?.content?.toBooleanStrict())
+
+        val dashboardWithOldToken = client.get("/api/v1/client/me/dashboard") {
+            bearerAuth(clientToken)
+        }
+        assertEquals(HttpStatusCode.Unauthorized, dashboardWithOldToken.status)
+
+        val loginAfterDetach = client.post("/api/v1/auth/login") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"login":"detach.client","password":"client123"}""")
+        }
+        assertEquals(HttpStatusCode.Unauthorized, loginAfterDetach.status)
+    }
+
+    @Test
     fun `admin create rental should validate dates and require auth`() = testApplication {
         application { module() }
         val adminToken = loginAsAdmin()

@@ -524,6 +524,9 @@ struct AdminHomeView: View {
             HStack(spacing: 6) {
                 Text(title)
                     .font(.system(size: 12, weight: .bold))
+                    .lineLimit(filter == .soonReturn ? 2 : 1)
+                    .minimumScaleFactor(0.9)
+                    .allowsTightening(true)
                 Text("\(count)")
                     .font(.system(size: 10, weight: .bold))
                     .padding(.horizontal, 6)
@@ -662,7 +665,7 @@ struct AdminHomeView: View {
     }
 
     private func clientCard(_ client: AdminClientSummaryResponse) -> some View {
-        HStack(alignment: .center, spacing: 16) {
+        HStack(alignment: .center, spacing: 8) {
             Button {
                 pipelineMenuClientId = client.clientId
             } label: {
@@ -684,21 +687,30 @@ struct AdminHomeView: View {
                 rentalPipelinePopoverContent(for: client)
             }
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(client.fullName)
                     .font(.system(size: 15, weight: .bold))
                     .foregroundStyle(Color(red: 17 / 255, green: 24 / 255, blue: 39 / 255))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.9)
+                    .allowsTightening(true)
                 Text(client.bikeModel)
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(Color(red: 17 / 255, green: 24 / 255, blue: 39 / 255).opacity(0.5))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .allowsTightening(true)
                 Text("Корректировка: \(formattedRub(client.totalAdjustmentRub))")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(Color(red: 17 / 255, green: 24 / 255, blue: 39 / 255).opacity(0.5))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .allowsTightening(true)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(width: 136, alignment: .leading)
+            .layoutPriority(1)
+
+            Spacer(minLength: 0)
 
             Button {
                 ignoredNextTapClientId = client.clientId
@@ -712,10 +724,8 @@ struct AdminHomeView: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.leading, 19)
-        .padding(.trailing, 8)
-        .padding(.vertical, 22)
-        .frame(height: 110)
+        .padding(.horizontal, 9)
+        .frame(height: 77)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(red: 250 / 255, green: 251 / 255, blue: 251 / 255))
         .overlay(
@@ -742,7 +752,7 @@ struct AdminHomeView: View {
         BikePhotoView(source: urlString) {
             placeholderBikeAvatar
         }
-        .frame(width: 44, height: 44)
+        .frame(width: 59, height: 59)
         .background(Color(red: 227 / 255, green: 230 / 255, blue: 235 / 255))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -858,26 +868,28 @@ struct AdminHomeView: View {
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(Color.white)
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .allowsTightening(true)
         }
-        .frame(width: status.width, height: 48)
+        .frame(width: status.width, height: 44)
         .background(status.color)
         .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
     }
 
     private func rentStatus(for client: AdminClientSummaryResponse) -> (title: String, value: String, color: Color, width: CGFloat) {
         if !client.rentalIsActive {
-            return ("У меня", "—", Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255), 128)
+            return ("У меня", "—", Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255), 108)
         }
 
         if client.debtRub > 0 {
-            return ("Долг", formattedRub(client.debtRub), Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255), 124)
+            return ("Долг", formattedRub(client.debtRub), Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255), 108)
         }
 
         return (
             "Оплачено на",
             paidDaysText(for: client),
             Color(red: 35 / 255, green: 143 / 255, blue: 71 / 255),
-            124
+            108
         )
     }
 

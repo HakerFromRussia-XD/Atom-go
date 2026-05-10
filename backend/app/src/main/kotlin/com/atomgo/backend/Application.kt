@@ -913,6 +913,7 @@ fun Application.module() {
         ignoreUnknownKeys = true
         prettyPrint = true
         isLenient = true
+        encodeDefaults = true
     }
     install(ContentNegotiation) {
         json(apiJson)
@@ -1887,6 +1888,10 @@ fun Application.module() {
                         }
                         val next = current.copy(endDate = today)
                         store.rentals[rentalIndex] = next
+                        // "Велосипед у меня": клиент больше не привязан к активной аренде.
+                        // Очищаем его клиентские логины и активные клиентские сессии.
+                        store.users.removeAll { it.role == Role.CLIENT && it.clientId == current.clientId }
+                        store.sessions.entries.removeAll { it.value.clientId == current.clientId }
                         persistState()
                         next
                     }

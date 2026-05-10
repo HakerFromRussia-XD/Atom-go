@@ -94,7 +94,7 @@ struct AdminClientSummaryResponse: Decodable, Identifiable {
         statusText: String,
         paidUntil: String? = nil,
         rentalPipelineStatus: String? = nil,
-        rentalIsActive: Bool = true,
+        rentalIsActive: Bool = false,
         debtRub: Int,
         profitRub: Int,
         totalAdjustmentRub: Int
@@ -141,7 +141,7 @@ struct AdminClientSummaryResponse: Decodable, Identifiable {
         statusText = try container.decode(String.self, forKey: .statusText)
         paidUntil = try container.decodeIfPresent(String.self, forKey: .paidUntil)
         rentalPipelineStatus = try container.decodeIfPresent(String.self, forKey: .rentalPipelineStatus)
-        rentalIsActive = try container.decodeIfPresent(Bool.self, forKey: .rentalIsActive) ?? true
+        rentalIsActive = try container.decodeIfPresent(Bool.self, forKey: .rentalIsActive) ?? false
         debtRub = try container.decode(Int.self, forKey: .debtRub)
         profitRub = try container.decode(Int.self, forKey: .profitRub)
         totalAdjustmentRub = try container.decode(Int.self, forKey: .totalAdjustmentRub)
