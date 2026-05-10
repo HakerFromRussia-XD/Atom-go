@@ -78,10 +78,8 @@ private struct AdminCardsTopKey: PreferenceKey {
 }
 
 struct AdminHomeView: View {
-    // TEMP: ускоряет UI-итерации — сразу открывает первую аренду на экране админа.
-    private let autoOpenFirstRentalForUITuning = true
-
     @ObservedObject var viewModel: AdminHomeViewModel
+    let startupRentalDeepLink: AdminStartupRentalDeepLink?
     let onLogout: () -> Void
 
     @Environment(\.scenePhase) private var scenePhase
@@ -101,7 +99,7 @@ struct AdminHomeView: View {
     @State private var pipelineMenuClientId: String?
     @State private var areFiltersInteractive = true
     @State private var initialCardsTopY: CGFloat?
-    @State private var hasAutoOpenedFirstRental = false
+    @State private var didHandleStartupDeepLink = false
 
     var body: some View {
         NavigationStack {
@@ -157,7 +155,10 @@ struct AdminHomeView: View {
             if case .idle = viewModel.state {
                 viewModel.load()
             }
-            await autoOpenFirstRentalAtAppStartIfNeeded()
+            openStartupRentalIfNeeded()
+        }
+        .onAppear {
+            openStartupRentalIfNeeded()
         }
         .sheet(isPresented: $isServiceSheetPresented) {
             AdminServiceSheet(
@@ -353,24 +354,15 @@ struct AdminHomeView: View {
         }
     }
 
-    private func autoOpenFirstRentalAtAppStartIfNeeded() async {
-        guard autoOpenFirstRentalForUITuning, !hasAutoOpenedFirstRental else { return }
-
-        for _ in 0..<80 {
-            guard !hasAutoOpenedFirstRental else { return }
-
-            if case let .loaded(clients) = viewModel.state,
-               let firstWithRental = clients.first(where: { $0.rentalIsActive && $0.rentalId != nil })
-                    ?? clients.first(where: { $0.rentalId != nil }),
-               let rentalId = firstWithRental.rentalId {
-                hasAutoOpenedFirstRental = true
-                rentalDetailsContext = RentalDetailsContext(clientId: firstWithRental.clientId, rentalId: rentalId)
-                viewModel.openRentalDetails(rentalId: rentalId)
-                return
-            }
-
-            try? await Task.sleep(nanoseconds: 100_000_000)
-        }
+    private func openStartupRentalIfNeeded() {
+        guard !didHandleStartupDeepLink else { return }
+        guard let startupRentalDeepLink else { return }
+        didHandleStartupDeepLink = true
+        rentalDetailsContext = RentalDetailsContext(
+            clientId: startupRentalDeepLink.clientId,
+            rentalId: startupRentalDeepLink.rentalId
+        )
+        viewModel.openRentalDetails(rentalId: startupRentalDeepLink.rentalId)
     }
 
     private func currentSummary(for context: RentalDetailsContext) -> AdminClientSummaryResponse? {
