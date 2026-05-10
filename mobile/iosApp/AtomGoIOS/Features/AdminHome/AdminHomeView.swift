@@ -354,6 +354,7 @@ struct AdminHomeView: View {
     }
 
     private func adminPipelineLoadedView(clients: [AdminClientSummaryResponse]) -> some View {
+        let horizontalInset: CGFloat = 8
         let topBarHeight: CGFloat = 62
         let searchTopPadding: CGFloat = 6
         let searchHeight: CGFloat = 46
@@ -411,7 +412,7 @@ struct AdminHomeView: View {
                     .padding(.top, 1)
                     .background(AppDesign.pageBackground)
                 }
-                .padding(.horizontal, 22)
+                .padding(.horizontal, horizontalInset)
                 .padding(.bottom, tabBarHeight + 44)
             }
             .accessibilityIdentifier("admin.rents.scroll")
@@ -442,7 +443,7 @@ struct AdminHomeView: View {
             .zIndex(2)
 
             chipRows(clients: clients)
-                .padding(.horizontal, 22)
+                .padding(.horizontal, horizontalInset)
                 .frame(height: chipsHeight, alignment: .topLeading)
                 .offset(y: chipsTop)
                 .allowsHitTesting(false)
@@ -450,7 +451,7 @@ struct AdminHomeView: View {
                 .zIndex(1)
 
             filterHitLayer
-                .padding(.horizontal, 22)
+                .padding(.horizontal, horizontalInset)
                 .frame(height: chipsHeight, alignment: .topLeading)
                 .offset(y: chipsTop)
                 .allowsHitTesting(areFiltersInteractive)
@@ -466,7 +467,7 @@ struct AdminHomeView: View {
                 topBar
                     .frame(height: topBarHeight)
                 searchField
-                    .padding(.horizontal, 22)
+                    .padding(.horizontal, horizontalInset)
                     .padding(.top, searchTopPadding)
                 Spacer(minLength: 0)
             }
@@ -618,7 +619,7 @@ struct AdminHomeView: View {
                 action: { isAdminMenuPresented = true }
             )
         }
-        .padding(.horizontal, 22)
+        .padding(.horizontal, 8)
     }
 
     private func topIconButton(
@@ -1073,7 +1074,7 @@ private struct AdminRentalDetailsScreen: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 12) {
                         topBar
                             .padding(.top, 8)
 
@@ -1084,6 +1085,7 @@ private struct AdminRentalDetailsScreen: View {
                             .tracking(0.88)
                             .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
                             .padding(.horizontal, 1)
+                            .padding(.top, 8)
 
                         VStack(spacing: 8) {
                             ForEach(journalRows) { row in
@@ -1092,7 +1094,7 @@ private struct AdminRentalDetailsScreen: View {
                         }
                     }
                     .padding(.horizontal, 23)
-                    .padding(.bottom, 132)
+                    .padding(.bottom, 128)
                 }
                 .safeAreaInset(edge: .bottom) {
                     bottomActions
@@ -1132,6 +1134,7 @@ private struct AdminRentalDetailsScreen: View {
                 action: { isDeleteDialogPresented = true }
             )
         }
+        .frame(height: 45)
     }
 
     private func iconButton(
@@ -1158,8 +1161,8 @@ private struct AdminRentalDetailsScreen: View {
     }
 
     private var rentalCard: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 14) {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: 12) {
                 BikePhotoView(source: bikeAvatarUrl) {
                     Image(systemName: "bicycle")
                         .resizable()
@@ -1175,11 +1178,11 @@ private struct AdminRentalDetailsScreen: View {
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
 
-                VStack(alignment: .leading, spacing: 1) {
+                VStack(alignment: .leading, spacing: 2) {
                     Text(bikeTitle)
-                        .font(.system(size: 33, weight: .bold))
+                        .font(.system(size: 16, weight: .bold))
                         .lineLimit(1)
-                        .minimumScaleFactor(0.34)
+                        .minimumScaleFactor(0.85)
                         .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
                     Text("\(formattedRub(weeklyRateRub))/нед")
                         .font(.system(size: 12, weight: .medium))
@@ -1188,24 +1191,30 @@ private struct AdminRentalDetailsScreen: View {
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(Color(red: 17 / 255, green: 24 / 255, blue: 39 / 255).opacity(0.5))
                 }
+                .padding(.top, 16)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 19)
-            .padding(.top, 20)
-            .padding(.bottom, 16)
+            .padding(.top, 21)
+            .padding(.bottom, 14)
 
             Divider()
                 .overlay(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255))
                 .padding(.horizontal, 18)
 
-            HStack(alignment: .top) {
+            HStack(alignment: .top, spacing: 0) {
                 metricColumn(title: "ОПЛАЧЕНО", value: "+\(formattedRub(totalPaidRub))", color: Color(red: 35 / 255, green: 143 / 255, blue: 71 / 255))
+                Spacer(minLength: 0)
                 metricColumn(title: "ДОЛГ", value: formattedRub(debtRub), color: Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255))
+                Spacer(minLength: 0)
                 metricColumn(title: "КОРРЕКТ.", value: formattedRub(totalAdjustmentRub), color: Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                Spacer(minLength: 0)
                 metricColumn(title: "ОПЛАЧ. ДО", value: paidUntilText, color: Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
             }
+            .frame(width: 330, alignment: .leading)
             .padding(.horizontal, 18)
-            .padding(.top, 14)
-            .padding(.bottom, 14)
+            .padding(.top, 16)
+            .padding(.bottom, 8)
 
             Divider()
                 .overlay(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255))
@@ -1213,7 +1222,8 @@ private struct AdminRentalDetailsScreen: View {
 
             loginPasswordBlock
                 .padding(.horizontal, 19)
-                .padding(.vertical, 12)
+                .padding(.top, 9)
+                .padding(.bottom, 8)
 
             Divider()
                 .overlay(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255))
@@ -1237,7 +1247,7 @@ private struct AdminRentalDetailsScreen: View {
                         .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
                 }
                 .padding(.horizontal, 19)
-                .padding(.vertical, 12)
+                .frame(height: 68, alignment: .center)
             }
             .buttonStyle(.plain)
         }
@@ -1249,6 +1259,7 @@ private struct AdminRentalDetailsScreen: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
         .shadow(color: Color(red: 25 / 255, green: 28 / 255, blue: 50 / 255).opacity(0.08), radius: 15, x: 0, y: 20)
+        .frame(height: 320)
     }
 
     private func metricColumn(title: String, value: String, color: Color) -> some View {
@@ -1263,39 +1274,35 @@ private struct AdminRentalDetailsScreen: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var loginPasswordBlock: some View {
-        HStack(alignment: .center, spacing: 14) {
-            VStack(alignment: .leading, spacing: 8) {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
                 credentialLine(title: "ЛОГИН", value: details?.clientLogin)
                 credentialLine(title: "ПАРОЛЬ", value: details?.clientPassword)
             }
-
-            VStack(spacing: 0) {
+            HStack(spacing: 8) {
                 Button("Сгенерировать") {}
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(.white)
-                    .frame(width: 110, height: 33)
+                    .frame(width: 110, height: 44)
                     .background(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
                     .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
                     .buttonStyle(.plain)
 
-                Spacer(minLength: 0)
+                Button(action: {}) {
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 44, height: 44)
+                        .background(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
+                        .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+                }
+                .buttonStyle(.plain)
             }
-
-            Button(action: {}) {
-                Image(systemName: "doc.on.doc")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 44, height: 33)
-                    .background(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
-                    .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-            }
-            .buttonStyle(.plain)
         }
-        .frame(height: 67)
+        .frame(height: 67, alignment: .center)
     }
 
     private func credentialLine(title: String, value: String?) -> some View {
@@ -1337,7 +1344,7 @@ private struct AdminRentalDetailsScreen: View {
                 .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
         }
         .padding(.horizontal, 15)
-        .frame(height: 43)
+        .frame(height: 35)
         .background(Color.white)
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -1383,8 +1390,8 @@ private struct AdminRentalDetailsScreen: View {
             .disabled(clientId == nil || rentalId == nil || !rentalIsActive || isOperationInProgress)
             .opacity((clientId == nil || rentalId == nil || !rentalIsActive) ? 0.6 : 1)
         }
-        .padding(.horizontal, 23)
-        .padding(.top, 10)
+        .padding(.horizontal, 8)
+        .padding(.top, 6)
         .padding(.bottom, 20)
         .background(AppDesign.pageBackground)
     }
@@ -3417,6 +3424,7 @@ private extension String {
         return value.isEmpty ? nil : value
     }
 }
+
 
 private extension DateFormatter {
     static let apiDate: DateFormatter = {
