@@ -131,6 +131,7 @@ protocol BackendServicing {
     func fetchAdminRents(accessToken: String) async throws -> [AdminClientSummaryResponse]
     func fetchAdminClientCatalog(accessToken: String) async throws -> [AdminClientSummaryResponse]
     func fetchAdminBikes(accessToken: String) async throws -> [AdminBikeResponse]
+    func fetchAdminRentalDetails(accessToken: String, rentalId: String) async throws -> AdminRentalDetailsResponse
     func updateClientReceiptEmail(accessToken: String, email: String) async throws
     func createPayment(accessToken: String, paymentType: ClientPaymentType) async throws -> PaymentCreationResponse
     func fetchPaymentStatus(accessToken: String, paymentId: String) async throws -> PaymentStatusResponse
@@ -484,6 +485,15 @@ final class BackendService: BackendServicing {
                 batterySerialNumber2: $0.batterySerialNumber2
             )
         }
+    }
+
+    func fetchAdminRentalDetails(accessToken: String, rentalId: String) async throws -> AdminRentalDetailsResponse {
+        try await sendNativeRequest(
+            path: "/admin/rentals/\(rentalId)",
+            method: "GET",
+            accessToken: accessToken,
+            body: Optional<NativeEmptyRequest>.none
+        )
     }
 
     func fetchAdminClientDetails(accessToken: String, clientId: String) async throws -> AdminClientDetailsResponse {
@@ -1048,6 +1058,12 @@ final class LazyBackendService: BackendServicing {
     func fetchAdminBikes(accessToken: String) async throws -> [AdminBikeResponse] {
         try await withFallback { service in
             try await service.fetchAdminBikes(accessToken: accessToken)
+        }
+    }
+
+    func fetchAdminRentalDetails(accessToken: String, rentalId: String) async throws -> AdminRentalDetailsResponse {
+        try await withFallback { service in
+            try await service.fetchAdminRentalDetails(accessToken: accessToken, rentalId: rentalId)
         }
     }
 

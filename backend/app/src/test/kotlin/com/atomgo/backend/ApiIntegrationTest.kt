@@ -328,6 +328,43 @@ class ApiIntegrationTest {
     }
 
     @Test
+    fun `admin should open rental details`() = testApplication {
+        application { module() }
+        val adminToken = loginAsAdmin()
+        val clientId = createClientAndGetId(adminToken)
+        val bikeId = createBikeAndGetId(adminToken, frameSerial = "DETAILS-FRAME-1", motorSerial = "DETAILS-MOTOR-1")
+
+        val createRental = client.post("/api/v1/admin/rentals") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "client_id":"$clientId",
+                  "bike_id":"$bikeId",
+                  "login":"rental.details.client",
+                  "password":"client123",
+                  "period_start":"2026-05-05"
+                }
+                """.trimIndent()
+            )
+        }
+        assertEquals(HttpStatusCode.Created, createRental.status)
+        val rentalId = json.parseToJsonElement(createRental.bodyAsText()).jsonObject["rental_id"]?.jsonPrimitive?.content
+            ?: error("No rental id")
+
+        val details = client.get("/api/v1/admin/rentals/$rentalId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, details.status)
+        val body = json.parseToJsonElement(details.bodyAsText()).jsonObject
+        assertEquals(rentalId, body["rental_id"]?.jsonPrimitive?.content)
+        assertEquals(clientId, body["client_id"]?.jsonPrimitive?.content)
+        assertEquals("rental.details.client", body["client_login"]?.jsonPrimitive?.content)
+        assertTrue(body["journal_entries"]?.jsonArray != null)
+    }
+
+    @Test
     fun `admin should delete rental`() = testApplication {
         application { module() }
         val adminToken = loginAsAdmin()

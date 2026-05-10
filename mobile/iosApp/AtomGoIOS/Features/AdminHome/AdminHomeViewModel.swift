@@ -13,10 +13,13 @@ final class AdminHomeViewModel: ObservableObject {
     @Published private(set) var clientCatalog: [AdminClientSummaryResponse] = []
     @Published private(set) var bikes: [AdminBikeResponse] = []
     @Published private(set) var selectedClientDetails: AdminClientDetailsResponse?
+    @Published private(set) var selectedRentalDetails: AdminRentalDetailsResponse?
     @Published var detailsErrorMessage: String?
+    @Published var rentalDetailsErrorMessage: String?
     @Published var operationErrorMessage: String?
     @Published var operationSuccessMessage: String?
     @Published var isDetailsLoading = false
+    @Published var isRentalDetailsLoading = false
     @Published var isOperationInProgress = false
 
     let session: AuthSession
@@ -69,6 +72,28 @@ final class AdminHomeViewModel: ObservableObject {
     func closeClientDetails() {
         selectedClientDetails = nil
         detailsErrorMessage = nil
+    }
+
+    func openRentalDetails(rentalId: String) {
+        isRentalDetailsLoading = true
+        rentalDetailsErrorMessage = nil
+
+        Task {
+            do {
+                selectedRentalDetails = try await apiService.fetchAdminRentalDetails(
+                    accessToken: session.accessToken,
+                    rentalId: rentalId
+                )
+            } catch {
+                rentalDetailsErrorMessage = error.localizedDescription
+            }
+            isRentalDetailsLoading = false
+        }
+    }
+
+    func closeRentalDetails() {
+        selectedRentalDetails = nil
+        rentalDetailsErrorMessage = nil
     }
 
     func refreshClientCatalog(onSuccess: (() -> Void)? = nil) {

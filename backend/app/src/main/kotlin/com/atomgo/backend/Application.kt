@@ -407,6 +407,53 @@ private data class ApiAdminDeleteBikeResponse(
 )
 
 @Serializable
+private data class ApiAdminRentalJournalEntryResponse(
+    val type: String,
+    @SerialName("amount_rub")
+    val amountRub: Int,
+    @SerialName("created_at")
+    val createdAt: String
+)
+
+@Serializable
+private data class ApiAdminRentalDetailsResponse(
+    @SerialName("rental_id")
+    val rentalId: String,
+    @SerialName("client_id")
+    val clientId: String,
+    @SerialName("client_full_name")
+    val clientFullName: String,
+    @SerialName("client_login")
+    val clientLogin: String? = null,
+    @SerialName("client_password")
+    val clientPassword: String? = null,
+    @SerialName("bike_id")
+    val bikeId: String,
+    @SerialName("bike_model")
+    val bikeModel: String,
+    @SerialName("bike_avatar_url")
+    val bikeAvatarUrl: String,
+    @SerialName("weekly_rate_rub")
+    val weeklyRateRub: Int,
+    @SerialName("rental_start")
+    val rentalStart: String,
+    @SerialName("paid_until")
+    val paidUntil: String,
+    @SerialName("total_paid_rub")
+    val totalPaidRub: Int,
+    @SerialName("debt_rub")
+    val debtRub: Int,
+    @SerialName("total_adjustment_rub")
+    val totalAdjustmentRub: Int,
+    @SerialName("rental_pipeline_status")
+    val rentalPipelineStatus: String,
+    @SerialName("rental_is_active")
+    val rentalIsActive: Boolean,
+    @SerialName("journal_entries")
+    val journalEntries: List<ApiAdminRentalJournalEntryResponse>
+)
+
+@Serializable
 private data class ApiPaymentCreateResponse(
     @SerialName("payment_id")
     val paymentId: String,
@@ -535,6 +582,12 @@ private fun normalizeReceiptEmail(rawEmail: String?): String? {
     if (parts.size != 2 || parts.any { it.isBlank() }) return null
     if (!parts[1].contains(".")) return null
     return email
+}
+
+private fun ledgerSignedAmountForUi(entry: LedgerEntry): Int = when (entry.type) {
+    LedgerType.PAYMENT -> if (entry.direction == -1) entry.amountRub else -entry.amountRub
+    LedgerType.CHARGE -> if (entry.direction == 1) -entry.amountRub else entry.amountRub
+    LedgerType.ADJUSTMENT -> if (entry.direction == -1) -entry.amountRub else entry.amountRub
 }
 
 private fun bikeToApiResponse(bike: BikeAccount): ApiAdminBikeResponse {
@@ -1141,6 +1194,79 @@ fun Application.module() {
                     .filter { client -> adminOwnsClient(store, session.userId, client.id) }
                     .map { client -> buildAdminClientSummary(client, store, now, session.userId) }
                 call.respond(response)
+            }
+
+            get("/admin/rentals/{rentalId}") {
+                val session = authService.resolveSession(call.request.header("Authorization"))
+                if (session == null || session.role != Role.ADMIN) {
+                    call.respond(HttpStatusCode.Unauthorized, ApiErrorResponse(message = "Unauthorized"))
+                    return@get
+                }
+
+                val rentalId = call.parameters["rentalId"]
+                if (rentalId.isNullOrBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "rentalId is required"))
+                    return@get
+                }
+
+                val now = LocalDate.now()
+                val response = synchronized(stateLock) {
+                    val rental = store.rentals.firstOrNull { it.id == rentalId && it.adminId == session.userId }
+                        ?: return@synchronized null
+                    val client = store.clients.firstOrNull { it.id == rental.clientId } ?: return@synchronized null
+                    val bike = store.bikes.firstOrNull { it.id == rental.bikeId } ?: return@synchronized null
+                    val projection = LedgerCalculator.billingProjection(
+                        clientId = client.id,
+                        rentalStartDate = rental.startDate,
+                        weeklyRateRub = bike.weeklyRateRub,
+                        entries = store.ledger,
+                        asOf = now,
+                        rentalId = rental.id
+                    )
+                    val loginUser = store.users.firstOrNull { it.role == Role.CLIENT && it.clientId == client.id }
+                    val journal = store.ledger
+                        .asSequence()
+                        .filter { entry ->
+                            entry.clientId == client.id &&
+                                (entry.rentalId == rental.id || entry.rentalId == null)
+                        }
+                        .sortedByDescending { it.createdAt }
+                        .map { entry ->
+                            ApiAdminRentalJournalEntryResponse(
+                                type = entry.type.name.lowercase(),
+                                amountRub = ledgerSignedAmountForUi(entry),
+                                createdAt = entry.createdAt.toString()
+                            )
+                        }
+                        .toList()
+
+                    ApiAdminRentalDetailsResponse(
+                        rentalId = rental.id,
+                        clientId = client.id,
+                        clientFullName = client.fullName,
+                        clientLogin = loginUser?.login,
+                        clientPassword = loginUser?.password,
+                        bikeId = bike.id,
+                        bikeModel = bike.model,
+                        bikeAvatarUrl = bike.photoUrl ?: "",
+                        weeklyRateRub = bike.weeklyRateRub,
+                        rentalStart = rental.startDate.toString(),
+                        paidUntil = projection.paidUntilDate.toString(),
+                        totalPaidRub = LedgerCalculator.totalPaidRub(store.ledger, client.id, rental.id),
+                        debtRub = projection.debtRub,
+                        totalAdjustmentRub = LedgerCalculator.totalAdjustmentRub(store.ledger, client.id, rental.id),
+                        rentalPipelineStatus = RentalPipelineStatus.toApi(rental.pipelineStatus),
+                        rentalIsActive = rental.isActiveAt(now),
+                        journalEntries = journal
+                    )
+                }
+
+                if (response == null) {
+                    call.respond(HttpStatusCode.NotFound, ApiErrorResponse(message = "Rental not found"))
+                    return@get
+                }
+
+                call.respond(HttpStatusCode.OK, response)
             }
 
             get("/admin/clients/{clientId}") {

@@ -16,6 +16,13 @@ private struct CreateClientPhoneDraft: Identifiable {
     var number: String
 }
 
+private struct RentalDetailsContext: Identifiable, Equatable {
+    let clientId: String
+    let rentalId: String
+
+    var id: String { "\(clientId)-\(rentalId)" }
+}
+
 private enum AdminRentFilter {
     case all
     case soonReturn
@@ -82,6 +89,7 @@ struct AdminHomeView: View {
     @State private var isBikeCatalogPresented = false
     @State private var isDetailsSheetPresented = false
     @State private var detailsClientId: String?
+    @State private var rentalDetailsContext: RentalDetailsContext?
     @State private var debtAdjustmentContext: DebtAdjustmentContext?
     @State private var ignoredNextTapClientId: String?
     @State private var searchText = ""
@@ -274,6 +282,46 @@ struct AdminHomeView: View {
             )
             .presentationDetents([.large])
         }
+        .fullScreenCover(item: $rentalDetailsContext, onDismiss: {
+            viewModel.closeRentalDetails()
+        }) { context in
+            AdminRentalDetailsScreen(
+                details: viewModel.selectedRentalDetails,
+                fallbackSummary: currentSummary(for: context),
+                isLoading: viewModel.isRentalDetailsLoading,
+                errorMessage: viewModel.rentalDetailsErrorMessage,
+                isOperationInProgress: viewModel.isOperationInProgress,
+                onClose: {
+                    rentalDetailsContext = nil
+                },
+                onRetry: {
+                    viewModel.openRentalDetails(rentalId: context.rentalId)
+                },
+                onOpenClientCard: {
+                    rentalDetailsContext = nil
+                    DispatchQueue.main.async {
+                        detailsClientId = context.clientId
+                        isDetailsSheetPresented = true
+                        viewModel.openClientDetails(clientId: context.clientId)
+                    }
+                },
+                onAdjustDebt: { clientId, clientName, currentDebtRub in
+                    debtAdjustmentContext = DebtAdjustmentContext(
+                        clientId: clientId,
+                        clientName: clientName,
+                        currentDebtRub: currentDebtRub
+                    )
+                },
+                onFinishRental: { clientId, rentalId in
+                    viewModel.finishRental(clientId: clientId, rentalId: rentalId)
+                    viewModel.openRentalDetails(rentalId: rentalId)
+                },
+                onDeleteRental: { clientId, rentalId in
+                    viewModel.deleteRental(clientId: clientId, rentalId: rentalId)
+                    rentalDetailsContext = nil
+                }
+            )
+        }
         .sheet(item: $debtAdjustmentContext) { context in
             DebtAdjustmentSheet(
                 context: context,
@@ -298,6 +346,11 @@ struct AdminHomeView: View {
                 viewModel.load()
             }
         }
+    }
+
+    private func currentSummary(for context: RentalDetailsContext) -> AdminClientSummaryResponse? {
+        guard case let .loaded(clients) = viewModel.state else { return nil }
+        return clients.first(where: { $0.clientId == context.clientId && $0.rentalId == context.rentalId })
     }
 
     private func adminPipelineLoadedView(clients: [AdminClientSummaryResponse]) -> some View {
@@ -742,9 +795,11 @@ struct AdminHomeView: View {
                 ignoredNextTapClientId = nil
                 return
             }
-            detailsClientId = client.clientId
-            isDetailsSheetPresented = true
-            viewModel.openClientDetails(clientId: client.clientId)
+            guard let rentalId = client.rentalId else {
+                return
+            }
+            rentalDetailsContext = RentalDetailsContext(clientId: client.clientId, rentalId: rentalId)
+            viewModel.openRentalDetails(rentalId: rentalId)
         }
     }
 
@@ -977,6 +1032,482 @@ struct AdminHomeView: View {
         .background(AppDesign.cardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
+}
+
+private struct AdminRentalDetailsScreen: View {
+    let details: AdminRentalDetailsResponse?
+    let fallbackSummary: AdminClientSummaryResponse?
+    let isLoading: Bool
+    let errorMessage: String?
+    let isOperationInProgress: Bool
+    let onClose: () -> Void
+    let onRetry: () -> Void
+    let onOpenClientCard: () -> Void
+    let onAdjustDebt: (_ clientId: String, _ clientName: String, _ currentDebtRub: Int) -> Void
+    let onFinishRental: (_ clientId: String, _ rentalId: String) -> Void
+    let onDeleteRental: (_ clientId: String, _ rentalId: String) -> Void
+
+    @State private var isDeleteDialogPresented = false
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            AppDesign.pageBackground.ignoresSafeArea()
+
+            if isLoading && details == nil {
+                ProgressView("Загружаем аренду...")
+                    .tint(AppDesign.accent)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let errorMessage, details == nil {
+                VStack(spacing: 12) {
+                    Text("Не удалось загрузить аренду")
+                        .font(.headline)
+                        .foregroundStyle(AppDesign.titleText)
+                    Text(errorMessage)
+                        .font(.subheadline)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(AppDesign.subtleText)
+                    Button("Повторить", action: onRetry)
+                        .buttonStyle(.borderedProminent)
+                }
+                .padding(22)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        topBar
+                            .padding(.top, 41)
+
+                        rentalCard
+
+                        Text("ЖУРНАЛ")
+                            .font(.system(size: 11, weight: .bold))
+                            .tracking(0.88)
+                            .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                            .padding(.horizontal, 1)
+
+                        VStack(spacing: 8) {
+                            ForEach(journalRows) { row in
+                                journalRow(row)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 23)
+                    .padding(.bottom, 132)
+                }
+                .safeAreaInset(edge: .bottom) {
+                    bottomActions
+                }
+            }
+        }
+        .confirmationDialog("Удалить аренду?", isPresented: $isDeleteDialogPresented, titleVisibility: .visible) {
+            Button("Удалить", role: .destructive) {
+                guard let clientId, let rentalId else { return }
+                onDeleteRental(clientId, rentalId)
+            }
+            Button("Отмена", role: .cancel) {}
+        }
+    }
+
+    private var topBar: some View {
+        HStack {
+            iconButton(
+                systemName: "chevron.left",
+                borderColor: Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255),
+                iconColor: Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255),
+                action: onClose
+            )
+
+            Spacer()
+
+            Text("Аренда")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+
+            Spacer()
+
+            iconButton(
+                systemName: "trash",
+                borderColor: Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255),
+                iconColor: Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255),
+                action: { isDeleteDialogPresented = true }
+            )
+        }
+    }
+
+    private func iconButton(
+        systemName: String,
+        borderColor: Color,
+        iconColor: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(borderColor, lineWidth: 1)
+                )
+                .overlay(
+                    Image(systemName: systemName)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(iconColor)
+                )
+                .frame(width: 47, height: 47)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var rentalCard: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 14) {
+                BikePhotoView(source: bikeAvatarUrl) {
+                    Image(systemName: "bicycle")
+                        .resizable()
+                        .scaledToFit()
+                        .padding(18)
+                        .foregroundStyle(Color(red: 152 / 255, green: 161 / 255, blue: 173 / 255))
+                }
+                .frame(width: 80, height: 80)
+                .background(Color(red: 227 / 255, green: 230 / 255, blue: 235 / 255))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(avatarBorderColor, lineWidth: 3)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(bikeTitle)
+                        .font(.system(size: 33, weight: .bold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.34)
+                        .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                    Text("\(formattedRub(weeklyRateRub))/нед")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                    Text("Корректировка: \(formattedRub(totalAdjustmentRub))")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Color(red: 17 / 255, green: 24 / 255, blue: 39 / 255).opacity(0.5))
+                }
+            }
+            .padding(.horizontal, 19)
+            .padding(.top, 20)
+            .padding(.bottom, 16)
+
+            Divider()
+                .overlay(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255))
+                .padding(.horizontal, 18)
+
+            HStack(alignment: .top) {
+                metricColumn(title: "ОПЛАЧЕНО", value: "+\(formattedRub(totalPaidRub))", color: Color(red: 35 / 255, green: 143 / 255, blue: 71 / 255))
+                metricColumn(title: "ДОЛГ", value: formattedRub(debtRub), color: Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255))
+                metricColumn(title: "КОРРЕКТ.", value: formattedRub(totalAdjustmentRub), color: Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                metricColumn(title: "ОПЛАЧ. ДО", value: paidUntilText, color: Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+            }
+            .padding(.horizontal, 18)
+            .padding(.top, 14)
+            .padding(.bottom, 14)
+
+            Divider()
+                .overlay(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255))
+                .padding(.horizontal, 18)
+
+            loginPasswordBlock
+                .padding(.horizontal, 19)
+                .padding(.vertical, 12)
+
+            Divider()
+                .overlay(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255))
+                .padding(.horizontal, 18)
+
+            Button(action: onOpenClientCard) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("АРЕНДАТОР")
+                            .font(.system(size: 10, weight: .bold))
+                            .tracking(0.6)
+                            .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                        Text(clientName)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                }
+                .padding(.horizontal, 19)
+                .padding(.vertical, 12)
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white)
+        .overlay(
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .stroke(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .shadow(color: Color(red: 25 / 255, green: 28 / 255, blue: 50 / 255).opacity(0.08), radius: 15, x: 0, y: 20)
+    }
+
+    private func metricColumn(title: String, value: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.system(size: 9, weight: .medium))
+                .tracking(0.36)
+                .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+            Text(value)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var loginPasswordBlock: some View {
+        HStack(alignment: .center, spacing: 14) {
+            VStack(alignment: .leading, spacing: 8) {
+                credentialLine(title: "ЛОГИН", value: details?.clientLogin)
+                credentialLine(title: "ПАРОЛЬ", value: details?.clientPassword)
+            }
+
+            VStack(spacing: 0) {
+                Button("Сгенерировать") {}
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 110, height: 33)
+                    .background(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
+                    .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+                    .buttonStyle(.plain)
+
+                Spacer(minLength: 0)
+            }
+
+            Button(action: {}) {
+                Image(systemName: "doc.on.doc")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 33)
+                    .background(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
+                    .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(height: 67)
+    }
+
+    private func credentialLine(title: String, value: String?) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.system(size: 10, weight: .bold))
+                .tracking(0.6)
+                .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(Color(red: 211 / 255, green: 215 / 255, blue: 221 / 255))
+                .frame(width: 150, height: 13)
+                .overlay(alignment: .leading) {
+                    if let value, !value.isEmpty {
+                        Text(value)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                            .padding(.horizontal, 4)
+                            .lineLimit(1)
+                    }
+                }
+        }
+    }
+
+    private func journalRow(_ row: AdminRentalJournalEntry) -> some View {
+        HStack(spacing: 12) {
+            Text(row.type.uppercased())
+                .font(.system(size: 10, weight: .bold))
+                .tracking(0.6)
+                .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                .frame(width: 90, alignment: .leading)
+
+            Text(signedRub(row.amountRub))
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(journalAmountColor(row.amountRub))
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            Text(journalDateLabel(row.createdAt))
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+        }
+        .padding(.horizontal, 15)
+        .frame(height: 43)
+        .background(Color.white)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private var bottomActions: some View {
+        HStack(spacing: 8) {
+            Button {
+                guard let clientId else { return }
+                onAdjustDebt(clientId, clientName, debtRub)
+            } label: {
+                Text("+ Корректировка")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 63)
+                    .background(Color.white)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255), lineWidth: 1)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .disabled(clientId == nil || isOperationInProgress)
+
+            Button {
+                guard let clientId, let rentalId else { return }
+                onFinishRental(clientId, rentalId)
+            } label: {
+                Text("Завершить")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 63)
+                    .background(Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255))
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .disabled(clientId == nil || rentalId == nil || !rentalIsActive || isOperationInProgress)
+            .opacity((clientId == nil || rentalId == nil || !rentalIsActive) ? 0.6 : 1)
+        }
+        .padding(.horizontal, 23)
+        .padding(.top, 10)
+        .padding(.bottom, 20)
+        .background(AppDesign.pageBackground)
+    }
+
+    private var clientId: String? {
+        details?.clientId ?? fallbackSummary?.clientId
+    }
+
+    private var rentalId: String? {
+        details?.rentalId ?? fallbackSummary?.rentalId
+    }
+
+    private var clientName: String {
+        details?.clientFullName ?? fallbackSummary?.fullName ?? "Клиент"
+    }
+
+    private var bikeTitle: String {
+        if let bikeModel = details?.bikeModel, !bikeModel.isEmpty {
+            return "№1  \(bikeModel)"
+        }
+        return fallbackSummary?.bikeModel ?? "-"
+    }
+
+    private var bikeAvatarUrl: String? {
+        details?.bikeAvatarUrl ?? fallbackSummary?.bikeAvatarUrl
+    }
+
+    private var totalPaidRub: Int { details?.totalPaidRub ?? 0 }
+    private var debtRub: Int { details?.debtRub ?? fallbackSummary?.debtRub ?? 0 }
+    private var totalAdjustmentRub: Int { details?.totalAdjustmentRub ?? fallbackSummary?.totalAdjustmentRub ?? 0 }
+    private var weeklyRateRub: Int { details?.weeklyRateRub ?? 0 }
+    private var paidUntilText: String { prettyDate(details?.paidUntil) }
+    private var rentalIsActive: Bool { details?.rentalIsActive ?? fallbackSummary?.rentalIsActive ?? false }
+
+    private var avatarBorderColor: Color {
+        if let details {
+            if !details.rentalIsActive {
+                return Color(red: 203 / 255, green: 48 / 255, blue: 224 / 255)
+            }
+            if details.rentalPipelineStatus == "soon_return" {
+                return Color(red: 255 / 255, green: 204 / 255, blue: 0)
+            }
+            return Color(red: 52 / 255, green: 199 / 255, blue: 89 / 255)
+        }
+        return Color(red: 152 / 255, green: 161 / 255, blue: 173 / 255)
+    }
+
+    private var journalRows: [AdminRentalJournalEntry] {
+        guard let details else { return [] }
+        return details.journalEntries
+    }
+
+    private func journalAmountColor(_ amount: Int) -> Color {
+        if amount > 0 {
+            return Color(red: 35 / 255, green: 143 / 255, blue: 71 / 255)
+        }
+        if amount < 0 {
+            return Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255)
+        }
+        return Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255)
+    }
+
+    private func prettyDate(_ value: String?) -> String {
+        guard let value, let date = DateFormatter.apiDate.date(from: value) else { return "—" }
+        return Self.prettyRuDateFormatter.string(from: date)
+    }
+
+    private func journalDateLabel(_ value: String) -> String {
+        let parsedDate = Self.isoDateFormatterWithFractional.date(from: value)
+            ?? Self.isoDateFormatter.date(from: value)
+        guard let date = parsedDate else {
+            return "—"
+        }
+        return Self.journalDateFormatter.string(from: date)
+    }
+
+    private func signedRub(_ amount: Int) -> String {
+        let sign = amount > 0 ? "+" : ""
+        return "\(sign)\(formattedRub(amount))"
+    }
+
+    private func formattedRub(_ amount: Int) -> String {
+        let absAmount = Swift.abs(amount)
+        let formatted = Self.rubFormatter.string(from: NSNumber(value: absAmount)) ?? "\(absAmount)"
+        if amount < 0 {
+            return "−\(formatted.replacingOccurrences(of: "\u{00A0}", with: " ")) ₽"
+        }
+        return "\(formatted.replacingOccurrences(of: "\u{00A0}", with: " ")) ₽"
+    }
+
+    private static let rubFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.groupingSeparator = " "
+        formatter.locale = Locale(identifier: "ru_RU")
+        return formatter
+    }()
+
+    private static let journalDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ru_RU")
+        formatter.dateFormat = "dd MMM"
+        return formatter
+    }()
+
+    private static let prettyRuDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ru_RU")
+        formatter.dateFormat = "dd MMM yyyy"
+        return formatter
+    }()
+
+    private static let isoDateFormatterWithFractional: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static let isoDateFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter
+    }()
 }
 
 private struct AdminServiceSheet: View {

@@ -569,6 +569,7 @@ private final class MockAdminBackendService: BackendServicing {
     var fetchRentsResult: Result<[AdminClientSummaryResponse], Error> = .success([])
     var fetchClientCatalogResult: Result<[AdminClientSummaryResponse], Error> = .success([])
     var fetchBikesResult: Result<[AdminBikeResponse], Error> = .success([])
+    var fetchRentalDetailsResult: Result<AdminRentalDetailsResponse, Error> = .failure(BackendError.invalidResponse)
     var fetchClientDashboardResult: Result<ClientDashboardResponse, Error> = .failure(BackendError.invalidResponse)
     var createClientResult: Result<AdminClientDetailsResponse, Error> = .failure(BackendError.invalidResponse)
     var fetchClientDetailsResult: Result<AdminClientDetailsResponse, Error> = .failure(BackendError.invalidResponse)
@@ -624,6 +625,26 @@ private final class MockAdminBackendService: BackendServicing {
         rentals: []
     )
 
+    let sampleRentalDetails = AdminRentalDetailsResponse(
+        rentalId: "rental-001",
+        clientId: "client-001",
+        clientFullName: "Roman Sergeev",
+        clientLogin: "client1",
+        clientPassword: "client123",
+        bikeId: "bike-001",
+        bikeModel: "Монстер",
+        bikeAvatarUrl: "",
+        weeklyRateRub: 3000,
+        rentalStart: "2026-05-03",
+        paidUntil: "2026-05-10",
+        totalPaidRub: 3000,
+        debtRub: 0,
+        totalAdjustmentRub: 0,
+        rentalPipelineStatus: "long_term",
+        rentalIsActive: true,
+        journalEntries: []
+    )
+
     let sampleDashboard = ClientDashboardResponse(
         clientId: "client-001",
         bikeModel: "Монстер",
@@ -677,6 +698,10 @@ private final class MockAdminBackendService: BackendServicing {
 
     func fetchAdminBikes(accessToken _: String) async throws -> [AdminBikeResponse] {
         try fetchBikesResult.get()
+    }
+
+    func fetchAdminRentalDetails(accessToken _: String, rentalId _: String) async throws -> AdminRentalDetailsResponse {
+        try fetchRentalDetailsResult.get()
     }
 
     func updateClientReceiptEmail(accessToken _: String, email _: String) async throws {}

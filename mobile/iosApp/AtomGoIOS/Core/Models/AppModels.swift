@@ -383,3 +383,57 @@ struct AdminRentalLinksUpdateResult: Equatable {
     let videoUrl: String?
     let contractUrl: String?
 }
+
+struct AdminRentalJournalEntry: Decodable, Equatable, Identifiable {
+    let type: String
+    let amountRub: Int
+    let createdAt: String
+
+    var id: String { "\(type)-\(createdAt)-\(amountRub)" }
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case amountRub = "amount_rub"
+        case createdAt = "created_at"
+    }
+}
+
+struct AdminRentalDetailsResponse: Decodable, Equatable {
+    let rentalId: String
+    let clientId: String
+    let clientFullName: String
+    let clientLogin: String?
+    let clientPassword: String?
+    let bikeId: String
+    let bikeModel: String
+    let bikeAvatarUrl: String
+    let weeklyRateRub: Int
+    let rentalStart: String
+    let paidUntil: String
+    let totalPaidRub: Int
+    let debtRub: Int
+    let totalAdjustmentRub: Int
+    let rentalPipelineStatus: String
+    let rentalIsActive: Bool
+    let journalEntries: [AdminRentalJournalEntry]
+
+    enum CodingKeys: String, CodingKey {
+        case rentalId = "rental_id"
+        case clientId = "client_id"
+        case clientFullName = "client_full_name"
+        case clientLogin = "client_login"
+        case clientPassword = "client_password"
+        case bikeId = "bike_id"
+        case bikeModel = "bike_model"
+        case bikeAvatarUrl = "bike_avatar_url"
+        case weeklyRateRub = "weekly_rate_rub"
+        case rentalStart = "rental_start"
+        case paidUntil = "paid_until"
+        case totalPaidRub = "total_paid_rub"
+        case debtRub = "debt_rub"
+        case totalAdjustmentRub = "total_adjustment_rub"
+        case rentalPipelineStatus = "rental_pipeline_status"
+        case rentalIsActive = "rental_is_active"
+        case journalEntries = "journal_entries"
+    }
+}
