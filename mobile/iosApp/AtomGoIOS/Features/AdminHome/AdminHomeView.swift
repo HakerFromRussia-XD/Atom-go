@@ -1075,7 +1075,7 @@ private struct AdminRentalDetailsScreen: View {
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 14) {
                         topBar
-                            .padding(.top, 41)
+                            .padding(.top, 8)
 
                         rentalCard
 
