@@ -1286,18 +1286,19 @@ private struct AdminRentalDetailsScreen: View {
                 Button("Сгенерировать") {}
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(.white)
-                    .frame(width: 110, height: 44)
+                    .frame(width: 110, height: 47)
                     .background(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
                     .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
                     .buttonStyle(.plain)
 
                 Button(action: {}) {
-                    Image(systemName: "doc.on.doc")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 44, height: 44)
-                        .background(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
-                        .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 15, style: .continuous)
+                            .fill(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
+                        Image("copy icon")
+                            .renderingMode(.original)
+                    }
+                    .frame(width: 47, height: 47)
                 }
                 .buttonStyle(.plain)
             }
@@ -1363,7 +1364,7 @@ private struct AdminRentalDetailsScreen: View {
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
                     .frame(maxWidth: .infinity)
-                    .frame(height: 63)
+                    .frame(height: 52)
                     .background(Color.white)
                     .overlay(
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -1382,7 +1383,7 @@ private struct AdminRentalDetailsScreen: View {
                     .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 63)
+                    .frame(height: 52)
                     .background(Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255))
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
