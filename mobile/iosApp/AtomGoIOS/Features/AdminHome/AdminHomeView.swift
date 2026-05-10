@@ -1096,8 +1096,11 @@ private struct AdminRentalDetailsScreen: View {
                     .padding(.horizontal, 23)
                     .padding(.bottom, 128)
                 }
-                .safeAreaInset(edge: .bottom) {
+                .safeAreaInset(edge: .bottom, spacing: 8) {
                     bottomActions
+                        .frame(maxWidth: .infinity)
+                        .padding(.bottom, 8)
+                        .background(AppDesign.pageBackground)
                 }
             }
         }
@@ -1391,10 +1394,7 @@ private struct AdminRentalDetailsScreen: View {
             .disabled(clientId == nil || rentalId == nil || !rentalIsActive || isOperationInProgress)
             .opacity((clientId == nil || rentalId == nil || !rentalIsActive) ? 0.6 : 1)
         }
-        .padding(.horizontal, 8)
-        .padding(.top, 6)
-        .padding(.bottom, 20)
-        .background(AppDesign.pageBackground)
+        .frame(width: max(UIScreen.main.bounds.width - 16, 0))
     }
 
     private var clientId: String? {
