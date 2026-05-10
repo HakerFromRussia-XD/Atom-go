@@ -362,6 +362,13 @@ struct AdminHomeView: View {
                 .padding(.bottom, tabBarHeight + 44)
             }
             .accessibilityIdentifier("admin.rents.scroll")
+            .mask(alignment: .top) {
+                VStack(spacing: 0) {
+                    Color.clear
+                        .frame(height: searchMaskHeight)
+                    Color.white
+                }
+            }
             .onPreferenceChange(AdminCardsTopKey.self) { cardsTopY in
                 guard cardsTopY.isFinite else { return }
                 if initialCardsTopY == nil || cardsTopY > (initialCardsTopY ?? cardsTopY) {
