@@ -821,13 +821,6 @@ private fun createRentalForClient(
     }
 
     return synchronized(stateLock) {
-        val duplicateLogin = store.users.firstOrNull {
-            it.login.equals(login, ignoreCase = true) && it.clientId != client.id
-        }
-        if (duplicateLogin != null) {
-            return@synchronized RentalCreationOutcome.Failure(HttpStatusCode.Conflict, "login is already used")
-        }
-
         val existingClientUserIndex = store.users.indexOfFirst { it.clientId == client.id && it.role == Role.CLIENT }
         if (existingClientUserIndex >= 0) {
             val existingClientUser = store.users[existingClientUserIndex]
@@ -936,15 +929,6 @@ private fun startClientRentalInExistingRental(
         }
         if (clientHasActiveRental) {
             return@synchronized StartClientRentalOutcome.Failure(HttpStatusCode.Conflict, "client already has active rental")
-        }
-
-        val duplicateLogin = store.users.firstOrNull {
-            it.role == Role.CLIENT &&
-                it.login.equals(login, ignoreCase = true) &&
-                it.clientId != client.id
-        }
-        if (duplicateLogin != null) {
-            return@synchronized StartClientRentalOutcome.Failure(HttpStatusCode.Conflict, "login is already used")
         }
 
         val existingClientUserIndex = store.users.indexOfFirst { it.clientId == client.id && it.role == Role.CLIENT }

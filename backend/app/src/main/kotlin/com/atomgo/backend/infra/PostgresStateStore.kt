@@ -173,11 +173,11 @@ class PostgresStateStore private constructor(
             statement.execute("ALTER TABLE atomgo_payments ADD COLUMN IF NOT EXISTS rental_id TEXT")
             statement.execute("ALTER TABLE atomgo_payments ADD COLUMN IF NOT EXISTS tax_mode TEXT NOT NULL DEFAULT 'SELF_EMPLOYED'")
             statement.execute("ALTER TABLE atomgo_payments ADD COLUMN IF NOT EXISTS fiscalization_status TEXT NOT NULL DEFAULT 'NPD_RECEIPT_PENDING'")
-            statement.execute(
+	            statement.execute(
                 """
 	                CREATE TABLE IF NOT EXISTS atomgo_users (
 	                    id TEXT PRIMARY KEY,
-	                    login TEXT NOT NULL UNIQUE,
+	                    login TEXT NOT NULL,
 	                    password TEXT NOT NULL,
 	                    role TEXT NOT NULL,
 	                    client_id TEXT REFERENCES atomgo_clients(id) ON DELETE SET NULL,
@@ -186,6 +186,22 @@ class PostgresStateStore private constructor(
 	                """.trimIndent()
 	            )
 	            statement.execute("ALTER TABLE atomgo_users ADD COLUMN IF NOT EXISTS tax_mode TEXT NOT NULL DEFAULT 'SELF_EMPLOYED'")
+            statement.execute(
+                """
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1
+                        FROM pg_constraint
+                        WHERE conname = 'atomgo_users_login_key'
+                          AND conrelid = 'atomgo_users'::regclass
+                    ) THEN
+                        ALTER TABLE atomgo_users DROP CONSTRAINT atomgo_users_login_key;
+                    END IF;
+                END $$;
+                """.trimIndent()
+            )
+            statement.execute("DROP INDEX IF EXISTS atomgo_users_login_key")
             statement.execute(
                 """
                 CREATE TABLE IF NOT EXISTS atomgo_sessions (
