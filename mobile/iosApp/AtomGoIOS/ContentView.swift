@@ -68,25 +68,33 @@ struct ContentView: View {
                 .offset(x: 35 * xScale, y: 642 * yScale)
 
                 if showQuickFillButtons {
-                    HStack(spacing: 10 * xScale) {
+                    HStack(spacing: 6 * xScale) {
                         quickFillButton(
-                            title: "Клиент",
+                            title: "к 1",
                             xScale: xScale,
                             yScale: yScale,
                             textScale: textScale,
-                            accessibilityIdentifier: "login.quickFillClient",
-                            action: viewModel.fillClientCredentials
+                            accessibilityIdentifier: "login.quickFillClientSelfEmployed",
+                            action: viewModel.fillClientSelfEmployedCredentials
                         )
                         quickFillButton(
-                            title: "Админ1",
+                            title: "к 2",
                             xScale: xScale,
                             yScale: yScale,
                             textScale: textScale,
-                            accessibilityIdentifier: "login.quickFillAdmin",
+                            accessibilityIdentifier: "login.quickFillClientIp",
+                            action: viewModel.fillClientIpCredentials
+                        )
+                        quickFillButton(
+                            title: "а 1",
+                            xScale: xScale,
+                            yScale: yScale,
+                            textScale: textScale,
+                            accessibilityIdentifier: "login.quickFillAdminSelfEmployed",
                             action: viewModel.fillAdminCredentials
                         )
                         quickFillButton(
-                            title: "Админ2",
+                            title: "а 2",
                             xScale: xScale,
                             yScale: yScale,
                             textScale: textScale,
@@ -94,8 +102,8 @@ struct ContentView: View {
                             action: viewModel.fillAdminIpCredentials
                         )
                     }
-                    .frame(width: fieldWidth)
-                    .offset(x: 35 * xScale, y: 760 * yScale)
+                    .frame(width: 343 * xScale)
+                    .offset(x: 35 * xScale, y: 758 * yScale)
                 }
 
                 Button(action: viewModel.signIn) {
@@ -262,12 +270,15 @@ struct ContentView: View {
     ) -> some View {
         Button(action: action) {
             Text(title)
-                .font(AppDesign.poppinsMedium(size: 13 * textScale))
+                .font(AppDesign.poppinsMedium(size: 12 * textScale))
                 .foregroundStyle(AppDesign.titleText)
-                .frame(maxWidth: .infinity)
-                .frame(height: 30 * yScale)
+                .frame(width: 80 * xScale, height: 24 * yScale)
                 .background(AppDesign.cardBackground)
-                .clipShape(RoundedRectangle(cornerRadius: 12 * textScale, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8 * textScale, style: .continuous)
+                        .stroke(AppDesign.iconSoft.opacity(0.35), lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 8 * textScale, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier(accessibilityIdentifier)

@@ -298,6 +298,16 @@ private data class ApiAdminCreateRentalRequest(
 )
 
 @Serializable
+private data class ApiAdminStartClientRentalRequest(
+    @SerialName("client_id")
+    val clientId: String,
+    val login: String,
+    val password: String,
+    @SerialName("period_start")
+    val periodStart: String
+)
+
+@Serializable
 private data class ApiAdminBikeResponse(
     @SerialName("bike_id")
     val bikeId: String,
@@ -383,6 +393,18 @@ private data class ApiAdminFinishRentalResponse(
     val rentalId: String,
     @SerialName("period_end")
     val periodEnd: String
+)
+
+@Serializable
+private data class ApiAdminStartClientRentalResponse(
+    @SerialName("rental_id")
+    val rentalId: String,
+    @SerialName("client_id")
+    val clientId: String,
+    @SerialName("period_start")
+    val periodStart: String,
+    @SerialName("pipeline_status")
+    val pipelineStatus: String
 )
 
 @Serializable
@@ -732,6 +754,11 @@ private sealed class RentalCreationOutcome {
     data class Failure(val status: HttpStatusCode, val message: String) : RentalCreationOutcome()
 }
 
+private sealed class StartClientRentalOutcome {
+    data class Success(val response: ApiAdminStartClientRentalResponse) : StartClientRentalOutcome()
+    data class Failure(val status: HttpStatusCode, val message: String) : StartClientRentalOutcome()
+}
+
 private fun createRentalForClient(
     store: InMemoryStore,
     stateLock: Any,
@@ -845,6 +872,115 @@ private fun createRentalForClient(
                 comment = rental.comment,
                 adminId = rental.adminId,
                 taxMode = rental.taxMode.name.lowercase()
+            )
+        )
+    }
+}
+
+private fun startClientRentalInExistingRental(
+    store: InMemoryStore,
+    stateLock: Any,
+    persistState: () -> Unit,
+    adminId: String,
+    rentalId: String,
+    request: ApiAdminStartClientRentalRequest
+): StartClientRentalOutcome {
+    val clientId = request.clientId.trim()
+    val login = request.login.trim()
+    val password = request.password.trim()
+    val periodStartRaw = request.periodStart.trim()
+
+    if (clientId.isBlank()) {
+        return StartClientRentalOutcome.Failure(HttpStatusCode.BadRequest, "client_id is required")
+    }
+    if (login.isBlank() || password.isBlank()) {
+        return StartClientRentalOutcome.Failure(HttpStatusCode.BadRequest, "login and password are required")
+    }
+    if (periodStartRaw.isBlank()) {
+        return StartClientRentalOutcome.Failure(HttpStatusCode.BadRequest, "period_start is required")
+    }
+
+    val periodStart = try {
+        LocalDate.parse(periodStartRaw)
+    } catch (_: Throwable) {
+        return StartClientRentalOutcome.Failure(HttpStatusCode.BadRequest, "period_start must be YYYY-MM-DD")
+    }
+
+    return synchronized(stateLock) {
+        val rentalIndex = store.rentals.indexOfFirst { it.id == rentalId }
+        if (rentalIndex < 0) {
+            return@synchronized StartClientRentalOutcome.Failure(HttpStatusCode.NotFound, "rental not found")
+        }
+
+        val currentRental = store.rentals[rentalIndex]
+        if (currentRental.adminId != adminId) {
+            return@synchronized StartClientRentalOutcome.Failure(HttpStatusCode.NotFound, "rental not found")
+        }
+
+        val today = LocalDate.now()
+        if (currentRental.isActiveAt(today)) {
+            return@synchronized StartClientRentalOutcome.Failure(HttpStatusCode.Conflict, "rental is already active")
+        }
+
+        val client = store.clients.firstOrNull { it.id == clientId }
+            ?: return@synchronized StartClientRentalOutcome.Failure(HttpStatusCode.NotFound, "client not found")
+        if (!adminOwnsClient(store, adminId, client.id)) {
+            return@synchronized StartClientRentalOutcome.Failure(HttpStatusCode.Forbidden, "Forbidden")
+        }
+
+        val clientHasActiveRental = store.rentals.any {
+            it.id != currentRental.id &&
+                it.clientId == client.id &&
+                it.adminId == adminId &&
+                it.isActiveAt(today)
+        }
+        if (clientHasActiveRental) {
+            return@synchronized StartClientRentalOutcome.Failure(HttpStatusCode.Conflict, "client already has active rental")
+        }
+
+        val duplicateLogin = store.users.firstOrNull {
+            it.role == Role.CLIENT &&
+                it.login.equals(login, ignoreCase = true) &&
+                it.clientId != client.id
+        }
+        if (duplicateLogin != null) {
+            return@synchronized StartClientRentalOutcome.Failure(HttpStatusCode.Conflict, "login is already used")
+        }
+
+        val existingClientUserIndex = store.users.indexOfFirst { it.clientId == client.id && it.role == Role.CLIENT }
+        if (existingClientUserIndex >= 0) {
+            val existingClientUser = store.users[existingClientUserIndex]
+            store.users[existingClientUserIndex] = existingClientUser.copy(
+                login = login,
+                password = password
+            )
+        } else {
+            store.users += AppUser(
+                id = "user-${UUID.randomUUID().toString().take(8)}",
+                login = login,
+                password = password,
+                role = Role.CLIENT,
+                clientId = client.id
+            )
+        }
+
+        store.sessions.entries.removeAll { it.value.clientId == client.id }
+
+        val restartedRental = currentRental.copy(
+            clientId = client.id,
+            startDate = periodStart,
+            endDate = null,
+            pipelineStatus = RentalPipelineStatus.LONG_TERM
+        )
+        store.rentals[rentalIndex] = restartedRental
+        persistState()
+
+        StartClientRentalOutcome.Success(
+            ApiAdminStartClientRentalResponse(
+                rentalId = restartedRental.id,
+                clientId = restartedRental.clientId,
+                periodStart = restartedRental.startDate.toString(),
+                pipelineStatus = RentalPipelineStatus.toApi(restartedRental.pipelineStatus)
             )
         )
     }
@@ -2035,6 +2171,38 @@ fun Application.module() {
                         periodEnd = updated.endDate?.toString() ?: today.toString()
                     )
                 )
+            }
+
+            post("/admin/rentals/{rentalId}/client-rentals") {
+                val session = authService.resolveSession(call.request.header("Authorization"))
+                if (session == null || session.role != Role.ADMIN) {
+                    call.respond(HttpStatusCode.Unauthorized, ApiErrorResponse(message = "Unauthorized"))
+                    return@post
+                }
+
+                val rentalId = call.parameters["rentalId"]
+                if (rentalId.isNullOrBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "rentalId is required"))
+                    return@post
+                }
+
+                val request = call.receive<ApiAdminStartClientRentalRequest>()
+                when (
+                    val result = startClientRentalInExistingRental(
+                        store = store,
+                        stateLock = stateLock,
+                        persistState = persistState,
+                        adminId = session.userId,
+                        rentalId = rentalId,
+                        request = request
+                    )
+                ) {
+                    is StartClientRentalOutcome.Failure ->
+                        call.respond(result.status, ApiErrorResponse(message = result.message))
+
+                    is StartClientRentalOutcome.Success ->
+                        call.respond(HttpStatusCode.OK, result.response)
+                }
             }
 
             post("/admin/rentals/{rentalId}/delete") {

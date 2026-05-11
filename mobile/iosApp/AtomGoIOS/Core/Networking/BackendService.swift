@@ -123,6 +123,34 @@ private struct NativeFinishRentalResponse: Decodable {
     }
 }
 
+private struct NativeStartClientRentalInExistingRequest: Encodable {
+    let clientId: String
+    let login: String
+    let password: String
+    let periodStart: String
+
+    enum CodingKeys: String, CodingKey {
+        case clientId = "client_id"
+        case login
+        case password
+        case periodStart = "period_start"
+    }
+}
+
+private struct NativeStartClientRentalInExistingResponse: Decodable {
+    let rentalId: String
+    let clientId: String
+    let periodStart: String
+    let pipelineStatus: String
+
+    enum CodingKeys: String, CodingKey {
+        case rentalId = "rental_id"
+        case clientId = "client_id"
+        case periodStart = "period_start"
+        case pipelineStatus = "pipeline_status"
+    }
+}
+
 protocol BackendServicing {
     func isServerReachable() async -> Bool
     func login(login: String, password: String) async throws -> AuthSession
@@ -166,6 +194,14 @@ protocol BackendServicing {
     func finishAdminRental(
         accessToken: String,
         rentalId: String
+    ) async throws
+    func startAdminClientRentalInExisting(
+        accessToken: String,
+        rentalId: String,
+        clientId: String,
+        login: String,
+        password: String,
+        periodStart: String
     ) async throws
     func adjustAdminClientDebt(
         accessToken: String,
@@ -233,6 +269,8 @@ private enum BackendErrorMessageParser {
         "period_end must be YYYY-MM-DD": "Дата окончания аренды должна быть в формате YYYY-MM-DD.",
         "period_end must be after or equal to period_start": "Дата окончания не может быть раньше даты начала.",
         "pipeline_status is invalid": "Некорректный статус аренды.",
+        "rental is already active": "Эта аренда уже активна.",
+        "client already has active rental": "Этот клиент уже участвует в активной аренде.",
         "bikeid is required": "Не указан идентификатор велосипеда.",
         "clientid is required": "Не указан идентификатор клиента.",
         "rentalid is required": "Не указан идентификатор аренды.",
@@ -688,6 +726,27 @@ final class BackendService: BackendServicing {
             method: "POST",
             accessToken: accessToken,
             body: Optional<NativeEmptyRequest>.none
+        )
+    }
+
+    func startAdminClientRentalInExisting(
+        accessToken: String,
+        rentalId: String,
+        clientId: String,
+        login: String,
+        password: String,
+        periodStart: String
+    ) async throws {
+        let _: NativeStartClientRentalInExistingResponse = try await sendNativeRequest(
+            path: "/admin/rentals/\(rentalId)/client-rentals",
+            method: "POST",
+            accessToken: accessToken,
+            body: NativeStartClientRentalInExistingRequest(
+                clientId: clientId,
+                login: login,
+                password: password,
+                periodStart: periodStart
+            )
         )
     }
 
@@ -1193,6 +1252,26 @@ final class LazyBackendService: BackendServicing {
             try await service.finishAdminRental(
                 accessToken: accessToken,
                 rentalId: rentalId
+            )
+        }
+    }
+
+    func startAdminClientRentalInExisting(
+        accessToken: String,
+        rentalId: String,
+        clientId: String,
+        login: String,
+        password: String,
+        periodStart: String
+    ) async throws {
+        try await withFallback { service in
+            try await service.startAdminClientRentalInExisting(
+                accessToken: accessToken,
+                rentalId: rentalId,
+                clientId: clientId,
+                login: login,
+                password: password,
+                periodStart: periodStart
             )
         }
     }

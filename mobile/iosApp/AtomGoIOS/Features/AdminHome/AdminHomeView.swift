@@ -324,12 +324,18 @@ struct AdminHomeView: View {
                     viewModel.openRentalDetails(rentalId: rentalId)
                 },
                 onStartRental: { payload in
-                    viewModel.createRental(payload: payload) { createdRental in
+                    viewModel.startClientRentalInExisting(
+                        rentalId: context.rentalId,
+                        clientId: payload.clientId,
+                        login: payload.login,
+                        password: payload.password,
+                        periodStart: payload.periodStart
+                    ) {
                         rentalDetailsContext = RentalDetailsContext(
                             clientId: payload.clientId,
-                            rentalId: createdRental.id
+                            rentalId: context.rentalId
                         )
-                        viewModel.openRentalDetails(rentalId: createdRental.id)
+                        viewModel.openRentalDetails(rentalId: context.rentalId)
                     }
                 },
                 onDeleteRental: { clientId, rentalId in
@@ -1080,6 +1086,10 @@ private struct AdminRentalDetailsScreen: View {
     @State private var isDeleteDialogPresented = false
     @State private var selectedStartClientId: String?
     @State private var isClientPickerPresented = false
+    @State private var editableRentalLogin = ""
+    @State private var editableRentalPassword = ""
+    @State private var didInitializeCredentialDrafts = false
+    @State private var startValidationMessage: String?
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -1147,6 +1157,32 @@ private struct AdminRentalDetailsScreen: View {
         .onChange(of: rentalId ?? "") { _ in
             selectedStartClientId = nil
             isClientPickerPresented = false
+            editableRentalLogin = normalizedCredential(details?.clientLogin)
+            editableRentalPassword = normalizedCredential(details?.clientPassword)
+            didInitializeCredentialDrafts = true
+            startValidationMessage = nil
+        }
+        .onChange(of: details?.rentalId ?? "") { _ in
+            editableRentalLogin = normalizedCredential(details?.clientLogin)
+            editableRentalPassword = normalizedCredential(details?.clientPassword)
+            didInitializeCredentialDrafts = true
+            startValidationMessage = nil
+        }
+        .onAppear {
+            guard !didInitializeCredentialDrafts else { return }
+            editableRentalLogin = normalizedCredential(details?.clientLogin)
+            editableRentalPassword = normalizedCredential(details?.clientPassword)
+            didInitializeCredentialDrafts = true
+            startValidationMessage = nil
+        }
+        .onChange(of: selectedStartClientId ?? "") { _ in
+            startValidationMessage = nil
+        }
+        .onChange(of: editableRentalLogin) { _ in
+            startValidationMessage = nil
+        }
+        .onChange(of: editableRentalPassword) { _ in
+            startValidationMessage = nil
         }
     }
 
@@ -1335,8 +1371,18 @@ private struct AdminRentalDetailsScreen: View {
     private var loginPasswordBlock: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 6) {
-                credentialLine(title: "ЛОГИН", value: details?.clientLogin)
-                credentialLine(title: "ПАРОЛЬ", value: details?.clientPassword)
+                credentialField(
+                    title: "ЛОГИН",
+                    text: $editableRentalLogin,
+                    isEditable: !rentalIsActive,
+                    accessibilityIdentifier: "rentalDetails.loginField"
+                )
+                credentialField(
+                    title: "ПАРОЛЬ",
+                    text: $editableRentalPassword,
+                    isEditable: !rentalIsActive,
+                    accessibilityIdentifier: "rentalDetails.passwordField"
+                )
             }
             HStack(spacing: 8) {
                 Button("Сгенерировать") {}
@@ -1362,17 +1408,37 @@ private struct AdminRentalDetailsScreen: View {
         .frame(height: 67, alignment: .center)
     }
 
-    private func credentialLine(title: String, value: String?) -> some View {
+    private func credentialField(
+        title: String,
+        text: Binding<String>,
+        isEditable: Bool,
+        accessibilityIdentifier: String
+    ) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
                 .font(.system(size: 10, weight: .bold))
                 .tracking(0.6)
                 .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
-            Text((value?.isEmpty == false ? value : "—") ?? "—")
+            if isEditable {
+                TextField(
+                    "",
+                    text: text,
+                    prompt: Text("—")
+                        .foregroundColor(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                )
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled(true)
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
-                .lineLimit(1)
                 .frame(width: 150, height: 13, alignment: .leading)
+                .accessibilityIdentifier(accessibilityIdentifier)
+            } else {
+                Text(text.wrappedValue.isEmpty ? "—" : text.wrappedValue)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                    .lineLimit(1)
+                    .frame(width: 150, height: 13, alignment: .leading)
+            }
         }
     }
 
@@ -1404,57 +1470,66 @@ private struct AdminRentalDetailsScreen: View {
     }
 
     private var bottomActions: some View {
-        HStack(spacing: 8) {
-            Button {
-                guard let clientId else { return }
-                onAdjustDebt(clientId, clientName, debtRub)
-            } label: {
-                Text("+ Корректировка")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 52)
-                    .background(Color.white)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255), lineWidth: 1)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        VStack(alignment: .leading, spacing: 6) {
+            if let startValidationMessage, !startValidationMessage.isEmpty {
+                Text(startValidationMessage)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255))
+                    .padding(.horizontal, 4)
             }
-            .buttonStyle(.plain)
-            .disabled(clientId == nil || isOperationInProgress)
 
-            if rentalIsActive {
+            HStack(spacing: 8) {
                 Button {
-                    guard let clientId, let rentalId else { return }
-                    onFinishRental(clientId, rentalId)
+                    guard let clientId else { return }
+                    onAdjustDebt(clientId, clientName, debtRub)
                 } label: {
-                    Text("Завершить")
+                    Text("+ Корректировка")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
                         .frame(maxWidth: .infinity)
                         .frame(height: 52)
-                        .background(Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255))
+                        .background(Color.white)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255), lineWidth: 1)
+                        )
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .disabled(clientId == nil || rentalId == nil || isOperationInProgress)
-                .opacity((clientId == nil || rentalId == nil) ? 0.6 : 1)
-            } else {
-                Button {
-                    startRentalForSelectedClient()
-                } label: {
-                    Text(startButtonTitle)
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 52)
-                        .background(startButtonColor)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .disabled(clientId == nil || isOperationInProgress)
+
+                if rentalIsActive {
+                    Button {
+                        guard let clientId, let rentalId else { return }
+                        onFinishRental(clientId, rentalId)
+                    } label: {
+                        Text("Завершить")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 52)
+                            .background(Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255))
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(clientId == nil || rentalId == nil || isOperationInProgress)
+                    .opacity((clientId == nil || rentalId == nil) ? 0.6 : 1)
+                } else {
+                    Button {
+                        startRentalForSelectedClient()
+                    } label: {
+                        Text(startButtonTitle)
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 52)
+                            .background(startButtonColor)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isOperationInProgress)
+                    .opacity(canStartRental ? 1 : 0.75)
                 }
-                .buttonStyle(.plain)
-                .disabled(!canStartRental || isOperationInProgress)
-                .opacity(canStartRental ? 1 : 0.6)
             }
         }
         .frame(width: max(UIScreen.main.bounds.width - 16, 0))
@@ -1652,17 +1727,20 @@ private struct AdminRentalDetailsScreen: View {
     }
 
     private var canStartRental: Bool {
-        !rentalIsActive && selectedStartClient != nil && bikeId != nil
+        !rentalIsActive &&
+            selectedStartClient != nil &&
+            !normalizedCredential(editableRentalLogin).isEmpty &&
+            !normalizedCredential(editableRentalPassword).isEmpty
     }
 
     private var startButtonTitle: String {
-        canStartRental ? "Начать!" : "Завершить"
+        "Начать!"
     }
 
     private var startButtonColor: Color {
         canStartRental
             ? Color(red: 35 / 255, green: 143 / 255, blue: 71 / 255)
-            : Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255)
+            : Color(red: 35 / 255, green: 143 / 255, blue: 71 / 255).opacity(0.65)
     }
 
     private var avatarBorderColor: Color {
@@ -1680,15 +1758,32 @@ private struct AdminRentalDetailsScreen: View {
 
     private func startRentalForSelectedClient() {
         guard !rentalIsActive else { return }
-        guard let selectedStartClient else { return }
-        guard let bikeId else { return }
+        guard let selectedStartClient else {
+            startValidationMessage = "Выберите клиента"
+            return
+        }
 
-        let credentials = startCredentials(for: selectedStartClient)
+        let login = normalizedCredential(editableRentalLogin)
+        let password = normalizedCredential(editableRentalPassword)
+        if login.isEmpty, password.isEmpty {
+            startValidationMessage = "Заполните логин и пароль"
+            return
+        }
+        if login.isEmpty {
+            startValidationMessage = "Заполните логин"
+            return
+        }
+        if password.isEmpty {
+            startValidationMessage = "Сгенерируйте новый пароль"
+            return
+        }
+
+        startValidationMessage = nil
         let payload = CreateRentalPayload(
             clientId: selectedStartClient.clientId,
-            bikeId: bikeId,
-            login: credentials.login,
-            password: credentials.password,
+            bikeId: bikeId ?? "",
+            login: login,
+            password: password,
             periodStart: DateFormatter.apiDate.string(from: Date()),
             periodEnd: nil,
             videoUrl: nil,
@@ -1698,17 +1793,8 @@ private struct AdminRentalDetailsScreen: View {
         onStartRental(payload)
     }
 
-    private func startCredentials(for client: AdminClientSummaryResponse) -> (login: String, password: String) {
-        let defaultPassword = "client123"
-        if let login = client.clientLogin?.trimmingCharacters(in: .whitespacesAndNewlines), !login.isEmpty {
-            return (login, defaultPassword)
-        }
-        let compactId = client.clientId
-            .lowercased()
-            .replacingOccurrences(of: "[^a-z0-9]", with: "", options: .regularExpression)
-        let suffix = String(compactId.suffix(8))
-        let generatedLogin = "client\(suffix)"
-        return (generatedLogin, defaultPassword)
+    private func normalizedCredential(_ value: String?) -> String {
+        value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     }
 
     private var journalRows: [AdminRentalJournalEntry] {

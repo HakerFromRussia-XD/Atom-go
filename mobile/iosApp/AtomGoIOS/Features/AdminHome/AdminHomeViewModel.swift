@@ -356,6 +356,40 @@ final class AdminHomeViewModel: ObservableObject {
         }
     }
 
+    func startClientRentalInExisting(
+        rentalId: String,
+        clientId: String,
+        login: String,
+        password: String,
+        periodStart: String,
+        onSuccess: (() -> Void)? = nil
+    ) {
+        isOperationInProgress = true
+        operationErrorMessage = nil
+        operationSuccessMessage = nil
+
+        Task {
+            do {
+                try await apiService.startAdminClientRentalInExisting(
+                    accessToken: session.accessToken,
+                    rentalId: rentalId,
+                    clientId: clientId,
+                    login: login,
+                    password: password,
+                    periodStart: periodStart
+                )
+                operationSuccessMessage = "Новая клиентская аренда запущена"
+                await refreshAfterMutation(openDetailsFor: nil)
+                await MainActor.run {
+                    onSuccess?()
+                }
+            } catch {
+                operationErrorMessage = error.localizedDescription
+            }
+            isOperationInProgress = false
+        }
+    }
+
     func adjustDebt(clientId: String, amountRub: Int, sign: DebtAdjustmentSign, comment: String?) {
         isOperationInProgress = true
         operationErrorMessage = nil
