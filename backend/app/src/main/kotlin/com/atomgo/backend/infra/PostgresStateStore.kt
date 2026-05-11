@@ -123,6 +123,8 @@ class PostgresStateStore private constructor(
                     id TEXT PRIMARY KEY,
                     client_id TEXT NOT NULL REFERENCES atomgo_clients(id) ON DELETE CASCADE,
                     bike_id TEXT NOT NULL REFERENCES atomgo_bikes(id),
+                    client_login TEXT,
+                    client_password TEXT,
                     start_date DATE NOT NULL,
                     end_date DATE,
                     video_url TEXT,
@@ -137,6 +139,8 @@ class PostgresStateStore private constructor(
             statement.execute("ALTER TABLE atomgo_rentals ADD COLUMN IF NOT EXISTS admin_id TEXT")
             statement.execute("ALTER TABLE atomgo_rentals ADD COLUMN IF NOT EXISTS tax_mode TEXT NOT NULL DEFAULT 'SELF_EMPLOYED'")
             statement.execute("ALTER TABLE atomgo_rentals ADD COLUMN IF NOT EXISTS pipeline_status TEXT NOT NULL DEFAULT 'LONG_TERM'")
+            statement.execute("ALTER TABLE atomgo_rentals ADD COLUMN IF NOT EXISTS client_login TEXT")
+            statement.execute("ALTER TABLE atomgo_rentals ADD COLUMN IF NOT EXISTS client_password TEXT")
             statement.execute(
                 """
                 CREATE TABLE IF NOT EXISTS atomgo_ledger_entries (
@@ -202,6 +206,19 @@ class PostgresStateStore private constructor(
                 """.trimIndent()
             )
             statement.execute("DROP INDEX IF EXISTS atomgo_users_login_key")
+            statement.execute(
+                """
+                UPDATE atomgo_rentals r
+                SET client_login = u.login,
+                    client_password = u.password
+                FROM atomgo_users u
+                WHERE u.role = 'CLIENT'
+                  AND u.client_id = r.client_id
+                  AND r.end_date IS NULL
+                  AND COALESCE(r.client_login, '') = ''
+                  AND COALESCE(r.client_password, '') = ''
+                """.trimIndent()
+            )
             statement.execute(
                 """
                 CREATE TABLE IF NOT EXISTS atomgo_sessions (
@@ -308,6 +325,8 @@ class PostgresStateStore private constructor(
                 id,
                 client_id,
                 bike_id,
+                client_login,
+                client_password,
                 start_date,
                 end_date,
                 video_url,
@@ -459,7 +478,7 @@ class PostgresStateStore private constructor(
         val rentals = mutableListOf<RentalRecord>()
         connection.prepareStatement(
             """
-            SELECT id, client_id, bike_id, start_date, end_date, video_url, contract_url, comment, admin_id, tax_mode, pipeline_status
+            SELECT id, client_id, bike_id, client_login, client_password, start_date, end_date, video_url, contract_url, comment, admin_id, tax_mode, pipeline_status
             FROM atomgo_rentals
             ORDER BY start_date DESC, id
             """.trimIndent()
@@ -470,6 +489,8 @@ class PostgresStateStore private constructor(
                         id = rs.getString("id"),
                         clientId = rs.getString("client_id"),
                         bikeId = rs.getString("bike_id"),
+                        clientLogin = rs.getString("client_login"),
+                        clientPassword = rs.getString("client_password"),
                         startDate = rs.getDate("start_date").toLocalDate(),
                         endDate = rs.getDate("end_date")?.toLocalDate(),
                         videoUrl = rs.getString("video_url"),
@@ -672,6 +693,8 @@ class PostgresStateStore private constructor(
                 id,
                 client_id,
                 bike_id,
+                client_login,
+                client_password,
                 start_date,
                 end_date,
                 video_url,
@@ -681,21 +704,23 @@ class PostgresStateStore private constructor(
                 tax_mode,
                 pipeline_status
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent()
         ).use { statement ->
             state.rentals.forEach { rental ->
                 statement.setString(1, rental.id)
                 statement.setString(2, rental.clientId)
                 statement.setString(3, rental.bikeId)
-                statement.setObject(4, rental.startDate)
-                statement.setObject(5, rental.endDate)
-                statement.setString(6, rental.videoUrl)
-                statement.setString(7, rental.contractUrl)
-                statement.setString(8, rental.comment)
-                statement.setString(9, rental.adminId)
-                statement.setString(10, rental.taxMode.name)
-                statement.setString(11, rental.pipelineStatus.name)
+                statement.setString(4, rental.clientLogin)
+                statement.setString(5, rental.clientPassword)
+                statement.setObject(6, rental.startDate)
+                statement.setObject(7, rental.endDate)
+                statement.setString(8, rental.videoUrl)
+                statement.setString(9, rental.contractUrl)
+                statement.setString(10, rental.comment)
+                statement.setString(11, rental.adminId)
+                statement.setString(12, rental.taxMode.name)
+                statement.setString(13, rental.pipelineStatus.name)
                 statement.addBatch()
             }
             statement.executeBatch()
@@ -970,6 +995,8 @@ private object InMemoryStoreJsonMapper {
         val id: String,
         val clientId: String,
         val bikeId: String? = null,
+        val clientLogin: String? = null,
+        val clientPassword: String? = null,
         val startDate: String,
         val endDate: String? = null,
         val bikeModel: String? = null,
@@ -1071,6 +1098,8 @@ private object InMemoryStoreJsonMapper {
                     id = it.id,
                     clientId = it.clientId,
                     bikeId = it.bikeId,
+                    clientLogin = it.clientLogin,
+                    clientPassword = it.clientPassword,
                     startDate = it.startDate.toString(),
                     endDate = it.endDate?.toString(),
                     videoUrl = it.videoUrl,
@@ -1180,6 +1209,8 @@ private object InMemoryStoreJsonMapper {
                 id = rental.id,
                 clientId = rental.clientId,
                 bikeId = resolvedBikeId,
+                clientLogin = rental.clientLogin,
+                clientPassword = rental.clientPassword,
                 startDate = LocalDate.parse(rental.startDate),
                 endDate = rental.endDate?.let(LocalDate::parse),
                 videoUrl = rental.videoUrl,

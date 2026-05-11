@@ -181,6 +181,24 @@ final class CreateClientFlowUnitTests: XCTestCase {
         XCTAssertFalse(policy.adjustmentButtonEnabled)
     }
 
+    func testRentalDetailsDisplayPolicyReadOnlyCredentialPrefersServerValue() {
+        let policy = RentalDetailsDisplayPolicy(rentalIsActive: true)
+        let value = policy.readOnlyCredentialText(serverValue: "client1", draftValue: "")
+        XCTAssertEqual(value, "client1")
+    }
+
+    func testRentalDetailsDisplayPolicyReadOnlyCredentialFallsBackToDraft() {
+        let policy = RentalDetailsDisplayPolicy(rentalIsActive: true)
+        let value = policy.readOnlyCredentialText(serverValue: nil, draftValue: "client_draft")
+        XCTAssertEqual(value, "client_draft")
+    }
+
+    func testRentalDetailsDisplayPolicyReadOnlyCredentialReturnsDashWhenBothMissing() {
+        let policy = RentalDetailsDisplayPolicy(rentalIsActive: true)
+        let value = policy.readOnlyCredentialText(serverValue: " ", draftValue: " ")
+        XCTAssertEqual(value, "—")
+    }
+
     @MainActor
     func testViewModelKeepsAppAliveAndShowsNetworkErrorForCreateClient() async {
         let service = MockAdminBackendService()

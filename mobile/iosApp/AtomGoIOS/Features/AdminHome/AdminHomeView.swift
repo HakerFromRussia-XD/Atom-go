@@ -91,6 +91,20 @@ struct RentalDetailsDisplayPolicy {
     func metricColor(activeColor: Color) -> Color {
         rentalIsActive ? activeColor : Self.inactiveMetricColor
     }
+
+    func readOnlyCredentialText(serverValue: String?, draftValue: String) -> String {
+        let normalizedServer = normalizeCredential(serverValue)
+        if !normalizedServer.isEmpty {
+            return normalizedServer
+        }
+
+        let normalizedDraft = normalizeCredential(draftValue)
+        return normalizedDraft.isEmpty ? Self.dash : normalizedDraft
+    }
+
+    private func normalizeCredential(_ value: String?) -> String {
+        value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
 }
 
 private struct AdminCardsTopKey: PreferenceKey {
@@ -1415,12 +1429,20 @@ private struct AdminRentalDetailsScreen: View {
                     title: "ЛОГИН",
                     text: $editableRentalLogin,
                     isEditable: !rentalIsActive,
+                    readOnlyText: displayPolicy.readOnlyCredentialText(
+                        serverValue: details?.clientLogin ?? fallbackSummary?.clientLogin,
+                        draftValue: editableRentalLogin
+                    ),
                     accessibilityIdentifier: "rentalDetails.loginField"
                 )
                 credentialField(
                     title: "ПАРОЛЬ",
                     text: $editableRentalPassword,
                     isEditable: !rentalIsActive,
+                    readOnlyText: displayPolicy.readOnlyCredentialText(
+                        serverValue: details?.clientPassword,
+                        draftValue: editableRentalPassword
+                    ),
                     accessibilityIdentifier: "rentalDetails.passwordField"
                 )
             }
@@ -1452,6 +1474,7 @@ private struct AdminRentalDetailsScreen: View {
         title: String,
         text: Binding<String>,
         isEditable: Bool,
+        readOnlyText: String? = nil,
         accessibilityIdentifier: String
     ) -> some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -1473,7 +1496,8 @@ private struct AdminRentalDetailsScreen: View {
                 .frame(width: 150, height: 13, alignment: .leading)
                 .accessibilityIdentifier(accessibilityIdentifier)
             } else {
-                Text(text.wrappedValue.isEmpty ? "—" : text.wrappedValue)
+                let value = readOnlyText ?? text.wrappedValue
+                Text(value.isEmpty ? "—" : value)
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
                     .lineLimit(1)

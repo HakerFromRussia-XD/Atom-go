@@ -85,6 +85,8 @@ data class RentalRecord(
     val id: String,
     val clientId: String,
     val bikeId: String,
+    val clientLogin: String? = null,
+    val clientPassword: String? = null,
     val startDate: LocalDate,
     val endDate: LocalDate?,
     var videoUrl: String?,

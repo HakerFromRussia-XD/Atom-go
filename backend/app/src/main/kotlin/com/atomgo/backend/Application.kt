@@ -745,8 +745,28 @@ private fun validateUniqueBikeSerials(
     return null
 }
 
-private fun clientLoginByClientId(store: InMemoryStore, clientId: String): String? {
-    return store.users.firstOrNull { it.role == Role.CLIENT && it.clientId == clientId }?.login
+private data class RentalCredentials(
+    val login: String? = null,
+    val password: String? = null
+)
+
+private fun normalizeCredential(value: String?): String? {
+    val normalized = value?.trim().orEmpty()
+    return normalized.ifBlank { null }
+}
+
+private fun resolveRentalCredentials(store: InMemoryStore, rental: RentalRecord): RentalCredentials {
+    val storedLogin = normalizeCredential(rental.clientLogin)
+    val storedPassword = normalizeCredential(rental.clientPassword)
+    if (storedLogin != null && storedPassword != null) {
+        return RentalCredentials(login = storedLogin, password = storedPassword)
+    }
+
+    val loginUser = store.users.firstOrNull { it.role == Role.CLIENT && it.clientId == rental.clientId }
+    return RentalCredentials(
+        login = storedLogin ?: normalizeCredential(loginUser?.login),
+        password = storedPassword ?: normalizeCredential(loginUser?.password)
+    )
 }
 
 private sealed class RentalCreationOutcome {
@@ -842,6 +862,8 @@ private fun createRentalForClient(
             id = "rental-${UUID.randomUUID().toString().take(8)}",
             clientId = client.id,
             bikeId = bike.id,
+            clientLogin = login,
+            clientPassword = password,
             startDate = periodStart,
             endDate = periodEnd,
             videoUrl = request.videoUrl?.trim()?.ifBlank { null },
@@ -952,6 +974,8 @@ private fun startClientRentalInExistingRental(
 
         val restartedRental = currentRental.copy(
             clientId = client.id,
+            clientLogin = login,
+            clientPassword = password,
             startDate = periodStart,
             endDate = null,
             pipelineStatus = RentalPipelineStatus.LONG_TERM
@@ -994,11 +1018,15 @@ private fun buildAdminClientSummary(
     val profit = if (debt == 0) paid else 0
     val paidUntil = projection?.paidUntilDate
     val statusText = projection?.statusText ?: "Нет активной аренды"
+    val snapshotRental = snapshot?.rentalId?.let { snapshotRentalId ->
+        store.rentals.firstOrNull { it.id == snapshotRentalId }
+    }
+    val credentials = snapshotRental?.let { resolveRentalCredentials(store, it) } ?: RentalCredentials()
 
     return ApiAdminClientSummaryResponse(
         clientId = client.id,
         rentalId = snapshot?.rentalId,
-        clientLogin = clientLoginByClientId(store, client.id),
+        clientLogin = credentials.login,
         fullName = client.fullName,
         bikeModel = snapshot?.bikeModel ?: "-",
         bikeAvatarUrl = snapshot?.bikePhotoUrl ?: "",
@@ -1343,7 +1371,7 @@ fun Application.module() {
                         asOf = now,
                         rentalId = rental.id
                     )
-                    val loginUser = store.users.firstOrNull { it.role == Role.CLIENT && it.clientId == client.id }
+                    val credentials = resolveRentalCredentials(store, rental)
                     val journal = store.ledger
                         .asSequence()
                         .filter { entry ->
@@ -1364,8 +1392,8 @@ fun Application.module() {
                         rentalId = rental.id,
                         clientId = client.id,
                         clientFullName = client.fullName,
-                        clientLogin = loginUser?.login,
-                        clientPassword = loginUser?.password,
+                        clientLogin = credentials.login,
+                        clientPassword = credentials.password,
                         bikeId = bike.id,
                         bikeModel = bike.model,
                         bikeAvatarUrl = bike.photoUrl ?: "",

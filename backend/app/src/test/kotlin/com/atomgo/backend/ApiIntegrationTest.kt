@@ -365,6 +365,50 @@ class ApiIntegrationTest {
     }
 
     @Test
+    fun `rental details keeps credentials from rental after finish`() = testApplication {
+        application { module() }
+        val adminToken = loginAsAdmin()
+        val clientId = createClientAndGetId(adminToken, fullName = "Stored Credentials")
+        val bikeId = createBikeAndGetId(adminToken, frameSerial = "DETAILS-FRAME-2", motorSerial = "DETAILS-MOTOR-2")
+
+        val login = "stored.client.login"
+        val password = "stored.client.password"
+
+        val createRental = client.post("/api/v1/admin/rentals") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "client_id":"$clientId",
+                  "bike_id":"$bikeId",
+                  "login":"$login",
+                  "password":"$password",
+                  "period_start":"2026-05-05"
+                }
+                """.trimIndent()
+            )
+        }
+        assertEquals(HttpStatusCode.Created, createRental.status)
+        val rentalId = json.parseToJsonElement(createRental.bodyAsText()).jsonObject["rental_id"]?.jsonPrimitive?.content
+            ?: error("No rental id")
+
+        val finish = client.post("/api/v1/admin/rentals/$rentalId/finish") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, finish.status)
+
+        val details = client.get("/api/v1/admin/rentals/$rentalId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, details.status)
+        val body = json.parseToJsonElement(details.bodyAsText()).jsonObject
+        assertEquals(false, body["rental_is_active"]?.jsonPrimitive?.content?.toBooleanStrict())
+        assertEquals(login, body["client_login"]?.jsonPrimitive?.content)
+        assertEquals(password, body["client_password"]?.jsonPrimitive?.content)
+    }
+
+    @Test
     fun `admin should delete rental`() = testApplication {
         application { module() }
         val adminToken = loginAsAdmin()
