@@ -163,6 +163,24 @@ final class CreateClientFlowUnitTests: XCTestCase {
         XCTAssertNil(error)
     }
 
+    func testRentalDetailsDisplayPolicyForActiveRentalShowsRealValues() {
+        let policy = RentalDetailsDisplayPolicy(rentalIsActive: true)
+
+        XCTAssertEqual(policy.metricText(activeValue: "+3 500 ₽"), "+3 500 ₽")
+        XCTAssertEqual(policy.correctionLineText(formattedAdjustment: "−1 000 ₽"), "Корректировка: −1 000 ₽")
+        XCTAssertTrue(policy.showsJournalHistory)
+        XCTAssertTrue(policy.adjustmentButtonEnabled)
+    }
+
+    func testRentalDetailsDisplayPolicyForMineStateShowsDashes() {
+        let policy = RentalDetailsDisplayPolicy(rentalIsActive: false)
+
+        XCTAssertEqual(policy.metricText(activeValue: "+3 500 ₽"), "—")
+        XCTAssertEqual(policy.correctionLineText(formattedAdjustment: "−1 000 ₽"), "Корректировка: —")
+        XCTAssertFalse(policy.showsJournalHistory)
+        XCTAssertFalse(policy.adjustmentButtonEnabled)
+    }
+
     @MainActor
     func testViewModelKeepsAppAliveAndShowsNetworkErrorForCreateClient() async {
         let service = MockAdminBackendService()
@@ -769,6 +787,15 @@ private final class MockAdminBackendService: BackendServicing {
     ) async throws {}
 
     func finishAdminRental(accessToken _: String, rentalId _: String) async throws {}
+
+    func startAdminClientRentalInExisting(
+        accessToken _: String,
+        rentalId _: String,
+        clientId _: String,
+        login _: String,
+        password _: String,
+        periodStart _: String
+    ) async throws {}
 
     func deleteAdminRental(accessToken _: String, rentalId _: String) async throws -> DeleteRentalResult {
         deleteRentalCallsCount += 1

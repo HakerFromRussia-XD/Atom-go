@@ -69,6 +69,30 @@ private enum AdminRentFilter {
     }
 }
 
+struct RentalDetailsDisplayPolicy {
+    let rentalIsActive: Bool
+
+    private static let dash = "—"
+    private static let inactiveMetricColor = Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255)
+
+    var showsJournalHistory: Bool { rentalIsActive }
+    var adjustmentButtonEnabled: Bool { rentalIsActive }
+
+    func metricText(activeValue: String) -> String {
+        rentalIsActive ? activeValue : Self.dash
+    }
+
+    func correctionLineText(formattedAdjustment: String) -> String {
+        rentalIsActive
+            ? "Корректировка: \(formattedAdjustment)"
+            : "Корректировка: \(Self.dash)"
+    }
+
+    func metricColor(activeColor: Color) -> Color {
+        rentalIsActive ? activeColor : Self.inactiveMetricColor
+    }
+}
+
 private struct AdminCardsTopKey: PreferenceKey {
     static var defaultValue: CGFloat = .greatestFiniteMagnitude
 
@@ -1263,7 +1287,7 @@ private struct AdminRentalDetailsScreen: View {
                     Text("\(formattedRub(weeklyRateRub))/нед")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
-                    Text("Корректировка: \(formattedRub(totalAdjustmentRub))")
+                    Text(displayPolicy.correctionLineText(formattedAdjustment: formattedRub(totalAdjustmentRub)))
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(Color(red: 17 / 255, green: 24 / 255, blue: 39 / 255).opacity(0.5))
                 }
@@ -1279,13 +1303,29 @@ private struct AdminRentalDetailsScreen: View {
                 .padding(.horizontal, 18)
 
             HStack(alignment: .top, spacing: 0) {
-                metricColumn(title: "ОПЛАЧЕНО", value: "+\(formattedRub(totalPaidRub))", color: Color(red: 35 / 255, green: 143 / 255, blue: 71 / 255))
+                metricColumn(
+                    title: "ОПЛАЧЕНО",
+                    value: displayPolicy.metricText(activeValue: "+\(formattedRub(totalPaidRub))"),
+                    color: displayPolicy.metricColor(activeColor: Color(red: 35 / 255, green: 143 / 255, blue: 71 / 255))
+                )
                 Spacer(minLength: 0)
-                metricColumn(title: "ДОЛГ", value: formattedRub(debtRub), color: Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255))
+                metricColumn(
+                    title: "ДОЛГ",
+                    value: displayPolicy.metricText(activeValue: formattedRub(debtRub)),
+                    color: displayPolicy.metricColor(activeColor: Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255))
+                )
                 Spacer(minLength: 0)
-                metricColumn(title: "КОРРЕКТ.", value: formattedRub(totalAdjustmentRub), color: Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                metricColumn(
+                    title: "КОРРЕКТ.",
+                    value: displayPolicy.metricText(activeValue: formattedRub(totalAdjustmentRub)),
+                    color: displayPolicy.metricColor(activeColor: Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                )
                 Spacer(minLength: 0)
-                metricColumn(title: "ОПЛАЧ. ДО", value: paidUntilText, color: Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                metricColumn(
+                    title: "ОПЛАЧ. ДО",
+                    value: displayPolicy.metricText(activeValue: paidUntilText),
+                    color: displayPolicy.metricColor(activeColor: Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                )
             }
             .frame(width: 330, alignment: .leading)
             .padding(.horizontal, 18)
@@ -1485,18 +1525,28 @@ private struct AdminRentalDetailsScreen: View {
                 } label: {
                     Text("+ Корректировка")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                        .foregroundStyle(
+                            displayPolicy.adjustmentButtonEnabled
+                                ? Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255)
+                                : Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255).opacity(0.45)
+                        )
                         .frame(maxWidth: .infinity)
                         .frame(height: 52)
                         .background(Color.white)
                         .overlay(
                             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .stroke(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255), lineWidth: 1)
+                                .stroke(
+                                    displayPolicy.adjustmentButtonEnabled
+                                        ? Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255)
+                                        : Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255).opacity(0.35),
+                                    lineWidth: 1
+                                )
                         )
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .disabled(clientId == nil || isOperationInProgress)
+                .disabled(!displayPolicy.adjustmentButtonEnabled || clientId == nil || isOperationInProgress)
+                .opacity((displayPolicy.adjustmentButtonEnabled && clientId != nil) ? 1 : 0.9)
 
                 if rentalIsActive {
                     Button {
@@ -1549,7 +1599,7 @@ private struct AdminRentalDetailsScreen: View {
 
     private var bikeTitle: String {
         if let bikeModel = details?.bikeModel, !bikeModel.isEmpty {
-            return "№1  \(bikeModel)"
+            return bikeModel
         }
         return fallbackSummary?.bikeModel ?? "-"
     }
@@ -1565,6 +1615,7 @@ private struct AdminRentalDetailsScreen: View {
     private var paidUntilText: String { prettyDate(details?.paidUntil) }
     private var rentalIsActive: Bool { details?.rentalIsActive ?? fallbackSummary?.rentalIsActive ?? false }
     private var bikeId: String? { details?.bikeId }
+    private var displayPolicy: RentalDetailsDisplayPolicy { .init(rentalIsActive: rentalIsActive) }
 
     private var availableStartClients: [AdminClientSummaryResponse] {
         clients
@@ -1798,7 +1849,7 @@ private struct AdminRentalDetailsScreen: View {
     }
 
     private var journalRows: [AdminRentalJournalEntry] {
-        guard let details else { return [] }
+        guard displayPolicy.showsJournalHistory, let details else { return [] }
         return details.journalEntries
     }
 
