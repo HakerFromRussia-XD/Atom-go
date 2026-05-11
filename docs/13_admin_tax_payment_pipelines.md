@@ -1,6 +1,6 @@
 # Admin tax payment pipelines
 
-Atom Go supports two admin tax modes for YooKassa payments. The mode is stamped onto each rental when the admin creates it, because the client login/password belongs to the rental flow and every client payment must follow the active rental's tax pipeline.
+Atom Go supports two admin tax modes for YooKassa payments. The mode is stamped onto each `client_rental` when it is created, because client login/password belongs to a concrete client rental period and every client payment must follow that period's tax pipeline.
 
 ## Self-employed admin (NPD)
 
@@ -15,7 +15,7 @@ admin.tax_mode = SELF_EMPLOYED
 Payment pipeline:
 
 1. Client creates a YooKassa payment in the app.
-2. Backend resolves the client's active rental and reads `rental.tax_mode`.
+2. Backend resolves the `client_rental` from the client's token and reads `client_rental.tax_mode`.
 3. Backend sends the payment to YooKassa without a 54-FZ `receipt` object.
 4. YooKassa confirms payment through webhook or backend status polling.
 5. Atom Go applies the payment to the client ledger.
@@ -48,8 +48,8 @@ YOOKASSA_RECEIPT_PAYMENT_SUBJECT=service
 Payment pipeline:
 
 1. Client creates a YooKassa payment in the app.
-2. Backend resolves the client's active rental and reads `rental.tax_mode`.
-3. Backend builds a 54-FZ receipt from the payment, rental, and client phone.
+2. Backend resolves the `client_rental` from the client's token and reads `client_rental.tax_mode`.
+3. Backend builds a 54-FZ receipt from the payment, client rental, and client phone.
 4. Backend sends the payment to YooKassa with `receipt`.
 5. YooKassa processes the payment and receipt according to the shop settings.
 6. Atom Go stores:
@@ -64,8 +64,8 @@ If the client has no valid phone, backend rejects IP payment creation because Yo
 Backend foundation is implemented:
 
 - tax mode is stored on the admin account;
-- each new rental stores `admin_id` and `tax_mode`;
-- payments inherit `tax_mode` from the active rental, not from the current environment;
+- each new client rental stores `admin_id` through its parent rental and stores `tax_mode`;
+- payments inherit `tax_mode` from the client rental, not from the current environment;
 - payments persist `tax_mode` and `fiscalization_status`;
 - IP mode sends a YooKassa `receipt`;
 - self-employed mode does not send a 54-FZ receipt and marks the payment as pending NPD receipt.

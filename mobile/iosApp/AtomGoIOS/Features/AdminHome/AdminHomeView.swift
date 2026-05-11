@@ -294,6 +294,7 @@ struct AdminHomeView: View {
             AdminRentalDetailsScreen(
                 details: viewModel.selectedRentalDetails,
                 fallbackSummary: currentSummary(for: context),
+                clients: viewModel.clientCatalog,
                 isLoading: viewModel.isRentalDetailsLoading,
                 errorMessage: viewModel.rentalDetailsErrorMessage,
                 isOperationInProgress: viewModel.isOperationInProgress,
@@ -321,6 +322,15 @@ struct AdminHomeView: View {
                 onFinishRental: { clientId, rentalId in
                     viewModel.finishRental(clientId: clientId, rentalId: rentalId)
                     viewModel.openRentalDetails(rentalId: rentalId)
+                },
+                onStartRental: { payload in
+                    viewModel.createRental(payload: payload) { createdRental in
+                        rentalDetailsContext = RentalDetailsContext(
+                            clientId: payload.clientId,
+                            rentalId: createdRental.id
+                        )
+                        viewModel.openRentalDetails(rentalId: createdRental.id)
+                    }
                 },
                 onDeleteRental: { clientId, rentalId in
                     viewModel.deleteRental(clientId: clientId, rentalId: rentalId)
@@ -1055,6 +1065,7 @@ struct AdminHomeView: View {
 private struct AdminRentalDetailsScreen: View {
     let details: AdminRentalDetailsResponse?
     let fallbackSummary: AdminClientSummaryResponse?
+    let clients: [AdminClientSummaryResponse]
     let isLoading: Bool
     let errorMessage: String?
     let isOperationInProgress: Bool
@@ -1063,9 +1074,12 @@ private struct AdminRentalDetailsScreen: View {
     let onOpenClientCard: () -> Void
     let onAdjustDebt: (_ clientId: String, _ clientName: String, _ currentDebtRub: Int) -> Void
     let onFinishRental: (_ clientId: String, _ rentalId: String) -> Void
+    let onStartRental: (CreateRentalPayload) -> Void
     let onDeleteRental: (_ clientId: String, _ rentalId: String) -> Void
 
     @State private var isDeleteDialogPresented = false
+    @State private var selectedStartClientId: String?
+    @State private var isClientPickerPresented = false
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -1090,29 +1104,31 @@ private struct AdminRentalDetailsScreen: View {
                 .padding(22)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        topBar
-                            .padding(.top, 8)
+                VStack(alignment: .leading, spacing: 12) {
+                    topBar
+                        .padding(.top, 8)
 
-                        rentalCard
+                    rentalCard
 
-                        Text("ЖУРНАЛ")
-                            .font(.system(size: 11, weight: .bold))
-                            .tracking(0.88)
-                            .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
-                            .padding(.horizontal, 1)
-                            .padding(.top, 8)
+                    Text("ЖУРНАЛ")
+                        .font(.system(size: 11, weight: .bold))
+                        .tracking(0.88)
+                        .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                        .padding(.horizontal, 1)
+                        .padding(.top, 8)
 
+                    ScrollView(showsIndicators: false) {
                         VStack(spacing: 8) {
                             ForEach(journalRows) { row in
                                 journalRow(row)
                             }
                         }
+                        .padding(.bottom, 8)
                     }
-                    .padding(.horizontal, 23)
-                    .padding(.bottom, 128)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
+                .padding(.horizontal, 23)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .safeAreaInset(edge: .bottom, spacing: 8) {
                     bottomActions
                         .frame(maxWidth: .infinity)
@@ -1127,6 +1143,10 @@ private struct AdminRentalDetailsScreen: View {
                 onDeleteRental(clientId, rentalId)
             }
             Button("Отмена", role: .cancel) {}
+        }
+        .onChange(of: rentalId ?? "") { _ in
+            selectedStartClientId = nil
+            isClientPickerPresented = false
         }
     }
 
@@ -1249,27 +1269,43 @@ private struct AdminRentalDetailsScreen: View {
                 .overlay(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255))
                 .padding(.horizontal, 18)
 
-            Button(action: onOpenClientCard) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("АРЕНДАТОР")
-                            .font(.system(size: 10, weight: .bold))
-                            .tracking(0.6)
+            if rentalIsActive {
+                Button(action: onOpenClientCard) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("АРЕНДАТОР")
+                                .font(.system(size: 10, weight: .bold))
+                                .tracking(0.6)
+                                .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                            Text(clientName)
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                                .lineLimit(1)
+                        }
+                        Spacer(minLength: 8)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
-                        Text(clientName)
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
-                            .lineLimit(1)
                     }
-                    Spacer(minLength: 8)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                    .padding(.horizontal, 19)
+                    .frame(height: 68, alignment: .center)
                 }
-                .padding(.horizontal, 19)
-                .frame(height: 68, alignment: .center)
+                .buttonStyle(.plain)
+            } else {
+                Button {
+                    guard !isOperationInProgress else { return }
+                    isClientPickerPresented.toggle()
+                } label: {
+                    startClientSelectorControl
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 8)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $isClientPickerPresented, attachmentAnchor: .rect(.bounds), arrowEdge: .top) {
+                    startClientPickerPopover
+                }
             }
-            .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.white)
@@ -1332,18 +1368,11 @@ private struct AdminRentalDetailsScreen: View {
                 .font(.system(size: 10, weight: .bold))
                 .tracking(0.6)
                 .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
-                .fill(Color(red: 211 / 255, green: 215 / 255, blue: 221 / 255))
-                .frame(width: 150, height: 13)
-                .overlay(alignment: .leading) {
-                    if let value, !value.isEmpty {
-                        Text(value)
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
-                            .padding(.horizontal, 4)
-                            .lineLimit(1)
-                    }
-                }
+            Text((value?.isEmpty == false ? value : "—") ?? "—")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                .lineLimit(1)
+                .frame(width: 150, height: 13, alignment: .leading)
         }
     }
 
@@ -1395,21 +1424,38 @@ private struct AdminRentalDetailsScreen: View {
             .buttonStyle(.plain)
             .disabled(clientId == nil || isOperationInProgress)
 
-            Button {
-                guard let clientId, let rentalId else { return }
-                onFinishRental(clientId, rentalId)
-            } label: {
-                Text("Завершить")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 52)
-                    .background(Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255))
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            if rentalIsActive {
+                Button {
+                    guard let clientId, let rentalId else { return }
+                    onFinishRental(clientId, rentalId)
+                } label: {
+                    Text("Завершить")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 52)
+                        .background(Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255))
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(clientId == nil || rentalId == nil || isOperationInProgress)
+                .opacity((clientId == nil || rentalId == nil) ? 0.6 : 1)
+            } else {
+                Button {
+                    startRentalForSelectedClient()
+                } label: {
+                    Text(startButtonTitle)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 52)
+                        .background(startButtonColor)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(!canStartRental || isOperationInProgress)
+                .opacity(canStartRental ? 1 : 0.6)
             }
-            .buttonStyle(.plain)
-            .disabled(clientId == nil || rentalId == nil || !rentalIsActive || isOperationInProgress)
-            .opacity((clientId == nil || rentalId == nil || !rentalIsActive) ? 0.6 : 1)
         }
         .frame(width: max(UIScreen.main.bounds.width - 16, 0))
     }
@@ -1443,6 +1489,181 @@ private struct AdminRentalDetailsScreen: View {
     private var weeklyRateRub: Int { details?.weeklyRateRub ?? 0 }
     private var paidUntilText: String { prettyDate(details?.paidUntil) }
     private var rentalIsActive: Bool { details?.rentalIsActive ?? fallbackSummary?.rentalIsActive ?? false }
+    private var bikeId: String? { details?.bikeId }
+
+    private var availableStartClients: [AdminClientSummaryResponse] {
+        clients
+            .filter { !$0.rentalIsActive }
+            .sorted { left, right in
+                left.fullName.localizedCaseInsensitiveCompare(right.fullName) == .orderedAscending
+            }
+    }
+
+    private var selectedStartClient: AdminClientSummaryResponse? {
+        guard let selectedStartClientId else { return nil }
+        return availableStartClients.first(where: { $0.clientId == selectedStartClientId })
+    }
+
+    private var selectedStartClientName: String? {
+        selectedStartClient?.fullName
+    }
+
+    private var startClientSelectorControl: some View {
+        let hasSelectedClient = selectedStartClientId != nil
+        return HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("КЛИЕНТ")
+                    .font(.system(size: 10, weight: .bold))
+                    .tracking(0.8)
+                    .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                    .textCase(.uppercase)
+
+                Text(selectedStartClientName ?? "выбрать клиента")
+                    .font(.system(size: 13, weight: hasSelectedClient ? .bold : .medium))
+                    .foregroundStyle(
+                        hasSelectedClient
+                            ? Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255)
+                            : Color(red: 201 / 255, green: 204 / 255, blue: 210 / 255)
+                    )
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            ZStack {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255))
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+            }
+            .frame(width: 28, height: 28)
+        }
+        .padding(.leading, 19)
+        .padding(.trailing, 15)
+        .padding(.vertical, 15)
+        .frame(height: 58)
+        .background(Color.white)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12.84, style: .continuous)
+                .stroke(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255), lineWidth: 1)
+        )
+        .overlay(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(
+                    hasSelectedClient
+                        ? Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255)
+                        : Color(red: 211 / 255, green: 215 / 255, blue: 221 / 255)
+                )
+                .frame(width: 4)
+                .padding(.vertical, 8)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 12.84, style: .continuous))
+    }
+
+    @ViewBuilder
+    private var startClientPickerPopover: some View {
+        if #available(iOS 16.4, *) {
+            startClientPickerPopoverBody
+                .presentationCompactAdaptation(.popover)
+        } else {
+            startClientPickerPopoverBody
+        }
+    }
+
+    private var startClientPickerPopoverBody: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if availableStartClients.isEmpty {
+                HStack(spacing: 10) {
+                    Image(systemName: "person.slash")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                    Text("Нет свободных клиентов")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 12)
+                .frame(width: 300)
+            } else {
+                ForEach(availableStartClients) { client in
+                    startClientPickerRow(client)
+                }
+            }
+        }
+        .padding(7)
+        .frame(width: 340, alignment: .leading)
+        .background(Color.white)
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .shadow(color: Color(red: 25 / 255, green: 28 / 255, blue: 50 / 255).opacity(0.22), radius: 15, x: 0, y: 16)
+    }
+
+    private func startClientPickerRow(_ client: AdminClientSummaryResponse) -> some View {
+        let isSelected = client.clientId == selectedStartClientId
+
+        return Button {
+            selectedStartClientId = client.clientId
+            isClientPickerPresented = false
+        } label: {
+            HStack(spacing: 12) {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color(red: 227 / 255, green: 230 / 255, blue: 235 / 255))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(Color(red: 52 / 255, green: 199 / 255, blue: 89 / 255), lineWidth: 3)
+                    )
+                    .overlay(
+                        Image(systemName: "person.fill")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(Color(red: 152 / 255, green: 161 / 255, blue: 173 / 255))
+                    )
+                    .frame(width: 34, height: 34)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(client.fullName)
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                        .lineLimit(1)
+
+                    Text(client.clientLogin?.isEmpty == false ? (client.clientLogin ?? "") : "Свободный клиент")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(isSelected ? Color(red: 240 / 255, green: 242 / 255, blue: 245 / 255) : Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var canStartRental: Bool {
+        !rentalIsActive && selectedStartClient != nil && bikeId != nil
+    }
+
+    private var startButtonTitle: String {
+        canStartRental ? "Начать!" : "Завершить"
+    }
+
+    private var startButtonColor: Color {
+        canStartRental
+            ? Color(red: 35 / 255, green: 143 / 255, blue: 71 / 255)
+            : Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255)
+    }
 
     private var avatarBorderColor: Color {
         if let details {
@@ -1455,6 +1676,39 @@ private struct AdminRentalDetailsScreen: View {
             return Color(red: 52 / 255, green: 199 / 255, blue: 89 / 255)
         }
         return Color(red: 152 / 255, green: 161 / 255, blue: 173 / 255)
+    }
+
+    private func startRentalForSelectedClient() {
+        guard !rentalIsActive else { return }
+        guard let selectedStartClient else { return }
+        guard let bikeId else { return }
+
+        let credentials = startCredentials(for: selectedStartClient)
+        let payload = CreateRentalPayload(
+            clientId: selectedStartClient.clientId,
+            bikeId: bikeId,
+            login: credentials.login,
+            password: credentials.password,
+            periodStart: DateFormatter.apiDate.string(from: Date()),
+            periodEnd: nil,
+            videoUrl: nil,
+            contractUrl: nil,
+            comment: nil
+        )
+        onStartRental(payload)
+    }
+
+    private func startCredentials(for client: AdminClientSummaryResponse) -> (login: String, password: String) {
+        let defaultPassword = "client123"
+        if let login = client.clientLogin?.trimmingCharacters(in: .whitespacesAndNewlines), !login.isEmpty {
+            return (login, defaultPassword)
+        }
+        let compactId = client.clientId
+            .lowercased()
+            .replacingOccurrences(of: "[^a-z0-9]", with: "", options: .regularExpression)
+        let suffix = String(compactId.suffix(8))
+        let generatedLogin = "client\(suffix)"
+        return (generatedLogin, defaultPassword)
     }
 
     private var journalRows: [AdminRentalJournalEntry] {

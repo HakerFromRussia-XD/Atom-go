@@ -248,7 +248,7 @@ final class AdminHomeViewModel: ObservableObject {
         }
     }
 
-    func createRental(payload: CreateRentalPayload) {
+    func createRental(payload: CreateRentalPayload, onSuccess: ((AdminRentalHistoryItem) -> Void)? = nil) {
         isOperationInProgress = true
         operationErrorMessage = nil
         operationSuccessMessage = nil
@@ -261,6 +261,9 @@ final class AdminHomeViewModel: ObservableObject {
                 )
                 operationSuccessMessage = "Аренда создана: \(rental.periodStart)"
                 await refreshAfterMutation(openDetailsFor: payload.clientId)
+                await MainActor.run {
+                    onSuccess?(rental)
+                }
             } catch {
                 operationErrorMessage = error.localizedDescription
             }
