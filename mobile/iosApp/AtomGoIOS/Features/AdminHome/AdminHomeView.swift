@@ -2125,7 +2125,6 @@ private struct CreateClientSheet: View {
     private let ghost = Color(red: 201 / 255, green: 204 / 255, blue: 210 / 255)
     private let grayChateau = Color(red: 152 / 255, green: 161 / 255, blue: 173 / 255)
     private let athensGray = Color(red: 247 / 255, green: 248 / 255, blue: 250 / 255)
-    private let alto = Color(red: 218 / 255, green: 218 / 255, blue: 218 / 255)
 
     @State private var fullName = ""
     @State private var address = ""
@@ -2139,7 +2138,7 @@ private struct CreateClientSheet: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let horizontalPadding: CGFloat = proxy.size.width >= 416 ? 23 : 24
+            let horizontalPadding: CGFloat = 8
             let fieldWidth = max(0, proxy.size.width - horizontalPadding * 2)
 
             ZStack(alignment: .top) {
@@ -2147,7 +2146,6 @@ private struct CreateClientSheet: View {
 
                 VStack(spacing: 0) {
                     createClientTopBar(horizontalPadding: horizontalPadding)
-                        .padding(.top, 41)
 
                     ScrollView(showsIndicators: false) {
                         VStack(alignment: .leading, spacing: 18) {
@@ -2223,17 +2221,11 @@ private struct CreateClientSheet: View {
                         }
                         .frame(width: fieldWidth, alignment: .leading)
                         .padding(.top, 16)
-                        .padding(.bottom, 126)
+                        .padding(.bottom, 24)
                     }
                     .scrollDismissesKeyboard(.interactively)
                     .padding(.horizontal, horizontalPadding)
                 }
-
-                VStack {
-                    Spacer()
-                    createClientBottomBar
-                }
-                .ignoresSafeArea(.keyboard, edges: .bottom)
             }
         }
     }
@@ -2310,7 +2302,7 @@ private struct CreateClientSheet: View {
             .accessibilityIdentifier("createClient.submitButton")
         }
         .padding(.horizontal, horizontalPadding)
-        .frame(height: 45)
+        .frame(height: 62)
     }
 
     private func sectionTitle(_ title: String) -> some View {
@@ -2405,41 +2397,6 @@ private struct CreateClientSheet: View {
         }
     }
 
-    private var createClientBottomBar: some View {
-        HStack(spacing: 31.5) {
-            tabPlaceholder(isSelected: false)
-            tabPlaceholder(isSelected: false)
-            tabPlaceholder(isSelected: true)
-            tabPlaceholder(isSelected: false)
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: 106, alignment: .top)
-        .padding(.top, 20)
-        .background(Color(red: 252 / 255, green: 252 / 255, blue: 253 / 255).opacity(0.85))
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(alto)
-                .frame(height: 1)
-        }
-    }
-
-    private func tabPlaceholder(isSelected: Bool) -> some View {
-        RoundedRectangle(cornerRadius: 8, style: .continuous)
-            .fill(isSelected ? ebonyClay : Color.white)
-            .frame(width: 32, height: 32)
-            .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(ebonyClay, lineWidth: 1)
-            }
-            .overlay(alignment: .bottom) {
-                if isSelected {
-                    Circle()
-                        .fill(ebonyClay)
-                        .frame(width: 7, height: 7)
-                        .offset(y: 14)
-                }
-            }
-    }
 }
 
 private struct CreateBikeSheet: View {
@@ -2657,7 +2614,7 @@ private struct ClientCatalogSheet: View {
                 .padding(.bottom, showsCloseButton ? 0 : 106)
             }
         }
-        .sheet(isPresented: $isCreateClientPresented) {
+        .fullScreenCover(isPresented: $isCreateClientPresented) {
             CreateClientSheet(
                 isSaving: isSaving,
                 apiErrorMessage: apiErrorMessage,
@@ -2668,7 +2625,6 @@ private struct ClientCatalogSheet: View {
                     }
                 }
             )
-            .presentationDetents([.large])
         }
     }
 
