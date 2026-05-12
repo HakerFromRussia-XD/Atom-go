@@ -121,7 +121,9 @@ private data class ApiClientDashboardResponse(
     @SerialName("tax_mode")
     val taxMode: String,
     @SerialName("requires_receipt_email")
-    val requiresReceiptEmail: Boolean
+    val requiresReceiptEmail: Boolean,
+    @SerialName("receipt_email")
+    val receiptEmail: String? = null
 )
 
 @Serializable
@@ -615,9 +617,14 @@ private fun resolveClientBillingSnapshot(
     )
 }
 
-private fun clientHasReceiptEmail(client: ClientAccount): Boolean {
-    return client.phones.any { normalizeReceiptEmail(it.number) != null }
+private fun extractClientReceiptEmail(client: ClientAccount): String? {
+    return client.phones
+        .asSequence()
+        .mapNotNull { normalizeReceiptEmail(it.number) }
+        .firstOrNull()
 }
+
+private fun clientHasReceiptEmail(client: ClientAccount): Boolean = extractClientReceiptEmail(client) != null
 
 private fun normalizeReceiptEmail(rawEmail: String?): String? {
     val email = rawEmail?.trim()?.lowercase().orEmpty()
@@ -1390,7 +1397,8 @@ fun Application.module() {
                         ),
                         taxMode = (snapshot?.taxMode ?: AdminTaxMode.SELF_EMPLOYED).name.lowercase(),
                         requiresReceiptEmail = snapshot?.taxMode == AdminTaxMode.INDIVIDUAL_ENTREPRENEUR &&
-                            !clientHasReceiptEmail(client)
+                            !clientHasReceiptEmail(client),
+                        receiptEmail = extractClientReceiptEmail(client)
                     )
                 )
             }

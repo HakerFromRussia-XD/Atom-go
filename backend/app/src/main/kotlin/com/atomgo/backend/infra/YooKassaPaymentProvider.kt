@@ -1,11 +1,13 @@
 package com.atomgo.backend.infra
 
+import com.atomgo.backend.domain.AdminTaxMode
 import com.atomgo.backend.domain.PaymentStatus
 import com.atomgo.backend.domain.PaymentType
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import org.slf4j.LoggerFactory
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.net.URI
@@ -18,8 +20,8 @@ import java.time.Duration
 import java.util.Base64
 
 interface PaymentProvider {
-    fun createPayment(request: ProviderCreatePaymentRequest): ProviderPaymentInfo
-    fun fetchPayment(providerPaymentId: String): ProviderPaymentInfo?
+    fun createPayment(request: ProviderCreatePaymentRequest, taxMode: AdminTaxMode): ProviderPaymentInfo
+    fun fetchPayment(providerPaymentId: String, taxMode: AdminTaxMode): ProviderPaymentInfo?
 }
 
 data class ProviderCreatePaymentRequest(
@@ -54,7 +56,7 @@ data class ProviderPaymentInfo(
 )
 
 class MockYooKassaPaymentProvider : PaymentProvider {
-    override fun createPayment(request: ProviderCreatePaymentRequest): ProviderPaymentInfo {
+    override fun createPayment(request: ProviderCreatePaymentRequest, taxMode: AdminTaxMode): ProviderPaymentInfo {
         val providerPaymentId = "mock-${request.localPaymentId}"
         return ProviderPaymentInfo(
             providerPaymentId = providerPaymentId,
@@ -69,31 +71,34 @@ class MockYooKassaPaymentProvider : PaymentProvider {
         )
     }
 
-    override fun fetchPayment(providerPaymentId: String): ProviderPaymentInfo? {
+    override fun fetchPayment(providerPaymentId: String, taxMode: AdminTaxMode): ProviderPaymentInfo? {
         return null
     }
 }
 
 class DisabledYooKassaPaymentProvider(private val reason: String) : PaymentProvider {
-    override fun createPayment(request: ProviderCreatePaymentRequest): ProviderPaymentInfo {
+    override fun createPayment(request: ProviderCreatePaymentRequest, taxMode: AdminTaxMode): ProviderPaymentInfo {
         throw YooKassaException("YooKassa is not configured", 0, reason)
     }
 
-    override fun fetchPayment(providerPaymentId: String): ProviderPaymentInfo? {
+    override fun fetchPayment(providerPaymentId: String, taxMode: AdminTaxMode): ProviderPaymentInfo? {
         throw YooKassaException("YooKassa is not configured", 0, reason)
     }
 }
 
-class YooKassaPaymentProvider private constructor(
-    private val config: YooKassaConfig,
+class YooKassaPaymentProvider internal constructor(
+    private val defaultConfig: YooKassaConfig,
+    private val ipConfig: YooKassaConfig?,
     private val json: Json,
     private val httpClient: HttpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(10))
         .build()
 ) : PaymentProvider {
+    private val log = LoggerFactory.getLogger(YooKassaPaymentProvider::class.java)
 
-    override fun createPayment(request: ProviderCreatePaymentRequest): ProviderPaymentInfo {
-        val returnUrl = "${config.publicBaseUrl}/api/v1/payments/${request.localPaymentId}/return"
+    override fun createPayment(request: ProviderCreatePaymentRequest, taxMode: AdminTaxMode): ProviderPaymentInfo {
+        val selectedConfig = configForTaxMode(taxMode)
+        val returnUrl = "${selectedConfig.publicBaseUrl}/api/v1/payments/${request.localPaymentId}/return"
         val payload = YooKassaCreatePaymentRequest(
             amount = YooKassaAmount(value = rubToDecimalString(request.amountRub), currency = "RUB"),
             capture = true,
@@ -111,7 +116,7 @@ class YooKassaPaymentProvider private constructor(
             )
         )
 
-        val httpRequest = baseRequest("${config.apiBaseUrl}/payments")
+        val httpRequest = baseRequest("${selectedConfig.apiBaseUrl}/payments", selectedConfig)
             .header("Idempotence-Key", request.idempotenceKey)
             .POST(HttpRequest.BodyPublishers.ofString(json.encodeToString(payload)))
             .build()
@@ -122,11 +127,13 @@ class YooKassaPaymentProvider private constructor(
         }
 
         val created = json.decodeFromString<YooKassaPaymentResponse>(response.body())
+        logPaymentResponse(created, taxMode, request.receipt != null)
         return created.toProviderInfo()
     }
 
-    override fun fetchPayment(providerPaymentId: String): ProviderPaymentInfo? {
-        val httpRequest = baseRequest("${config.apiBaseUrl}/payments/$providerPaymentId")
+    override fun fetchPayment(providerPaymentId: String, taxMode: AdminTaxMode): ProviderPaymentInfo? {
+        val selectedConfig = configForTaxMode(taxMode)
+        val httpRequest = baseRequest("${selectedConfig.apiBaseUrl}/payments/$providerPaymentId", selectedConfig)
             .GET()
             .build()
 
@@ -139,7 +146,18 @@ class YooKassaPaymentProvider private constructor(
         return json.decodeFromString<YooKassaPaymentResponse>(response.body()).toProviderInfo()
     }
 
-    private fun baseRequest(url: String): HttpRequest.Builder {
+    private fun logPaymentResponse(response: YooKassaPaymentResponse, taxMode: AdminTaxMode, receiptSent: Boolean) {
+        val message = "YooKassa payment response: paymentId=${response.id}, " +
+            "status=${response.status}, taxMode=$taxMode, receiptSent=$receiptSent, " +
+            "receiptRegistration=${response.receiptRegistration ?: "<empty>"}"
+        if (receiptSent && response.receiptRegistration.isNullOrBlank()) {
+            log.warn(message)
+        } else {
+            log.info(message)
+        }
+    }
+
+    private fun baseRequest(url: String, config: YooKassaConfig): HttpRequest.Builder {
         val credentials = "${config.shopId}:${config.secretKey}"
         val encoded = Base64.getEncoder().encodeToString(credentials.toByteArray(StandardCharsets.UTF_8))
         return HttpRequest.newBuilder(URI.create(url))
@@ -162,10 +180,20 @@ class YooKassaPaymentProvider private constructor(
         }
     }
 
+    private fun configForTaxMode(taxMode: AdminTaxMode): YooKassaConfig {
+        return if (taxMode == AdminTaxMode.INDIVIDUAL_ENTREPRENEUR && ipConfig != null) {
+            ipConfig
+        } else {
+            defaultConfig
+        }
+    }
+
     companion object {
         fun fromEnvironment(json: Json): PaymentProvider {
             val shopId = System.getenv("YOOKASSA_SHOP_ID")?.trim().orEmpty()
             val secretKey = System.getenv("YOOKASSA_SECRET_KEY")?.trim().orEmpty()
+            val shopIdIp = System.getenv("YOOKASSA_SHOP_ID_IP")?.trim().orEmpty()
+            val secretKeyIp = System.getenv("YOOKASSA_SECRET_KEY_IP")?.trim().orEmpty()
             val apiBaseUrl = System.getenv("YOOKASSA_API_BASE")?.trim()?.ifBlank { null } ?: "https://api.yookassa.ru/v3"
             val publicBaseUrl = System.getenv("YOOKASSA_PUBLIC_BASE_URL")?.trim()?.ifBlank { null }
             val useMock = System.getenv("YOOKASSA_USE_MOCK")?.equals("true", ignoreCase = true) == true
@@ -185,13 +213,39 @@ class YooKassaPaymentProvider private constructor(
                 )
             }
 
+            val hasIpShopId = shopIdIp.isNotBlank()
+            val hasIpSecretKey = secretKeyIp.isNotBlank()
+            if (hasIpShopId.xor(hasIpSecretKey)) {
+                val missingIpKeys = buildList {
+                    if (!hasIpShopId) add("YOOKASSA_SHOP_ID_IP")
+                    if (!hasIpSecretKey) add("YOOKASSA_SECRET_KEY_IP")
+                }
+                return DisabledYooKassaPaymentProvider(
+                    reason = "Missing YooKassa IP config: ${missingIpKeys.joinToString()}"
+                )
+            }
+
+            val trimmedApiBaseUrl = apiBaseUrl.trimEnd('/')
+            val trimmedPublicBaseUrl = publicBaseUrl!!.trimEnd('/')
+            val ipConfig = if (hasIpShopId && hasIpSecretKey) {
+                YooKassaConfig(
+                    shopId = shopIdIp,
+                    secretKey = secretKeyIp,
+                    apiBaseUrl = trimmedApiBaseUrl,
+                    publicBaseUrl = trimmedPublicBaseUrl
+                )
+            } else {
+                null
+            }
+
             return YooKassaPaymentProvider(
-                config = YooKassaConfig(
+                defaultConfig = YooKassaConfig(
                     shopId = shopId,
                     secretKey = secretKey,
-                    apiBaseUrl = apiBaseUrl.trimEnd('/'),
-                    publicBaseUrl = publicBaseUrl!!.trimEnd('/')
+                    apiBaseUrl = trimmedApiBaseUrl,
+                    publicBaseUrl = trimmedPublicBaseUrl
                 ),
+                ipConfig = ipConfig,
                 json = json
             )
         }

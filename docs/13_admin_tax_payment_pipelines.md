@@ -39,11 +39,15 @@ admin.tax_mode = INDIVIDUAL_ENTREPRENEUR
 Runtime receipt config:
 
 ```bash
+YOOKASSA_SHOP_ID_IP=...
+YOOKASSA_SECRET_KEY_IP=...
 YOOKASSA_RECEIPT_TAX_SYSTEM_CODE=1
 YOOKASSA_RECEIPT_VAT_CODE=1
 YOOKASSA_RECEIPT_PAYMENT_MODE=full_payment
 YOOKASSA_RECEIPT_PAYMENT_SUBJECT=service
 ```
+
+`YOOKASSA_SHOP_ID` and `YOOKASSA_SECRET_KEY` remain reserved for the self-employed shop. IP client-rental payments must use the `_IP` credentials and must include `receipt`.
 
 Payment pipeline:
 
@@ -58,6 +62,14 @@ Payment pipeline:
 7. YooKassa webhook or status polling still remains the source of truth for applying money to the ledger.
 
 If the client has no valid phone, backend rejects IP payment creation because YooKassa receipts require customer contact data.
+
+YooKassa setup requirements:
+
+- enable online-cash-register checks for the IP shop;
+- keep the YooKassa setting that accepts the payment if the check is not delivered;
+- during check test mode, YooKassa can show "check delivered to cloud cash register" in payment history even when no real email is delivered to the client;
+- when YooKassa returns `receipt_registration`, Atom Go stores `fiscalization_status = YOOKASSA_RECEIPT_PENDING`;
+- when YooKassa omits `receipt_registration`, Atom Go stores `fiscalization_status = FISCALIZATION_NOT_CONFIGURED` and logs a safe diagnostic line without secrets.
 
 ## Implementation status
 

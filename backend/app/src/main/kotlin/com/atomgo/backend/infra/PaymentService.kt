@@ -108,7 +108,8 @@ class PaymentService(
                 idempotenceKey = idempotenceKey,
                 description = description,
                 receipt = receipt
-            )
+            ),
+            terms.taxMode
         )
 
         validateProviderPayment(paymentId, terms.rentalId, amount, providerPayment)
@@ -184,7 +185,7 @@ class PaymentService(
 
         payment.providerPaymentId = providerPaymentId
 
-        val providerInfo = provider.fetchPayment(providerPaymentId) ?: ProviderPaymentInfo(
+        val providerInfo = provider.fetchPayment(providerPaymentId, payment.taxMode) ?: ProviderPaymentInfo(
             providerPaymentId = providerPaymentId,
             status = providerStatusFromWebhook ?: statusFromEvent(event),
             amountRub = amountRubFromWebhook,
@@ -218,7 +219,7 @@ class PaymentService(
             return PaymentStatusResult(payment = payment, applied = false, message = "No provider payment id")
         }
 
-        val providerInfo = provider.fetchPayment(providerPaymentId)
+        val providerInfo = provider.fetchPayment(providerPaymentId, payment.taxMode)
             ?: return PaymentStatusResult(payment = payment, applied = false, message = "Provider payment status unavailable")
 
         val validationError = validateProviderPaymentOrMessage(payment, providerInfo)

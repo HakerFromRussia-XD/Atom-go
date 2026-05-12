@@ -34,6 +34,7 @@ class PaymentServiceTest {
         assertEquals(AdminTaxMode.SELF_EMPLOYED, payment.taxMode)
         assertEquals(FiscalizationStatus.NPD_RECEIPT_PENDING, payment.fiscalizationStatus)
         assertEquals(null, provider.lastRequest?.receipt)
+        assertEquals(AdminTaxMode.SELF_EMPLOYED, provider.lastTaxMode)
     }
 
     @Test
@@ -65,6 +66,7 @@ class PaymentServiceTest {
         assertEquals("service", receipt.paymentSubject)
         assertEquals(AdminTaxMode.INDIVIDUAL_ENTREPRENEUR, payment.taxMode)
         assertEquals(FiscalizationStatus.YOOKASSA_RECEIPT_PENDING, payment.fiscalizationStatus)
+        assertEquals(AdminTaxMode.INDIVIDUAL_ENTREPRENEUR, provider.lastTaxMode)
     }
 
     @Test
@@ -216,9 +218,11 @@ private class FakePaymentProvider(
 ) : PaymentProvider {
     private val payments = mutableMapOf<String, ProviderPaymentInfo>()
     var lastRequest: ProviderCreatePaymentRequest? = null
+    var lastTaxMode: AdminTaxMode? = null
 
-    override fun createPayment(request: ProviderCreatePaymentRequest): ProviderPaymentInfo {
+    override fun createPayment(request: ProviderCreatePaymentRequest, taxMode: AdminTaxMode): ProviderPaymentInfo {
         lastRequest = request
+        lastTaxMode = taxMode
         val providerId = "provider-${request.localPaymentId}"
         val info = ProviderPaymentInfo(
             providerPaymentId = providerId,
@@ -235,7 +239,7 @@ private class FakePaymentProvider(
         return info
     }
 
-    override fun fetchPayment(providerPaymentId: String): ProviderPaymentInfo? {
+    override fun fetchPayment(providerPaymentId: String, taxMode: AdminTaxMode): ProviderPaymentInfo? {
         return payments[providerPaymentId]
     }
 

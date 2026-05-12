@@ -53,6 +53,7 @@ struct ClientDashboardResponse: Decodable {
     let presets: ClientPaymentPresets
     let taxMode: String?
     let requiresReceiptEmail: Bool
+    let receiptEmail: String?
 
     enum CodingKeys: String, CodingKey {
         case clientId = "client_id"
@@ -68,6 +69,7 @@ struct ClientDashboardResponse: Decodable {
         case presets
         case taxMode = "tax_mode"
         case requiresReceiptEmail = "requires_receipt_email"
+        case receiptEmail = "receipt_email"
     }
 
     init(
@@ -83,7 +85,8 @@ struct ClientDashboardResponse: Decodable {
         totalAdjustmentRub: Int,
         presets: ClientPaymentPresets,
         taxMode: String?,
-        requiresReceiptEmail: Bool
+        requiresReceiptEmail: Bool,
+        receiptEmail: String? = nil
     ) {
         self.clientId = clientId
         self.bikeModel = bikeModel
@@ -98,6 +101,7 @@ struct ClientDashboardResponse: Decodable {
         self.presets = presets
         self.taxMode = taxMode
         self.requiresReceiptEmail = requiresReceiptEmail
+        self.receiptEmail = receiptEmail
     }
 
     init(from decoder: Decoder) throws {
@@ -116,6 +120,7 @@ struct ClientDashboardResponse: Decodable {
             ?? ClientPaymentPresets(dayRub: 0, weekRub: 0, twoWeeksRub: 0, monthRub: 0, debtExactRub: 0)
         taxMode = try container.decodeIfPresent(String.self, forKey: .taxMode)
         requiresReceiptEmail = try container.decodeIfPresent(Bool.self, forKey: .requiresReceiptEmail) ?? false
+        receiptEmail = try container.decodeIfPresent(String.self, forKey: .receiptEmail)
     }
 }
 

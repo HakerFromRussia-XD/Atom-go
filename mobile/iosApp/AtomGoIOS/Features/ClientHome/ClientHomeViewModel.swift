@@ -66,15 +66,39 @@ final class ClientHomeViewModel: ObservableObject {
                     paymentType: type
                 )
                 paymentResult = result
-                if result.taxMode == "individual_entrepreneur" &&
-                    result.fiscalizationStatus == "fiscalization_not_configured" {
-                    paymentErrorMessage = "Чек 54-ФЗ не будет отправлен: в ЮKassa не настроена фискализация магазина."
+                if result.taxMode == "individual_entrepreneur" {
+                    switch result.fiscalizationStatus {
+                    case "yookassa_receipt_pending":
+                        paymentStatusMessage = "Платеж создан. Чек будет отправлен на email после обработки ЮKassa."
+                    case "fiscalization_not_configured":
+                        paymentStatusMessage = "Платеж создан. Чек 54-ФЗ не будет отправлен, пока в ЮKassa не настроена фискализация магазина."
+                    default:
+                        break
+                    }
                 }
                 load(clearPaymentMessages: false)
             } catch {
                 paymentErrorMessage = error.localizedDescription
             }
             isCreatingPayment = false
+        }
+    }
+
+    func updateReceiptEmail(_ email: String) {
+        paymentErrorMessage = nil
+        paymentStatusMessage = nil
+
+        Task {
+            do {
+                try await apiService.updateClientReceiptEmail(
+                    accessToken: session.accessToken,
+                    email: email
+                )
+                paymentStatusMessage = "Email для чека сохранен."
+                load(clearPaymentMessages: false)
+            } catch {
+                paymentErrorMessage = error.localizedDescription
+            }
         }
     }
 

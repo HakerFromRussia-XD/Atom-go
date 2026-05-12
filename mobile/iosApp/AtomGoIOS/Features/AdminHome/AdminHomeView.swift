@@ -70,6 +70,73 @@ private enum AdminRentFilter {
     }
 }
 
+private enum AdminMainTab: CaseIterable {
+    case rents
+    case clients
+    case bikes
+
+    var title: String {
+        switch self {
+        case .rents:
+            return "Аренды"
+        case .clients:
+            return "Клиенты"
+        case .bikes:
+            return "Велосипеды"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .rents:
+            return "house.fill"
+        case .clients:
+            return "person.2.fill"
+        case .bikes:
+            return "bicycle"
+        }
+    }
+
+    var accessibilityIdentifier: String {
+        switch self {
+        case .rents:
+            return "admin.tab.rents"
+        case .clients:
+            return "admin.tab.clients"
+        case .bikes:
+            return "admin.tab.bikes"
+        }
+    }
+}
+
+private enum ClientCatalogFilter: CaseIterable {
+    case all
+    case debtors
+    case active
+
+    var title: String {
+        switch self {
+        case .all:
+            return "Все"
+        case .debtors:
+            return "Должники"
+        case .active:
+            return "Активные"
+        }
+    }
+
+    var accessibilityIdentifier: String {
+        switch self {
+        case .all:
+            return "clientCatalog.filter.all"
+        case .debtors:
+            return "clientCatalog.filter.debtors"
+        case .active:
+            return "clientCatalog.filter.active"
+        }
+    }
+}
+
 struct RentalDetailsDisplayPolicy {
     let rentalIsActive: Bool
     let isInStockState: Bool
@@ -125,9 +192,6 @@ struct AdminHomeView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var isCreateRentalSheetPresented = false
-    @State private var isServiceSheetPresented = false
-    @State private var isClientCatalogPresented = false
-    @State private var isBikeCatalogPresented = false
     @State private var isDetailsSheetPresented = false
     @State private var detailsClientId: String?
     @State private var rentalDetailsContext: RentalDetailsContext?
@@ -135,6 +199,7 @@ struct AdminHomeView: View {
     @State private var ignoredNextTapClientId: String?
     @State private var searchText = ""
     @State private var selectedFilter: AdminRentFilter = .all
+    @State private var selectedMainTab: AdminMainTab = .rents
     @State private var isAdminMenuPresented = false
     @State private var pipelineMenuClientId: String?
     @State private var areFiltersInteractive = true
@@ -170,13 +235,10 @@ struct AdminHomeView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                     case let .loaded(clients):
-                        adminPipelineLoadedView(clients: clients)
+                        adminLoadedRootView(clients: clients)
                     }
                 }
                 .confirmationDialog("Действия", isPresented: $isAdminMenuPresented, titleVisibility: .visible) {
-                    Button("Сервис") {
-                        isServiceSheetPresented = true
-                    }
                     Button("Новая аренда") {
                         isCreateRentalSheetPresented = true
                     }
@@ -200,21 +262,6 @@ struct AdminHomeView: View {
         .onAppear {
             openStartupRentalIfNeeded()
         }
-        .sheet(isPresented: $isServiceSheetPresented) {
-            AdminServiceSheet(
-                onOpenClientsCatalog: {
-                    isServiceSheetPresented = false
-                    viewModel.refreshClientCatalog {
-                        isClientCatalogPresented = true
-                    }
-                },
-                onOpenBikeCatalog: {
-                    isServiceSheetPresented = false
-                    isBikeCatalogPresented = true
-                }
-            )
-            .presentationDetents([.medium])
-        }
         .sheet(isPresented: $isCreateRentalSheetPresented) {
             CreateRentalSheet(
                 clients: viewModel.clientCatalog,
@@ -224,44 +271,6 @@ struct AdminHomeView: View {
                 onCreate: { payload in
                     viewModel.createRental(payload: payload)
                     isCreateRentalSheetPresented = false
-                }
-            )
-            .presentationDetents([.large])
-        }
-        .sheet(isPresented: $isClientCatalogPresented) {
-            ClientCatalogSheet(
-                clients: viewModel.clientCatalog,
-                isSaving: viewModel.isOperationInProgress,
-                apiErrorMessage: viewModel.operationErrorMessage,
-                onCancel: { isClientCatalogPresented = false },
-                onCreate: { payload, onSuccess in
-                    viewModel.createClient(payload: payload, onSuccess: onSuccess)
-                },
-                onOpenClient: { client in
-                    isClientCatalogPresented = false
-                    DispatchQueue.main.async {
-                        detailsClientId = client.clientId
-                        isDetailsSheetPresented = true
-                        viewModel.openClientDetails(clientId: client.clientId)
-                    }
-                }
-            )
-            .presentationDetents([.large])
-        }
-        .sheet(isPresented: $isBikeCatalogPresented) {
-            BikeCatalogSheet(
-                bikes: viewModel.bikes,
-                isSaving: viewModel.isOperationInProgress,
-                apiErrorMessage: viewModel.operationErrorMessage,
-                onCancel: { isBikeCatalogPresented = false },
-                onCreate: { payload, onSuccess in
-                    viewModel.createBike(payload: payload, onSuccess: onSuccess)
-                },
-                onSave: { payload in
-                    viewModel.updateBike(payload: payload)
-                },
-                onDelete: { bikeId in
-                    viewModel.deleteBike(bikeId: bikeId)
                 }
             )
             .presentationDetents([.large])
@@ -439,6 +448,51 @@ struct AdminHomeView: View {
         return clients.first(where: { $0.clientId == context.clientId && $0.rentalId == context.rentalId })
     }
 
+    private func adminLoadedRootView(clients: [AdminClientSummaryResponse]) -> some View {
+        ZStack(alignment: .top) {
+            switch selectedMainTab {
+            case .rents:
+                adminPipelineLoadedView(clients: clients)
+            case .clients:
+                ClientCatalogSheet(
+                    clients: viewModel.clientCatalog,
+                    isSaving: viewModel.isOperationInProgress,
+                    apiErrorMessage: viewModel.operationErrorMessage,
+                    showsCloseButton: false,
+                    onCancel: onLogout,
+                    onCreate: { payload, onSuccess in
+                        viewModel.createClient(payload: payload, onSuccess: onSuccess)
+                    },
+                    onOpenClient: { client in
+                        detailsClientId = client.clientId
+                        isDetailsSheetPresented = true
+                        viewModel.openClientDetails(clientId: client.clientId)
+                    }
+                )
+            case .bikes:
+                BikeCatalogSheet(
+                    bikes: viewModel.bikes,
+                    isSaving: viewModel.isOperationInProgress,
+                    apiErrorMessage: viewModel.operationErrorMessage,
+                    showsCloseButton: false,
+                    onCancel: {},
+                    onCreate: { payload, onSuccess in
+                        viewModel.createBike(payload: payload, onSuccess: onSuccess)
+                    },
+                    onSave: { payload in
+                        viewModel.updateBike(payload: payload)
+                    },
+                    onDelete: { bikeId in
+                        viewModel.deleteBike(bikeId: bikeId)
+                    }
+                )
+            }
+
+            adminBottomTabBar
+                .zIndex(5)
+        }
+    }
+
     private func adminPipelineLoadedView(clients: [AdminClientSummaryResponse]) -> some View {
         let horizontalInset: CGFloat = 8
         let topBarHeight: CGFloat = 62
@@ -558,9 +612,6 @@ struct AdminHomeView: View {
                 Spacer(minLength: 0)
             }
             .zIndex(4)
-
-            adminBottomTabBar
-                .zIndex(5)
 
             Text(selectedFilter.accessibilityValue)
                 .foregroundStyle(.clear)
@@ -734,30 +785,15 @@ struct AdminHomeView: View {
     private var adminBottomTabBar: some View {
         VStack {
             Spacer()
-            HStack(spacing: 76) {
-                VStack(spacing: 12) {
-                    Image(systemName: "house.fill")
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundStyle(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
-                    Circle()
-                        .fill(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
-                        .frame(width: 6, height: 6)
+            HStack(spacing: 0) {
+                ForEach(AdminMainTab.allCases, id: \.self) { tab in
+                    adminBottomTabButton(tab)
+                        .frame(maxWidth: .infinity)
                 }
-                .frame(width: 44)
-
-                Button {
-                    isServiceSheetPresented = true
-                } label: {
-                    Image(systemName: "gearshape")
-                        .font(.system(size: 26, weight: .regular))
-                        .foregroundStyle(AppDesign.iconSoft)
-                        .frame(width: 44, height: 44)
-                }
-                .buttonStyle(.plain)
             }
             .frame(maxWidth: .infinity)
-            .padding(.top, 18)
-            .padding(.bottom, 28)
+            .padding(.top, 12)
+            .padding(.bottom, 22)
             .background(.ultraThinMaterial)
             .overlay(alignment: .top) {
                 Rectangle()
@@ -766,6 +802,35 @@ struct AdminHomeView: View {
             }
         }
         .ignoresSafeArea(edges: .bottom)
+    }
+
+    private func adminBottomTabButton(_ tab: AdminMainTab) -> some View {
+        let isSelected = selectedMainTab == tab
+
+        return Button {
+            selectedMainTab = tab
+        } label: {
+            VStack(spacing: 6) {
+                Image(systemName: tab.systemImage)
+                    .font(.system(size: tab == .bikes ? 24 : 22, weight: isSelected ? .bold : .regular))
+                    .foregroundStyle(isSelected ? Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255) : AppDesign.iconSoft)
+                    .frame(height: 25)
+
+                Text(tab.title)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(isSelected ? Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255) : AppDesign.iconSoft)
+                    .lineLimit(1)
+
+                Circle()
+                    .fill(isSelected ? Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255) : Color.clear)
+                    .frame(width: 6, height: 6)
+            }
+            .frame(width: 96, height: 54)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(tab.accessibilityIdentifier)
+        .accessibilityValue(isSelected ? "selected" : "normal")
     }
 
     private var emptyRentalsView: some View {
@@ -785,7 +850,7 @@ struct AdminHomeView: View {
 
             HStack(spacing: 10) {
                 Button("Каталог клиентов") {
-                    isClientCatalogPresented = true
+                    selectedMainTab = .clients
                 }
                 .buttonStyle(.bordered)
                 .accessibilityIdentifier("admin.emptyOpenClientCatalogButton")
@@ -2049,85 +2114,18 @@ private struct AdminRentalDetailsScreen: View {
     }()
 }
 
-private struct AdminServiceSheet: View {
-    let onOpenClientsCatalog: () -> Void
-    let onOpenBikeCatalog: () -> Void
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 12) {
-                serviceActionCard(
-                    title: "Клиенты",
-                    subtitle: "Список всех клиентов и редактирование",
-                    icon: "person.2.fill",
-                    action: onOpenClientsCatalog
-                )
-                .accessibilityIdentifier("admin.service.clientsCatalogButton")
-
-                serviceActionCard(
-                    title: "Велосипеды",
-                    subtitle: "Список всех велосипедов и базовое редактирование",
-                    icon: "list.bullet.rectangle",
-                    action: onOpenBikeCatalog
-                )
-                .accessibilityIdentifier("admin.service.bikesCatalogButton")
-                Spacer()
-            }
-            .padding(16)
-            .background(AppDesign.pageBackground.ignoresSafeArea())
-            .navigationTitle("Сервис")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Закрыть") { dismiss() }
-                }
-            }
-        }
-    }
-
-    private func serviceActionCard(
-        title: String,
-        subtitle: String,
-        icon: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                Image(systemName: icon)
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(AppDesign.accent)
-                    .frame(width: 40, height: 40)
-                    .background(AppDesign.surfaceBackground)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.headline)
-                        .foregroundStyle(AppDesign.titleText)
-                    Text(subtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(AppDesign.subtleText)
-                        .multilineTextAlignment(.leading)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(AppDesign.subtleText)
-            }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(AppDesign.cardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        }
-        .buttonStyle(.plain)
-    }
-}
-
 private struct CreateClientSheet: View {
     let isSaving: Bool
     let apiErrorMessage: String?
     let onCancel: () -> Void
     let onCreate: (CreateClientPayload) -> Void
+
+    private let ebonyClay = Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255)
+    private let paleSky = Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255)
+    private let ghost = Color(red: 201 / 255, green: 204 / 255, blue: 210 / 255)
+    private let grayChateau = Color(red: 152 / 255, green: 161 / 255, blue: 173 / 255)
+    private let athensGray = Color(red: 247 / 255, green: 248 / 255, blue: 250 / 255)
+    private let alto = Color(red: 218 / 255, green: 218 / 255, blue: 218 / 255)
 
     @State private var fullName = ""
     @State private var address = ""
@@ -2135,75 +2133,107 @@ private struct CreateClientSheet: View {
     @State private var phones: [CreateClientPhoneDraft] = [
         CreateClientPhoneDraft(label: "Рабочий (TG)", number: "")
     ]
+    @State private var isCommentVisible = false
+    @State private var comment = ""
     @State private var validationError: String?
 
     var body: some View {
-        NavigationStack {
-            Form {
-                if let validationError {
-                    Section {
-                        Text(validationError)
-                            .foregroundStyle(AppDesign.danger)
-                            .accessibilityIdentifier("createClient.validationError")
-                    }
-                }
+        GeometryReader { proxy in
+            let horizontalPadding: CGFloat = proxy.size.width >= 416 ? 23 : 24
+            let fieldWidth = max(0, proxy.size.width - horizontalPadding * 2)
 
-                if let apiErrorMessage, !apiErrorMessage.isEmpty {
-                    Section {
-                        Text(apiErrorMessage)
-                            .foregroundStyle(AppDesign.danger)
-                            .accessibilityIdentifier("createClient.apiError")
-                    }
-                }
+            ZStack(alignment: .top) {
+                athensGray.ignoresSafeArea()
 
-                Section("Профиль") {
-                    TextField("ФИО", text: $fullName)
-                        .accessibilityIdentifier("createClient.fullNameField")
-                    TextField("Адрес", text: $address)
-                        .accessibilityIdentifier("createClient.addressField")
-                    TextField("Паспортные данные", text: $passportData)
-                        .accessibilityIdentifier("createClient.passportField")
-                }
+                VStack(spacing: 0) {
+                    createClientTopBar(horizontalPadding: horizontalPadding)
+                        .padding(.top, 41)
 
-                Section("Телефоны") {
-                    ForEach(Array(phones.indices), id: \.self) { index in
-                        TextField("Подпись", text: $phones[index].label)
-                            .accessibilityIdentifier(
-                                index == 0
-                                    ? "createClient.phoneLabel1Field"
-                                    : "createClient.phoneLabelField.\(index)"
+                    ScrollView(showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: 18) {
+                            sectionTitle("Профиль")
+
+                            createClientInput(
+                                label: "ФИО",
+                                placeholder: "введите...",
+                                text: $fullName,
+                                accessibilityIdentifier: "createClient.fullNameField"
                             )
-                        TextField("Телефон", text: $phones[index].number)
-                            .keyboardType(.phonePad)
-                            .accessibilityIdentifier(
-                                index == 0
-                                    ? "createClient.phoneNumber1Field"
-                                    : "createClient.phoneNumberField.\(index)"
+                            createClientInput(
+                                label: "Адрес",
+                                placeholder: "введите...",
+                                text: $address,
+                                accessibilityIdentifier: "createClient.addressField"
                             )
+                            createClientInput(
+                                label: "Паспортные данные",
+                                placeholder: "введите...",
+                                text: $passportData,
+                                accessibilityIdentifier: "createClient.passportField"
+                            )
+
+                            sectionTitle("Телефоны")
+                                .padding(.top, 6)
+
+                            ForEach(Array(phones.indices), id: \.self) { index in
+                                createClientInput(
+                                    label: "Подпись",
+                                    placeholder: "введите...",
+                                    text: $phones[index].label,
+                                    accessibilityIdentifier: index == 0
+                                        ? "createClient.phoneLabel1Field"
+                                        : "createClient.phoneLabelField.\(index)",
+                                    valueWeight: .bold
+                                )
+                                createClientInput(
+                                    label: "Телефон",
+                                    placeholder: "+7 …",
+                                    text: $phones[index].number,
+                                    accessibilityIdentifier: index == 0
+                                        ? "createClient.phoneNumber1Field"
+                                        : "createClient.phoneNumberField.\(index)",
+                                    keyboardType: .phonePad
+                                )
+                            }
+
+                            dashedActionButton(
+                                title: "+ Добавить телефон",
+                                accessibilityIdentifier: "createClient.addPhoneButton"
+                            ) {
+                                phones.append(CreateClientPhoneDraft(label: "", number: ""))
+                            }
+
+                            if isCommentVisible {
+                                createClientInput(
+                                    label: "Комментарий",
+                                    placeholder: "введите...",
+                                    text: $comment,
+                                    accessibilityIdentifier: "createClient.commentField"
+                                )
+                            }
+
+                            dashedActionButton(
+                                title: "+ Добавить комментарий",
+                                accessibilityIdentifier: "createClient.addCommentButton"
+                            ) {
+                                isCommentVisible = true
+                            }
+
+                            createClientErrorBlock
+                        }
+                        .frame(width: fieldWidth, alignment: .leading)
+                        .padding(.top, 16)
+                        .padding(.bottom, 126)
                     }
-                    Button("Добавить телефон") {
-                        phones.append(CreateClientPhoneDraft(label: "", number: ""))
-                    }
-                    .accessibilityIdentifier("createClient.addPhoneButton")
+                    .scrollDismissesKeyboard(.interactively)
+                    .padding(.horizontal, horizontalPadding)
                 }
 
-            }
-            .navigationTitle("Новый клиент")
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Отмена") {
-                        onCancel()
-                    }
-                    .disabled(isSaving)
-                    .accessibilityIdentifier("createClient.cancelButton")
+                VStack {
+                    Spacer()
+                    createClientBottomBar
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(isSaving ? "Сохраняем..." : "Создать") {
-                        submit()
-                    }
-                    .disabled(isSaving)
-                    .accessibilityIdentifier("createClient.submitButton")
-                }
+                .ignoresSafeArea(.keyboard, edges: .bottom)
             }
         }
     }
@@ -2223,6 +2253,192 @@ private struct CreateClientSheet: View {
         case let .failure(error):
             validationError = error.localizedDescription
         }
+    }
+
+    private func createClientTopBar(horizontalPadding: CGFloat) -> some View {
+        HStack {
+            Button {
+                onCancel()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(ebonyClay)
+                    .frame(width: 47, height: 47)
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(ebonyClay, lineWidth: 1)
+                    }
+            }
+            .disabled(isSaving)
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("createClient.cancelButton")
+
+            Spacer()
+
+            Text("Новый клиент")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(ebonyClay)
+                .lineLimit(1)
+
+            Spacer()
+
+            Button {
+                submit()
+            } label: {
+                Group {
+                    if isSaving {
+                        ProgressView()
+                            .tint(Color.white)
+                    } else {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(Color.white)
+                    }
+                }
+                .frame(width: 47, height: 47)
+                .background(ebonyClay)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(ebonyClay, lineWidth: 1)
+                }
+            }
+            .disabled(isSaving)
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("createClient.submitButton")
+        }
+        .padding(.horizontal, horizontalPadding)
+        .frame(height: 45)
+    }
+
+    private func sectionTitle(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 11, weight: .bold))
+            .tracking(0.88)
+            .textCase(.uppercase)
+            .foregroundStyle(paleSky)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityIdentifier("createClient.section.\(title)")
+    }
+
+    private func createClientInput(
+        label: String,
+        placeholder: String,
+        text: Binding<String>,
+        accessibilityIdentifier: String,
+        valueWeight: Font.Weight = .regular,
+        keyboardType: UIKeyboardType = .default
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.system(size: 11, weight: .regular))
+                .tracking(0.66)
+                .textCase(.uppercase)
+                .foregroundStyle(paleSky)
+
+            TextField("", text: text, prompt: Text(placeholder).foregroundColor(ghost))
+                .font(.system(size: 13, weight: valueWeight))
+                .foregroundStyle(ebonyClay)
+                .keyboardType(keyboardType)
+                .textInputAutocapitalization(label == "ФИО" ? .words : .sentences)
+                .autocorrectionDisabled()
+                .accessibilityIdentifier(accessibilityIdentifier)
+        }
+        .padding(.horizontal, 19)
+        .frame(height: 58)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 12.84, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12.84, style: .continuous)
+                .stroke(ebonyClay, lineWidth: 1)
+        }
+    }
+
+    private func dashedActionButton(
+        title: String,
+        accessibilityIdentifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 14, weight: .bold))
+                .tracking(0.28)
+                .foregroundStyle(ebonyClay)
+                .frame(maxWidth: .infinity)
+                .frame(height: 52)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(grayChateau, style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                }
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(accessibilityIdentifier)
+    }
+
+    @ViewBuilder
+    private var createClientErrorBlock: some View {
+        if validationError != nil || (apiErrorMessage?.isEmpty == false) {
+            VStack(alignment: .leading, spacing: 8) {
+                if let validationError {
+                    Text(validationError)
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(AppDesign.danger)
+                        .accessibilityIdentifier("createClient.validationError")
+                }
+
+                if let apiErrorMessage, !apiErrorMessage.isEmpty {
+                    Text(apiErrorMessage)
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(AppDesign.danger)
+                        .accessibilityIdentifier("createClient.apiError")
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+    }
+
+    private var createClientBottomBar: some View {
+        HStack(spacing: 31.5) {
+            tabPlaceholder(isSelected: false)
+            tabPlaceholder(isSelected: false)
+            tabPlaceholder(isSelected: true)
+            tabPlaceholder(isSelected: false)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 106, alignment: .top)
+        .padding(.top, 20)
+        .background(Color(red: 252 / 255, green: 252 / 255, blue: 253 / 255).opacity(0.85))
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(alto)
+                .frame(height: 1)
+        }
+    }
+
+    private func tabPlaceholder(isSelected: Bool) -> some View {
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .fill(isSelected ? ebonyClay : Color.white)
+            .frame(width: 32, height: 32)
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(ebonyClay, lineWidth: 1)
+            }
+            .overlay(alignment: .bottom) {
+                if isSelected {
+                    Circle()
+                        .fill(ebonyClay)
+                        .frame(width: 7, height: 7)
+                        .offset(y: 14)
+                }
+            }
     }
 }
 
@@ -2386,94 +2602,59 @@ private struct ClientCatalogSheet: View {
     let clients: [AdminClientSummaryResponse]
     let isSaving: Bool
     let apiErrorMessage: String?
+    var showsCloseButton: Bool = true
     let onCancel: () -> Void
     let onCreate: (CreateClientPayload, @escaping () -> Void) -> Void
     let onOpenClient: (AdminClientSummaryResponse) -> Void
 
     @State private var isCreateClientPresented = false
+    @State private var searchText = ""
+    @State private var selectedFilter: ClientCatalogFilter = .all
+
+    private let athensGray = Color(red: 247 / 255, green: 248 / 255, blue: 250 / 255)
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if clients.isEmpty {
-                    VStack(spacing: 12) {
-                        Image(systemName: "person.2.fill")
-                            .font(.system(size: 30, weight: .semibold))
-                            .foregroundStyle(AppDesign.iconSoft)
-                        Text("Список клиентов пуст")
-                            .font(.headline)
-                            .foregroundStyle(AppDesign.titleText)
-                        Text("Создайте первого клиента внутри этого списка.")
-                            .font(.subheadline)
-                            .foregroundStyle(AppDesign.subtleText)
-                            .multilineTextAlignment(.center)
-                        Button("Создать клиента") {
-                            isCreateClientPresented = true
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .accessibilityIdentifier("clientCatalog.emptyCreateClientButton")
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding(24)
-                } else {
-                    List {
+        ZStack(alignment: .top) {
+            athensGray.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                clientHeader
+
+                Group {
+                    if visibleClients.isEmpty {
                         if let apiErrorMessage, !apiErrorMessage.isEmpty {
-                            Section {
-                                Text(apiErrorMessage)
-                                    .foregroundStyle(AppDesign.danger)
-                            }
+                            Text(apiErrorMessage)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(AppDesign.danger)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(16)
+                                .background(Color.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+                                .padding(.horizontal, 23)
+                                .padding(.top, 14)
+                                .accessibilityIdentifier("clientCatalog.error")
                         }
-
-                        ForEach(clients) { client in
-                            Button {
-                                onOpenClient(client)
-                            } label: {
-                                HStack(spacing: 12) {
-                                    Image(systemName: "person.crop.circle")
-                                        .font(.system(size: 28, weight: .semibold))
-                                        .foregroundStyle(AppDesign.iconSoft)
-                                        .frame(width: 48, height: 48)
-                                        .background(AppDesign.surfaceBackground)
-                                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(client.fullName)
-                                            .font(.headline)
-                                            .foregroundStyle(AppDesign.titleText)
-                                        if let login = client.clientLogin, !login.isEmpty {
-                                            Text("Логин: \(login)")
-                                                .font(.subheadline)
-                                                .foregroundStyle(AppDesign.subtleText)
-                                        }
-                                        Text(client.bikeModel)
-                                            .font(.caption)
-                                            .foregroundStyle(AppDesign.subtleText)
-                                    }
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(AppDesign.subtleText)
+                        emptyState
+                            .padding(.horizontal, 23)
+                            .padding(.top, 14)
+                    } else {
+                        List {
+                            if let apiErrorMessage, !apiErrorMessage.isEmpty {
+                                Section {
+                                    Text(apiErrorMessage)
+                                        .foregroundStyle(AppDesign.danger)
                                 }
                             }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("clientCatalog.open.\(client.fullName)")
+
+                            ForEach(visibleClients) { client in
+                                clientRow(client)
+                            }
                         }
+                        .listStyle(.plain)
+                        .scrollContentBackground(.hidden)
                     }
-                    .scrollContentBackground(.hidden)
-                    .background(AppDesign.pageBackground.ignoresSafeArea())
                 }
-            }
-            .navigationTitle("Клиенты")
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Закрыть") { onCancel() }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Новый клиент") {
-                        isCreateClientPresented = true
-                    }
-                    .accessibilityIdentifier("clientCatalog.addClientButton")
-                }
+                .padding(.bottom, showsCloseButton ? 0 : 106)
             }
         }
         .sheet(isPresented: $isCreateClientPresented) {
@@ -2490,12 +2671,221 @@ private struct ClientCatalogSheet: View {
             .presentationDetents([.large])
         }
     }
+
+    private var visibleClients: [AdminClientSummaryResponse] {
+        let normalizedQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let searched = clients.filter { client in
+            guard !normalizedQuery.isEmpty else { return true }
+            return client.fullName.lowercased().contains(normalizedQuery)
+                || client.bikeModel.lowercased().contains(normalizedQuery)
+                || (client.clientLogin?.lowercased().contains(normalizedQuery) ?? false)
+        }
+
+        switch selectedFilter {
+        case .all:
+            return searched
+        case .debtors:
+            return searched.filter { $0.debtRub > 0 }
+        case .active:
+            return searched.filter { $0.rentalIsActive }
+        }
+    }
+
+    private var clientHeader: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            clientTopBar
+                .frame(height: 62)
+
+            searchField
+                .padding(.horizontal, 8)
+                .padding(.top, 6)
+
+            HStack(spacing: 8) {
+                clientFilterChip(.all, count: clients.count)
+                clientFilterChip(.debtors, count: clients.filter { $0.debtRub > 0 }.count)
+                clientFilterChip(.active, count: clients.filter { $0.rentalIsActive }.count)
+            }
+            .padding(.horizontal, 8)
+            .padding(.top, 10)
+        }
+        .background(athensGray)
+        .accessibilityIdentifier("clientCatalog.header")
+    }
+
+    private var clientTopBar: some View {
+        HStack {
+            headerIconButton(
+                systemName: showsCloseButton ? "xmark" : "rectangle.portrait.and.arrow.right",
+                accessibilityIdentifier: showsCloseButton ? "clientCatalog.closeButton" : "clientCatalog.logoutButton",
+                action: onCancel
+            )
+
+            Spacer()
+
+            Text("Клиенты")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
+
+            Spacer()
+
+            headerIconButton(
+                systemName: "plus",
+                accessibilityIdentifier: "clientCatalog.addClientButton",
+                action: { isCreateClientPresented = true }
+            )
+        }
+        .padding(.horizontal, 8)
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(AppDesign.titleText)
+
+            TextField("Поиск: ФИО, телефон, паспорт", text: $searchText)
+                .font(.system(size: 13, weight: .regular))
+                .foregroundStyle(AppDesign.titleText)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+        }
+        .padding(.horizontal, 15)
+        .frame(height: 46)
+        .background(Color.white)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12.84, style: .continuous)
+                .stroke(AppDesign.accent, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12.84, style: .continuous))
+        .accessibilityIdentifier("clientCatalog.searchField")
+    }
+
+    private func clientFilterChip(_ filter: ClientCatalogFilter, count: Int) -> some View {
+        let isSelected = selectedFilter == filter
+
+        return Button {
+            selectedFilter = filter
+        } label: {
+            HStack(spacing: 6) {
+                Text(filter.title)
+                    .font(.system(size: 12, weight: .bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .allowsTightening(true)
+
+                Text("\(count)")
+                    .font(.system(size: 10, weight: .bold))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(isSelected ? Color.white.opacity(0.2) : Color.black.opacity(0.08))
+                    .clipShape(Capsule())
+            }
+            .foregroundStyle(isSelected ? Color.white : AppDesign.accent)
+            .padding(.horizontal, 15)
+            .frame(height: 36)
+            .background(isSelected ? AppDesign.accent : Color.white)
+            .overlay(
+                RoundedRectangle(cornerRadius: 999, style: .continuous)
+                    .stroke(AppDesign.accent, lineWidth: 1)
+            )
+            .clipShape(Capsule())
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(filter.accessibilityIdentifier)
+        .accessibilityValue(isSelected ? "selected" : "normal")
+    }
+
+    private func headerIconButton(
+        systemName: String,
+        accessibilityIdentifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(AppDesign.accent, lineWidth: 1)
+                )
+                .overlay(
+                    Image(systemName: systemName)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(AppDesign.accent)
+                )
+                .frame(width: 47, height: 47)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(accessibilityIdentifier)
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "person.2.fill")
+                .font(.system(size: 30, weight: .semibold))
+                .foregroundStyle(AppDesign.iconSoft)
+            Text("Список клиентов пуст")
+                .font(.headline)
+                .foregroundStyle(AppDesign.titleText)
+            Text("Создайте первого клиента внутри этого списка.")
+                .font(.subheadline)
+                .foregroundStyle(AppDesign.subtleText)
+                .multilineTextAlignment(.center)
+            Button("Создать клиента") {
+                isCreateClientPresented = true
+            }
+            .buttonStyle(.borderedProminent)
+            .accessibilityIdentifier("clientCatalog.emptyCreateClientButton")
+        }
+        .frame(maxWidth: .infinity)
+        .padding(24)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+    }
+
+    private func clientRow(_ client: AdminClientSummaryResponse) -> some View {
+        Button {
+            onOpenClient(client)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "person.crop.circle")
+                    .font(.system(size: 28, weight: .semibold))
+                    .foregroundStyle(AppDesign.iconSoft)
+                    .frame(width: 48, height: 48)
+                    .background(AppDesign.surfaceBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(client.fullName)
+                        .font(.headline)
+                        .foregroundStyle(AppDesign.titleText)
+                    if let login = client.clientLogin, !login.isEmpty {
+                        Text("Логин: \(login)")
+                            .font(.subheadline)
+                            .foregroundStyle(AppDesign.subtleText)
+                    }
+                    Text(client.bikeModel)
+                        .font(.caption)
+                        .foregroundStyle(AppDesign.subtleText)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppDesign.subtleText)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("clientCatalog.open.\(client.fullName)")
+    }
 }
 
 private struct BikeCatalogSheet: View {
     let bikes: [AdminBikeResponse]
     let isSaving: Bool
     let apiErrorMessage: String?
+    var showsCloseButton: Bool = true
     let onCancel: () -> Void
     let onCreate: (CreateBikePayload, @escaping () -> Void) -> Void
     let onSave: (UpdateBikePayload) -> Void
@@ -2588,8 +2978,10 @@ private struct BikeCatalogSheet: View {
             }
             .navigationTitle("Велосипеды")
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Закрыть") { onCancel() }
+                if showsCloseButton {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Закрыть") { onCancel() }
+                    }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Новый велосипед") {

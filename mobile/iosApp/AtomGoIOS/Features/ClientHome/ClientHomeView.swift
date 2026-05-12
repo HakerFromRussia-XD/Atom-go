@@ -66,7 +66,6 @@ struct ClientHomeView: View {
                   payment.status != "succeeded",
                   payment.status != "canceled",
                   payment.status != "failed",
-                  !(payment.taxMode == "individual_entrepreneur" && payment.fiscalizationStatus == "fiscalization_not_configured"),
                   let url = URL(string: payment.confirmationUrl),
                   activePaymentId != payment.paymentId
             else { return }
@@ -102,12 +101,8 @@ struct ClientHomeView: View {
                 .autocorrectionDisabled()
                 .accessibilityIdentifier("client.receiptEmailField")
 
-            Button("Продолжить") {
-                if let pendingPaymentType {
-                    viewModel.createPayment(type: pendingPaymentType, receiptEmail: receiptEmail)
-                }
-                pendingPaymentType = nil
-                receiptEmail = ""
+            Button(pendingPaymentType == nil ? "Сохранить" : "Продолжить") {
+                submitReceiptEmail()
             }
             .accessibilityIdentifier("client.receiptEmailSubmitButton")
 
@@ -307,6 +302,34 @@ struct ClientHomeView: View {
                     Text("\(moneyText(dashboard.presets.weekRub))/нед")
                         .font(.system(size: 12 * scale, weight: .medium))
                         .foregroundStyle(ClientColors.subtleText)
+
+                    if shouldShowReceiptEmailRow(for: dashboard) {
+                        HStack(spacing: 6 * scale) {
+                            Text(receiptEmailText(for: dashboard))
+                                .font(.system(size: 10 * scale, weight: .medium))
+                                .foregroundStyle(receiptEmailColor(for: dashboard))
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+
+                            Button {
+                                openReceiptEmailEditor(dashboard: dashboard)
+                            } label: {
+                                Image(systemName: "square.and.pencil")
+                                    .font(.system(size: 10 * scale, weight: .semibold))
+                                    .foregroundStyle(ClientColors.mainText)
+                                    .frame(width: 20 * scale, height: 20 * scale)
+                                    .background(Color.white.opacity(0.9))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 6 * scale, style: .continuous)
+                                            .stroke(ClientColors.borderSoft, lineWidth: 1)
+                                    )
+                                    .clipShape(RoundedRectangle(cornerRadius: 6 * scale, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("client.receiptEmailEditButton")
+                        }
+                        .padding(.top, 1 * scale)
+                    }
                 }
 
                 Spacer(minLength: 0)
@@ -617,12 +640,51 @@ struct ClientHomeView: View {
 
         if dashboard.requiresReceiptEmail {
             pendingPaymentType = type
-            receiptEmail = ""
+            receiptEmail = dashboard.receiptEmail ?? ""
             isReceiptEmailDialogPresented = true
             return
         }
 
         viewModel.createPayment(type: type)
+    }
+
+    private func submitReceiptEmail() {
+        let trimmedEmail = receiptEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedEmail.isEmpty else {
+            viewModel.paymentErrorMessage = "Укажите email для чека."
+            return
+        }
+
+        if let pendingPaymentType {
+            viewModel.createPayment(type: pendingPaymentType, receiptEmail: trimmedEmail)
+        } else {
+            viewModel.updateReceiptEmail(trimmedEmail)
+        }
+
+        self.pendingPaymentType = nil
+        receiptEmail = ""
+    }
+
+    private func openReceiptEmailEditor(dashboard: ClientDashboardResponse) {
+        pendingPaymentType = nil
+        receiptEmail = dashboard.receiptEmail ?? ""
+        isReceiptEmailDialogPresented = true
+    }
+
+    private func shouldShowReceiptEmailRow(for dashboard: ClientDashboardResponse) -> Bool {
+        let isIndividualEntrepreneur = dashboard.taxMode == "individual_entrepreneur"
+        let hasEmail = !(dashboard.receiptEmail?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+        return isIndividualEntrepreneur || hasEmail
+    }
+
+    private func receiptEmailText(for dashboard: ClientDashboardResponse) -> String {
+        let value = dashboard.receiptEmail?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return value.isEmpty ? "Email для чека не указан" : value
+    }
+
+    private func receiptEmailColor(for dashboard: ClientDashboardResponse) -> Color {
+        let hasEmail = !(dashboard.receiptEmail?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+        return hasEmail ? ClientColors.mainText : ClientColors.subtleText
     }
 
     private func amountFor(_ type: ClientPaymentType, presets: ClientPaymentPresets) -> Int {

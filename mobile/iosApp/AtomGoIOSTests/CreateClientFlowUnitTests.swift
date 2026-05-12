@@ -195,7 +195,7 @@ final class CreateClientFlowUnitTests: XCTestCase {
     }
 
     func testRentalDetailsDisplayPolicyForActiveRentalShowsRealValues() {
-        let policy = RentalDetailsDisplayPolicy(rentalIsActive: true)
+        let policy = RentalDetailsDisplayPolicy(rentalIsActive: true, isInStockState: false)
 
         XCTAssertEqual(policy.metricText(activeValue: "+3 500 ₽"), "+3 500 ₽")
         XCTAssertEqual(policy.correctionLineText(formattedAdjustment: "−1 000 ₽"), "Корректировка: −1 000 ₽")
@@ -222,19 +222,19 @@ final class CreateClientFlowUnitTests: XCTestCase {
     }
 
     func testRentalDetailsDisplayPolicyReadOnlyCredentialPrefersServerValue() {
-        let policy = RentalDetailsDisplayPolicy(rentalIsActive: true)
+        let policy = RentalDetailsDisplayPolicy(rentalIsActive: true, isInStockState: false)
         let value = policy.readOnlyCredentialText(serverValue: "client1", draftValue: "")
         XCTAssertEqual(value, "client1")
     }
 
     func testRentalDetailsDisplayPolicyReadOnlyCredentialFallsBackToDraft() {
-        let policy = RentalDetailsDisplayPolicy(rentalIsActive: true)
+        let policy = RentalDetailsDisplayPolicy(rentalIsActive: true, isInStockState: false)
         let value = policy.readOnlyCredentialText(serverValue: nil, draftValue: "client_draft")
         XCTAssertEqual(value, "client_draft")
     }
 
     func testRentalDetailsDisplayPolicyReadOnlyCredentialReturnsDashWhenBothMissing() {
-        let policy = RentalDetailsDisplayPolicy(rentalIsActive: true)
+        let policy = RentalDetailsDisplayPolicy(rentalIsActive: true, isInStockState: false)
         let value = policy.readOnlyCredentialText(serverValue: " ", draftValue: " ")
         XCTAssertEqual(value, "—")
     }
@@ -549,6 +549,109 @@ final class CreateClientFlowUnitTests: XCTestCase {
     }
 
     @MainActor
+    func testClientPaymentCreateWithReceiptEmailUpdatesEmailBeforePayment() async {
+        let service = MockAdminBackendService()
+        service.fetchClientDashboardResult = .success(service.sampleDashboard)
+        service.createPaymentResult = .success(service.samplePayment)
+        let viewModel = ClientHomeViewModel(
+            session: AuthSession(accessToken: "token", role: .client, userId: "user-client-001"),
+            apiService: service
+        )
+
+        viewModel.load()
+        await waitUntilClientDashboardLoads(viewModel)
+        viewModel.createPayment(type: .week, receiptEmail: "client@example.com")
+        await waitUntilPaymentCreateCompletes(viewModel)
+
+        XCTAssertEqual(service.updateReceiptEmailCallsCount, 1)
+        XCTAssertEqual(service.lastUpdatedReceiptEmail, "client@example.com")
+        XCTAssertEqual(viewModel.paymentResult?.paymentId, "payment-001")
+    }
+
+    @MainActor
+    func testIpPaymentWithYooKassaReceiptPendingShowsSuccessMessage() async {
+        let service = MockAdminBackendService()
+        service.fetchClientDashboardResult = .success(service.sampleDashboard)
+        service.createPaymentResult = .success(
+            PaymentCreationResponse(
+                paymentId: "payment-ip-001",
+                amountRub: 3000,
+                confirmationUrl: "https://example.test/pay/payment-ip-001",
+                idempotenceKey: "idem-ip-001",
+                status: "pending",
+                taxMode: "individual_entrepreneur",
+                fiscalizationStatus: "yookassa_receipt_pending"
+            )
+        )
+        let viewModel = ClientHomeViewModel(
+            session: AuthSession(accessToken: "token", role: .client, userId: "user-client-001"),
+            apiService: service
+        )
+
+        viewModel.load()
+        await waitUntilClientDashboardLoads(viewModel)
+        viewModel.createPayment(type: .week)
+        await waitUntilPaymentCreateCompletes(viewModel)
+
+        XCTAssertNil(viewModel.paymentErrorMessage)
+        XCTAssertEqual(
+            viewModel.paymentStatusMessage,
+            "Платеж создан. Чек будет отправлен на email после обработки ЮKassa."
+        )
+    }
+
+    @MainActor
+    func testIpPaymentWithoutReceiptRegistrationShowsFiscalizationWarning() async {
+        let service = MockAdminBackendService()
+        service.fetchClientDashboardResult = .success(service.sampleDashboard)
+        service.createPaymentResult = .success(
+            PaymentCreationResponse(
+                paymentId: "payment-ip-002",
+                amountRub: 3000,
+                confirmationUrl: "https://example.test/pay/payment-ip-002",
+                idempotenceKey: "idem-ip-002",
+                status: "pending",
+                taxMode: "individual_entrepreneur",
+                fiscalizationStatus: "fiscalization_not_configured"
+            )
+        )
+        let viewModel = ClientHomeViewModel(
+            session: AuthSession(accessToken: "token", role: .client, userId: "user-client-001"),
+            apiService: service
+        )
+
+        viewModel.load()
+        await waitUntilClientDashboardLoads(viewModel)
+        viewModel.createPayment(type: .week)
+        await waitUntilPaymentCreateCompletes(viewModel)
+
+        XCTAssertNil(viewModel.paymentErrorMessage)
+        XCTAssertEqual(
+            viewModel.paymentStatusMessage,
+            "Платеж создан. Чек 54-ФЗ не будет отправлен, пока в ЮKassa не настроена фискализация магазина."
+        )
+    }
+
+    @MainActor
+    func testClientHomeUpdateReceiptEmailCallsBackend() async {
+        let service = MockAdminBackendService()
+        service.fetchClientDashboardResult = .success(service.sampleDashboard)
+        let viewModel = ClientHomeViewModel(
+            session: AuthSession(accessToken: "token", role: .client, userId: "user-client-001"),
+            apiService: service
+        )
+
+        viewModel.load()
+        await waitUntilClientDashboardLoads(viewModel)
+        viewModel.updateReceiptEmail("saved@example.com")
+        await waitUntilReceiptEmailUpdateCalls(service, expected: 1)
+
+        XCTAssertEqual(service.lastUpdatedReceiptEmail, "saved@example.com")
+        XCTAssertEqual(viewModel.paymentStatusMessage, "Email для чека сохранен.")
+        XCTAssertNil(viewModel.paymentErrorMessage)
+    }
+
+    @MainActor
     func testClientPaymentStatusSuccessRefreshesDashboard() async {
         let service = MockAdminBackendService()
         service.fetchClientDashboardResult = .success(service.sampleDashboard)
@@ -638,6 +741,17 @@ final class CreateClientFlowUnitTests: XCTestCase {
         }
         XCTFail("Payment status refresh did not complete in time")
     }
+
+    @MainActor
+    private func waitUntilReceiptEmailUpdateCalls(_ service: MockAdminBackendService, expected: Int) async {
+        for _ in 0 ..< 200 {
+            if service.updateReceiptEmailCallsCount >= expected {
+                return
+            }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        XCTFail("Receipt email update did not complete in time")
+    }
 }
 
 final class ClientDashboardPresentationLogicTests: XCTestCase {
@@ -694,6 +808,8 @@ private final class MockAdminBackendService: BackendServicing {
     var deleteRentalResult: Result<DeleteRentalResult, Error> = .failure(BackendError.invalidResponse)
     var createPaymentResult: Result<PaymentCreationResponse, Error> = .failure(BackendError.invalidResponse)
     var paymentStatusResult: Result<PaymentStatusResponse, Error> = .failure(BackendError.invalidResponse)
+    var updateReceiptEmailCallsCount = 0
+    var lastUpdatedReceiptEmail: String?
     var fetchAdminRentsCallsCount = 0
     var createRentalCallsCount = 0
     var updateRentalCallsCount = 0
@@ -819,7 +935,10 @@ private final class MockAdminBackendService: BackendServicing {
         try fetchRentalDetailsResult.get()
     }
 
-    func updateClientReceiptEmail(accessToken _: String, email _: String) async throws {}
+    func updateClientReceiptEmail(accessToken _: String, email: String) async throws {
+        updateReceiptEmailCallsCount += 1
+        lastUpdatedReceiptEmail = email
+    }
 
     func createPayment(accessToken _: String, paymentType _: ClientPaymentType) async throws -> PaymentCreationResponse {
         try createPaymentResult.get()
