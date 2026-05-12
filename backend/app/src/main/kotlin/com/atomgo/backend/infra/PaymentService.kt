@@ -69,11 +69,16 @@ class PaymentService(
         val taxMode: AdminTaxMode
     )
 
-    fun createPayment(clientId: String, paymentType: PaymentType, now: LocalDate = LocalDate.now()): PaymentRecord {
+    fun createPayment(
+        clientId: String,
+        paymentType: PaymentType,
+        rentalId: String? = null,
+        now: LocalDate = LocalDate.now()
+    ): PaymentRecord {
         val client = store.clients.firstOrNull { it.id == clientId }
             ?: throw IllegalArgumentException("Client not found")
 
-        val terms = resolveBillingTerms(clientId = clientId, asOf = now)
+        val terms = resolveBillingTerms(clientId = clientId, asOf = now, rentalId = rentalId)
 
         val debt = LedgerCalculator.debtRub(
             clientId = clientId,
@@ -316,7 +321,7 @@ class PaymentService(
             ?: return WebhookResult(applied = applied, message = message, paymentId = payment.id)
 
         val terms = try {
-            resolveBillingTerms(clientId = payment.clientId, asOf = now)
+            resolveBillingTerms(clientId = payment.clientId, asOf = now, rentalId = payment.rentalId)
         } catch (_: Throwable) {
             return WebhookResult(applied = applied, message = message, paymentId = payment.id, clientId = payment.clientId)
         }
@@ -338,23 +343,24 @@ class PaymentService(
         )
     }
 
-    private fun resolveBillingTerms(clientId: String, asOf: LocalDate): BillingTerms {
+    private fun resolveBillingTerms(clientId: String, asOf: LocalDate, rentalId: String? = null): BillingTerms {
         val client = store.clients.firstOrNull { it.id == clientId }
             ?: throw IllegalStateException("Client not found")
-        val clientRentals = store.rentals
+        val scopedRentals = store.rentals
             .asSequence()
             .filter { it.clientId == clientId }
+            .filter { rental -> rentalId == null || rental.id == rentalId }
             .sortedByDescending { it.startDate }
             .toList()
-        if (clientRentals.isEmpty()) {
+        if (scopedRentals.isEmpty()) {
             throw IllegalStateException("Client has no rentals")
         }
 
-        val activeRental = clientRentals
+        val activeRental = scopedRentals
             .firstOrNull { rental ->
                 rental.startDate <= asOf && (rental.endDate == null || rental.endDate.isAfter(asOf))
             }
-            ?: clientRentals.first()
+            ?: scopedRentals.first()
 
         val bike = store.bikes.firstOrNull { it.id == activeRental.bikeId }
             ?: throw IllegalStateException("Bike not found for active rental")

@@ -36,18 +36,21 @@ enum class LedgerType { CHARGE, PAYMENT, ADJUSTMENT }
 
 enum class RentalPipelineStatus {
     LONG_TERM,
-    SOON_RETURN;
+    SOON_RETURN,
+    IN_STOCK;
 
     companion object {
         fun fromApi(value: String): RentalPipelineStatus? = when (value) {
             "long_term" -> LONG_TERM
             "soon_return" -> SOON_RETURN
+            "in_stock" -> IN_STOCK
             else -> null
         }
 
         fun toApi(value: RentalPipelineStatus): String = when (value) {
             LONG_TERM -> "long_term"
             SOON_RETURN -> "soon_return"
+            IN_STOCK -> "in_stock"
         }
     }
 }
@@ -55,7 +58,8 @@ enum class RentalPipelineStatus {
 data class UserSession(
     val userId: String,
     val role: Role,
-    val clientId: String?
+    val clientId: String?,
+    val rentalId: String? = null
 )
 
 data class AppUser(

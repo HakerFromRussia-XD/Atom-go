@@ -225,10 +225,12 @@ class PostgresStateStore private constructor(
                     token TEXT PRIMARY KEY,
                     user_id TEXT NOT NULL,
                     role TEXT NOT NULL,
-                    client_id TEXT
+                    client_id TEXT,
+                    rental_id TEXT
                 )
                 """.trimIndent()
             )
+            statement.execute("ALTER TABLE atomgo_sessions ADD COLUMN IF NOT EXISTS rental_id TEXT")
             statement.execute(
                 """
                 CREATE TABLE IF NOT EXISTS atomgo_processed_webhook_events (
@@ -582,7 +584,7 @@ class PostgresStateStore private constructor(
         val sessions = mutableMapOf<String, UserSession>()
         connection.prepareStatement(
             """
-            SELECT token, user_id, role, client_id
+            SELECT token, user_id, role, client_id, rental_id
             FROM atomgo_sessions
             """.trimIndent()
         ).use { statement ->
@@ -591,7 +593,8 @@ class PostgresStateStore private constructor(
                     sessions[rs.getString("token")] = UserSession(
                         userId = rs.getString("user_id"),
                         role = enumValueOf<Role>(rs.getString("role")),
-                        clientId = rs.getString("client_id")
+                        clientId = rs.getString("client_id"),
+                        rentalId = rs.getString("rental_id")
                     )
                 }
             }
@@ -812,8 +815,8 @@ class PostgresStateStore private constructor(
 
         connection.prepareStatement(
             """
-            INSERT INTO atomgo_sessions (token, user_id, role, client_id)
-            VALUES (?, ?, ?, ?)
+            INSERT INTO atomgo_sessions (token, user_id, role, client_id, rental_id)
+            VALUES (?, ?, ?, ?, ?)
             """.trimIndent()
         ).use { statement ->
             state.sessions.forEach { (token, session) ->
@@ -821,6 +824,7 @@ class PostgresStateStore private constructor(
                 statement.setString(2, session.userId)
                 statement.setString(3, session.role.name)
                 statement.setString(4, session.clientId)
+                statement.setString(5, session.rentalId)
                 statement.addBatch()
             }
             statement.executeBatch()
@@ -1041,7 +1045,8 @@ private object InMemoryStoreJsonMapper {
     private data class PersistedSession(
         val userId: String,
         val role: String,
-        val clientId: String? = null
+        val clientId: String? = null,
+        val rentalId: String? = null
     )
 
     @Serializable
@@ -1141,7 +1146,8 @@ private object InMemoryStoreJsonMapper {
                 PersistedSession(
                     userId = value.userId,
                     role = value.role.name,
-                    clientId = value.clientId
+                    clientId = value.clientId,
+                    rentalId = value.rentalId
                 )
             },
             processedWebhookEvents = store.processedWebhookEvents.toSet()
@@ -1279,7 +1285,8 @@ private object InMemoryStoreJsonMapper {
                 UserSession(
                     userId = value.userId,
                     role = enumValueOf<Role>(value.role),
-                    clientId = value.clientId
+                    clientId = value.clientId,
+                    rentalId = value.rentalId
                 )
             }.toMutableMap(),
             processedWebhookEvents = persisted.processedWebhookEvents.toMutableSet()

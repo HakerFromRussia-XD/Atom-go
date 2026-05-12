@@ -19,6 +19,7 @@ private struct CreateClientPhoneDraft: Identifiable {
 private struct RentalDetailsContext: Identifiable, Equatable {
     let clientId: String
     let rentalId: String
+    let completedAtFallback: String?
 
     var id: String { "\(clientId)-\(rentalId)" }
 }
@@ -71,25 +72,26 @@ private enum AdminRentFilter {
 
 struct RentalDetailsDisplayPolicy {
     let rentalIsActive: Bool
+    let isInStockState: Bool
 
     private static let dash = "—"
     private static let inactiveMetricColor = Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255)
 
-    var showsJournalHistory: Bool { rentalIsActive }
+    var showsJournalHistory: Bool { rentalIsActive || !isInStockState }
     var adjustmentButtonEnabled: Bool { rentalIsActive }
 
     func metricText(activeValue: String) -> String {
-        rentalIsActive ? activeValue : Self.dash
+        if isInStockState { return Self.dash }
+        return activeValue
     }
 
     func correctionLineText(formattedAdjustment: String) -> String {
-        rentalIsActive
-            ? "Корректировка: \(formattedAdjustment)"
-            : "Корректировка: \(Self.dash)"
+        if isInStockState { return "Корректировка: \(Self.dash)" }
+        return "Корректировка: \(formattedAdjustment)"
     }
 
     func metricColor(activeColor: Color) -> Color {
-        rentalIsActive ? activeColor : Self.inactiveMetricColor
+        isInStockState ? Self.inactiveMetricColor : activeColor
     }
 
     func readOnlyCredentialText(serverValue: String?, draftValue: String) -> String {
@@ -322,6 +324,16 @@ struct AdminHomeView: View {
                 },
                 onDeleteRental: { clientId, rentalId in
                     viewModel.deleteRental(clientId: clientId, rentalId: rentalId)
+                },
+                onOpenRental: { clientId, rentalId, completedAt in
+                    isDetailsSheetPresented = false
+                    detailsClientId = nil
+                    rentalDetailsContext = RentalDetailsContext(
+                        clientId: clientId,
+                        rentalId: rentalId,
+                        completedAtFallback: completedAt
+                    )
+                    viewModel.openRentalDetails(rentalId: rentalId)
                 }
             )
             .presentationDetents([.large])
@@ -332,6 +344,7 @@ struct AdminHomeView: View {
             AdminRentalDetailsScreen(
                 details: viewModel.selectedRentalDetails,
                 fallbackSummary: currentSummary(for: context),
+                completedAtFallback: context.completedAtFallback,
                 clients: viewModel.clientCatalog,
                 isLoading: viewModel.isRentalDetailsLoading,
                 errorMessage: viewModel.rentalDetailsErrorMessage,
@@ -371,7 +384,8 @@ struct AdminHomeView: View {
                     ) {
                         rentalDetailsContext = RentalDetailsContext(
                             clientId: payload.clientId,
-                            rentalId: context.rentalId
+                            rentalId: context.rentalId,
+                            completedAtFallback: nil
                         )
                         viewModel.openRentalDetails(rentalId: context.rentalId)
                     }
@@ -414,7 +428,8 @@ struct AdminHomeView: View {
         didHandleStartupDeepLink = true
         rentalDetailsContext = RentalDetailsContext(
             clientId: startupRentalDeepLink.clientId,
-            rentalId: startupRentalDeepLink.rentalId
+            rentalId: startupRentalDeepLink.rentalId,
+            completedAtFallback: nil
         )
         viewModel.openRentalDetails(rentalId: startupRentalDeepLink.rentalId)
     }
@@ -790,16 +805,19 @@ struct AdminHomeView: View {
     }
 
     private func clientCard(_ client: AdminClientSummaryResponse) -> some View {
-        HStack(alignment: .center, spacing: 8) {
+        let cardKey = client.rentalId ?? "client-\(client.clientId)"
+        let displayName = client.rentalIsActive ? client.fullName : "Клиент не выбран"
+
+        return HStack(alignment: .center, spacing: 8) {
             Button {
-                pipelineMenuClientId = client.clientId
+                pipelineMenuClientId = cardKey
             } label: {
                 bikeAvatar(urlString: client.bikeAvatarUrl, borderColor: avatarBorderColor(for: client))
             }
             .buttonStyle(.plain)
             .popover(
                 isPresented: Binding(
-                    get: { pipelineMenuClientId == client.clientId },
+                    get: { pipelineMenuClientId == cardKey },
                     set: { isPresented in
                         if !isPresented {
                             pipelineMenuClientId = nil
@@ -813,7 +831,7 @@ struct AdminHomeView: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(client.fullName)
+                Text(displayName)
                     .font(.system(size: 15, weight: .bold))
                     .foregroundStyle(Color(red: 17 / 255, green: 24 / 255, blue: 39 / 255))
                     .lineLimit(1)
@@ -838,7 +856,7 @@ struct AdminHomeView: View {
             Spacer(minLength: 0)
 
             Button {
-                ignoredNextTapClientId = client.clientId
+                ignoredNextTapClientId = cardKey
                 debtAdjustmentContext = DebtAdjustmentContext(
                     clientId: client.clientId,
                     clientName: client.fullName,
@@ -861,16 +879,20 @@ struct AdminHomeView: View {
         .shadow(color: Color(red: 25 / 255, green: 28 / 255, blue: 50 / 255).opacity(0.08), radius: 15, x: 0, y: 20)
         .contentShape(Rectangle())
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("admin.rent.card.\(client.clientId)")
+        .accessibilityIdentifier("admin.rent.card.\(cardKey)")
         .onTapGesture {
-            if ignoredNextTapClientId == client.clientId {
+            if ignoredNextTapClientId == cardKey {
                 ignoredNextTapClientId = nil
                 return
             }
             guard let rentalId = client.rentalId else {
                 return
             }
-            rentalDetailsContext = RentalDetailsContext(clientId: client.clientId, rentalId: rentalId)
+            rentalDetailsContext = RentalDetailsContext(
+                clientId: client.clientId,
+                rentalId: rentalId,
+                completedAtFallback: nil
+            )
             viewModel.openRentalDetails(rentalId: rentalId)
         }
     }
@@ -1109,6 +1131,7 @@ struct AdminHomeView: View {
 private struct AdminRentalDetailsScreen: View {
     let details: AdminRentalDetailsResponse?
     let fallbackSummary: AdminClientSummaryResponse?
+    let completedAtFallback: String?
     let clients: [AdminClientSummaryResponse]
     let isLoading: Bool
     let errorMessage: String?
@@ -1128,6 +1151,7 @@ private struct AdminRentalDetailsScreen: View {
     @State private var editableRentalPassword = ""
     @State private var didInitializeCredentialDrafts = false
     @State private var startValidationMessage: String?
+    @State private var copyToastMessage: String?
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -1158,22 +1182,24 @@ private struct AdminRentalDetailsScreen: View {
 
                     rentalCard
 
-                    Text("ЖУРНАЛ")
-                        .font(.system(size: 11, weight: .bold))
-                        .tracking(0.88)
-                        .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
-                        .padding(.horizontal, 1)
-                        .padding(.top, 8)
+                    if displayPolicy.showsJournalHistory {
+                        Text("ЖУРНАЛ")
+                            .font(.system(size: 11, weight: .bold))
+                            .tracking(0.88)
+                            .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                            .padding(.horizontal, 1)
+                            .padding(.top, 8)
 
-                    ScrollView(showsIndicators: false) {
-                        VStack(spacing: 8) {
-                            ForEach(journalRows) { row in
-                                journalRow(row)
+                        ScrollView(showsIndicators: false) {
+                            VStack(spacing: 8) {
+                                ForEach(journalRows) { row in
+                                    journalRow(row)
+                                }
                             }
+                            .padding(.bottom, 8)
                         }
-                        .padding(.bottom, 8)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 }
                 .padding(.horizontal, 23)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -1222,6 +1248,21 @@ private struct AdminRentalDetailsScreen: View {
         .onChange(of: editableRentalPassword) { _ in
             startValidationMessage = nil
         }
+        .overlay(alignment: .bottom) {
+            if let copyToastMessage, !copyToastMessage.isEmpty {
+                Text(copyToastMessage)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color.black)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(Color.white.opacity(0.98))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .shadow(color: Color.black.opacity(0.16), radius: 10, x: 0, y: 4)
+                    .padding(.bottom, 86)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+        }
+        .animation(.easeInOut(duration: 0.18), value: copyToastMessage)
     }
 
     private var topBar: some View {
@@ -1336,8 +1377,8 @@ private struct AdminRentalDetailsScreen: View {
                 )
                 Spacer(minLength: 0)
                 metricColumn(
-                    title: "ОПЛАЧ. ДО",
-                    value: displayPolicy.metricText(activeValue: paidUntilText),
+                    title: rentalIsActive ? "ОПЛАЧ. ДО" : (isInStockState ? "ОПЛАЧ. ДО" : "ЗАВЕРШЕНА"),
+                    value: displayPolicy.metricText(activeValue: rentalIsActive ? paidUntilText : completedAtText),
                     color: displayPolicy.metricColor(activeColor: Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
                 )
             }
@@ -1359,7 +1400,21 @@ private struct AdminRentalDetailsScreen: View {
                 .overlay(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255))
                 .padding(.horizontal, 18)
 
-            if rentalIsActive {
+            if isInStockState {
+                Button {
+                    guard !isOperationInProgress else { return }
+                    isClientPickerPresented.toggle()
+                } label: {
+                    startClientSelectorControl
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 8)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $isClientPickerPresented, attachmentAnchor: .rect(.bounds), arrowEdge: .top) {
+                    startClientPickerPopover
+                }
+            } else if rentalIsActive {
                 Button(action: onOpenClientCard) {
                     HStack {
                         VStack(alignment: .leading, spacing: 6) {
@@ -1382,19 +1437,27 @@ private struct AdminRentalDetailsScreen: View {
                 }
                 .buttonStyle(.plain)
             } else {
-                Button {
-                    guard !isOperationInProgress else { return }
-                    isClientPickerPresented.toggle()
-                } label: {
-                    startClientSelectorControl
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 8)
-                        .contentShape(Rectangle())
+                Button(action: onOpenClientCard) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("АРЕНДАТОР")
+                                .font(.system(size: 10, weight: .bold))
+                                .tracking(0.6)
+                                .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                            Text(clientName)
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                                .lineLimit(1)
+                        }
+                        Spacer(minLength: 8)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                    }
+                    .padding(.horizontal, 19)
+                    .frame(height: 68, alignment: .center)
                 }
                 .buttonStyle(.plain)
-                .popover(isPresented: $isClientPickerPresented, attachmentAnchor: .rect(.bounds), arrowEdge: .top) {
-                    startClientPickerPopover
-                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1455,7 +1518,7 @@ private struct AdminRentalDetailsScreen: View {
                     .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
                     .buttonStyle(.plain)
 
-                Button(action: {}) {
+                Button(action: copyCredentialsToClipboard) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 15, style: .continuous)
                             .fill(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
@@ -1637,9 +1700,15 @@ private struct AdminRentalDetailsScreen: View {
     private var totalAdjustmentRub: Int { details?.totalAdjustmentRub ?? fallbackSummary?.totalAdjustmentRub ?? 0 }
     private var weeklyRateRub: Int { details?.weeklyRateRub ?? 0 }
     private var paidUntilText: String { prettyDate(details?.paidUntil) }
+    private var completedAtText: String { prettyDate(details?.completedAt ?? completedAtFallback) }
     private var rentalIsActive: Bool { details?.rentalIsActive ?? fallbackSummary?.rentalIsActive ?? false }
+    private var isInStockState: Bool {
+        (details?.rentalPipelineStatus ?? fallbackSummary?.rentalPipelineStatus ?? "").lowercased() == "in_stock"
+    }
     private var bikeId: String? { details?.bikeId }
-    private var displayPolicy: RentalDetailsDisplayPolicy { .init(rentalIsActive: rentalIsActive) }
+    private var displayPolicy: RentalDetailsDisplayPolicy {
+        .init(rentalIsActive: rentalIsActive, isInStockState: isInStockState)
+    }
 
     private var availableStartClients: [AdminClientSummaryResponse] {
         clients
@@ -1866,6 +1935,36 @@ private struct AdminRentalDetailsScreen: View {
             comment: nil
         )
         onStartRental(payload)
+    }
+
+    private func copyCredentialsToClipboard() {
+        let draftLogin = normalizedCredential(editableRentalLogin)
+        let draftPassword = normalizedCredential(editableRentalPassword)
+        let serverLogin = normalizedCredential(details?.clientLogin ?? fallbackSummary?.clientLogin)
+        let serverPassword = normalizedCredential(details?.clientPassword)
+
+        let login = draftLogin.isEmpty ? serverLogin : draftLogin
+        let password = draftPassword.isEmpty ? serverPassword : draftPassword
+
+        if login.isEmpty, password.isEmpty {
+            startValidationMessage = "заполните логин и пароль"
+            return
+        }
+        if login.isEmpty {
+            startValidationMessage = "заполните логин"
+            return
+        }
+        if password.isEmpty {
+            startValidationMessage = "заполните пароль"
+            return
+        }
+
+        UIPasteboard.general.string = "Логин: \(login)\nПароль: \(password)"
+        startValidationMessage = nil
+        copyToastMessage = "скопированно"
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            copyToastMessage = nil
+        }
     }
 
     private func normalizedCredential(_ value: String?) -> String {
@@ -2841,6 +2940,7 @@ private struct AdminClientDetailsSheet: View {
     let onCreateRental: (CreateRentalPayload) -> Void
     let onUpdateRental: (UpdateRentalPayload) -> Void
     let onDeleteRental: (String, String) -> Void
+    let onOpenRental: (String, String, String?) -> Void
 
     @Environment(\.openURL) private var openURL
     @State private var isProfileEditorPresented = false
@@ -3089,6 +3189,9 @@ private struct AdminClientDetailsSheet: View {
                         },
                         onDeleteRental: { clientId, rentalId in
                             onDeleteRental(clientId, rentalId)
+                        },
+                        onOpenRental: { clientId, rentalId, completedAt in
+                            onOpenRental(clientId, rentalId, completedAt)
                         }
                     )
                 }
@@ -3458,6 +3561,7 @@ private struct RentalHistoryCard: View {
     let onSaveLinks: (String, String, String?, String?) -> Void
     let onSaveRental: (UpdateRentalPayload) -> Void
     let onDeleteRental: (String, String) -> Void
+    let onOpenRental: (String, String, String?) -> Void
 
     @State private var isEditingComment = false
     @State private var commentDraft: String
@@ -3481,7 +3585,8 @@ private struct RentalHistoryCard: View {
         onSaveComment: @escaping (String, String, String) -> Void,
         onSaveLinks: @escaping (String, String, String?, String?) -> Void,
         onSaveRental: @escaping (UpdateRentalPayload) -> Void,
-        onDeleteRental: @escaping (String, String) -> Void
+        onDeleteRental: @escaping (String, String) -> Void,
+        onOpenRental: @escaping (String, String, String?) -> Void
     ) {
         self.clientId = clientId
         self.rental = rental
@@ -3492,6 +3597,7 @@ private struct RentalHistoryCard: View {
         self.onSaveLinks = onSaveLinks
         self.onSaveRental = onSaveRental
         self.onDeleteRental = onDeleteRental
+        self.onOpenRental = onOpenRental
         _commentDraft = State(initialValue: rental.comment ?? "")
         _videoUrlDraft = State(initialValue: rental.videoUrl ?? "")
         _contractUrlDraft = State(initialValue: rental.contractUrl ?? "")
@@ -3517,6 +3623,12 @@ private struct RentalHistoryCard: View {
                 Spacer(minLength: 8)
 
                 VStack(alignment: .trailing, spacing: 6) {
+                    Button("Открыть") {
+                        onOpenRental(clientId, rental.id, rental.periodEnd)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(AppDesign.accent)
+                    .accessibilityIdentifier("rentalCard.openRentalButton")
                     HStack(spacing: 6) {
                         Button("Видео") { onOpenVideo() }
                             .buttonStyle(.bordered)

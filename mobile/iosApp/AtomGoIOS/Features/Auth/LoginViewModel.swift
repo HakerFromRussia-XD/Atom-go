@@ -14,9 +14,12 @@ final class LoginViewModel: ObservableObject {
     private static let startupHealthCheckRetryDelayNs: UInt64 = 300_000_000
     private static let defaultLogin = "admin"
     private static let defaultPassword = "admin123"
-    private static let defaultClientSelfEmployedLogin = "client1"
+    
+    private static let defaultClientSelfEmployedLogin = "tmpclientx"
+    private static let defaultClientPassword = "tmp123"
+    
     private static let defaultClientIpLogin = "ip.ui.54fz"
-    private static let defaultClientPassword = "client123"
+    private static let defaultClientIpPassword = "client123"
 
     @Published var login: String
     @Published var password: String
@@ -69,7 +72,7 @@ final class LoginViewModel: ObservableObject {
 
     func fillClientIpCredentials() {
         login = Self.defaultClientIpLogin
-        password = Self.defaultClientPassword
+        password = Self.defaultClientIpPassword
     }
 
     func fillAdminCredentials() {
@@ -85,7 +88,7 @@ final class LoginViewModel: ObservableObject {
     func resetForNextLogin() {
         reachabilityTask?.cancel()
         login = Self.defaultClientIpLogin
-        password = Self.defaultClientPassword
+        password = Self.defaultClientIpPassword
         statusText = Self.waitingStatusText
         statusKind = .idle
         isLoading = false

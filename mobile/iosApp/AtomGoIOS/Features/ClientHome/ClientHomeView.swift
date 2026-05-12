@@ -1,6 +1,15 @@
 import SwiftUI
 import SafariServices
 
+enum ClientDashboardPresentationLogic {
+    static func debtDisplay(for dashboard: ClientDashboardResponse) -> (title: String, amountRub: Int, isDebt: Bool) {
+        if dashboard.debtRub > 0 {
+            return ("ДОЛГ", dashboard.debtRub, true)
+        }
+        return ("ОСТАТОК", dashboard.balanceRub ?? 0, false)
+    }
+}
+
 struct ClientHomeView: View {
     @ObservedObject var viewModel: ClientHomeViewModel
     let onLogout: () -> Void
@@ -279,6 +288,7 @@ struct ClientHomeView: View {
 
     private func bikeCard(dashboard: ClientDashboardResponse, scale: CGFloat) -> some View {
         let debtDisplay = debtDisplay(for: dashboard)
+        let completedAt = completedAtText(for: dashboard)
 
         return VStack(spacing: 16 * scale) {
             HStack(spacing: 16 * scale) {
@@ -312,7 +322,7 @@ struct ClientHomeView: View {
                     value: moneyText(debtDisplay.amountRub),
                     valueColor: debtDisplay.color,
                     scale: scale,
-                    alignTrailing: false,
+                    alignTrailing: completedAt == nil,
                     textLeadingInsideBlock: false
                 )
 
@@ -330,9 +340,20 @@ struct ClientHomeView: View {
                     value: paidUntilText(for: dashboard),
                     valueColor: ClientColors.mainText,
                     scale: scale,
-                    alignTrailing: true,
-                    textLeadingInsideBlock: true
+                    alignTrailing: completedAt == nil,
+                    textLeadingInsideBlock: completedAt == nil
                 )
+
+                if let completedAt {
+                    statItem(
+                        title: "ЗАВЕРШЕНА",
+                        value: completedAt,
+                        valueColor: ClientColors.mainText,
+                        scale: scale,
+                        alignTrailing: true,
+                        textLeadingInsideBlock: true
+                    )
+                }
             }
         }
         .padding(.horizontal, 23 * scale)
@@ -347,10 +368,8 @@ struct ClientHomeView: View {
     }
 
     private func debtDisplay(for dashboard: ClientDashboardResponse) -> (title: String, amountRub: Int, color: Color) {
-        if dashboard.debtRub > 0 {
-            return ("ДОЛГ", dashboard.debtRub, ClientColors.debt)
-        }
-        return ("ОСТАТОК", dashboard.balanceRub ?? 0, ClientColors.success)
+        let display = ClientDashboardPresentationLogic.debtDisplay(for: dashboard)
+        return (display.title, display.amountRub, display.isDebt ? ClientColors.debt : ClientColors.success)
     }
 
     private func paidUntilText(for dashboard: ClientDashboardResponse) -> String {
@@ -358,6 +377,16 @@ struct ClientHomeView: View {
             return dashboard.paidUntil
         }
         return displayDateText(from: paidUntilDate)
+    }
+
+    private func completedAtText(for dashboard: ClientDashboardResponse) -> String? {
+        guard let completedAt = dashboard.completedAt, !completedAt.isEmpty else {
+            return dashboard.rentalIsActive ? nil : "—"
+        }
+        guard let completedAtDate = Self.apiDateFormatter.date(from: completedAt) else {
+            return completedAt
+        }
+        return displayDateText(from: completedAtDate)
     }
 
     private func statItem(

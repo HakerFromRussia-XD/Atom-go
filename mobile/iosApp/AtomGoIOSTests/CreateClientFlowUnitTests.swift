@@ -2,6 +2,37 @@ import XCTest
 @testable import AtomGoIOS
 
 final class CreateClientFlowUnitTests: XCTestCase {
+    func testClientDashboardDecodesWhenHistoricalFieldsAreMissing() throws {
+        let payload = """
+        {
+          "client_id":"client-legacy-1",
+          "bike_model":"Legacy Bike",
+          "bike_avatar_url":"",
+          "rental_start":"2026-05-01",
+          "paid_until":"2026-05-07",
+          "debt_rub":0,
+          "balance_rub":0,
+          "total_adjustment_rub":0,
+          "presets":{
+            "day_rub":500,
+            "week_rub":3500,
+            "two_weeks_rub":7000,
+            "month_rub":14000,
+            "debt_exact_rub":0
+          },
+          "tax_mode":"self_employed",
+          "requires_receipt_email":false
+        }
+        """
+
+        let data = try XCTUnwrap(payload.data(using: .utf8))
+        let decoded = try JSONDecoder().decode(ClientDashboardResponse.self, from: data)
+
+        XCTAssertEqual(decoded.clientId, "client-legacy-1")
+        XCTAssertEqual(decoded.completedAt, nil)
+        XCTAssertFalse(decoded.rentalIsActive)
+    }
+
     func testValidatorBuildsPayloadForValidInput() {
         let input = CreateClientFormInput(
             fullName: " Roman Sergeev ",
@@ -173,11 +204,20 @@ final class CreateClientFlowUnitTests: XCTestCase {
     }
 
     func testRentalDetailsDisplayPolicyForMineStateShowsDashes() {
-        let policy = RentalDetailsDisplayPolicy(rentalIsActive: false)
+        let policy = RentalDetailsDisplayPolicy(rentalIsActive: false, isInStockState: true)
 
         XCTAssertEqual(policy.metricText(activeValue: "+3 500 ₽"), "—")
         XCTAssertEqual(policy.correctionLineText(formattedAdjustment: "−1 000 ₽"), "Корректировка: —")
         XCTAssertFalse(policy.showsJournalHistory)
+        XCTAssertFalse(policy.adjustmentButtonEnabled)
+    }
+
+    func testRentalDetailsDisplayPolicyForClosedClientRentalShowsValuesAndJournal() {
+        let policy = RentalDetailsDisplayPolicy(rentalIsActive: false, isInStockState: false)
+
+        XCTAssertEqual(policy.metricText(activeValue: "+3 500 ₽"), "+3 500 ₽")
+        XCTAssertEqual(policy.correctionLineText(formattedAdjustment: "−1 000 ₽"), "Корректировка: −1 000 ₽")
+        XCTAssertTrue(policy.showsJournalHistory)
         XCTAssertFalse(policy.adjustmentButtonEnabled)
     }
 
@@ -600,6 +640,44 @@ final class CreateClientFlowUnitTests: XCTestCase {
     }
 }
 
+final class ClientDashboardPresentationLogicTests: XCTestCase {
+    func testDebtDisplayShowsBalanceWhenDebtIsZeroForClosedRental() {
+        let dashboard = makeDashboard(
+            rentalIsActive: false,
+            debtRub: 0,
+            balanceRub: 3500
+        )
+
+        let display = ClientDashboardPresentationLogic.debtDisplay(for: dashboard)
+
+        XCTAssertEqual(display.title, "ОСТАТОК")
+        XCTAssertEqual(display.amountRub, 3500)
+        XCTAssertFalse(display.isDebt)
+    }
+
+    private func makeDashboard(
+        rentalIsActive: Bool,
+        debtRub: Int,
+        balanceRub: Int?
+    ) -> ClientDashboardResponse {
+        ClientDashboardResponse(
+            clientId: "client-test",
+            bikeModel: "Test bike",
+            bikeAvatarUrl: nil,
+            rentalStart: "2026-05-01",
+            paidUntil: "2026-05-19",
+            completedAt: rentalIsActive ? nil : "2026-05-10",
+            rentalIsActive: rentalIsActive,
+            debtRub: debtRub,
+            balanceRub: balanceRub,
+            totalAdjustmentRub: 0,
+            presets: ClientPaymentPresets(dayRub: 500, weekRub: 3500, twoWeeksRub: 7000, monthRub: 14000, debtExactRub: max(0, debtRub)),
+            taxMode: "self_employed",
+            requiresReceiptEmail: false
+        )
+    }
+}
+
 private final class MockAdminBackendService: BackendServicing {
     var fetchClientsResult: Result<[AdminClientSummaryResponse], Error> = .success([])
     var fetchRentsResult: Result<[AdminClientSummaryResponse], Error> = .success([])
@@ -672,6 +750,7 @@ private final class MockAdminBackendService: BackendServicing {
         bikeAvatarUrl: "",
         weeklyRateRub: 3000,
         rentalStart: "2026-05-03",
+        completedAt: nil,
         paidUntil: "2026-05-10",
         totalPaidRub: 3000,
         debtRub: 0,

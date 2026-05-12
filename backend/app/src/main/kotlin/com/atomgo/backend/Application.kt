@@ -107,6 +107,10 @@ private data class ApiClientDashboardResponse(
     val rentalStart: String,
     @SerialName("paid_until")
     val paidUntil: String,
+    @SerialName("completed_at")
+    val completedAt: String? = null,
+    @SerialName("rental_is_active")
+    val rentalIsActive: Boolean = false,
     @SerialName("debt_rub")
     val debtRub: Int,
     @SerialName("balance_rub")
@@ -459,6 +463,8 @@ private data class ApiAdminRentalDetailsResponse(
     val weeklyRateRub: Int,
     @SerialName("rental_start")
     val rentalStart: String,
+    @SerialName("completed_at")
+    val completedAt: String? = null,
     @SerialName("paid_until")
     val paidUntil: String,
     @SerialName("total_paid_rub")
@@ -544,6 +550,7 @@ private data class ApiWebhookApplyResponse(
 private data class ClientBillingSnapshot(
     val rentalId: String,
     val rentalStartDate: LocalDate,
+    val rentalEndDate: LocalDate?,
     val weeklyRateRub: Int,
     val bikeModel: String,
     val bikePhotoUrl: String?,
@@ -560,7 +567,8 @@ private fun resolveCurrentRental(
     clientId: String,
     store: InMemoryStore,
     asOf: LocalDate,
-    adminId: String? = null
+    adminId: String? = null,
+    includeInactiveFallback: Boolean = true
 ): RentalRecord? {
     val clientRentals = store.rentals
         .asSequence()
@@ -570,20 +578,34 @@ private fun resolveCurrentRental(
         .toList()
     if (clientRentals.isEmpty()) return null
 
-    return clientRentals.firstOrNull { rental -> rental.isActiveAt(asOf) } ?: clientRentals.first()
+    val activeRental = clientRentals.firstOrNull { rental -> rental.isActiveAt(asOf) }
+    if (activeRental != null) return activeRental
+    return if (includeInactiveFallback) clientRentals.first() else null
 }
 
 private fun resolveClientBillingSnapshot(
     clientId: String,
     store: InMemoryStore,
     asOf: LocalDate,
-    adminId: String? = null
+    adminId: String? = null,
+    targetRentalId: String? = null,
+    includeInactiveFallback: Boolean = true
 ): ClientBillingSnapshot? {
-    val rental = resolveCurrentRental(clientId = clientId, store = store, asOf = asOf, adminId = adminId) ?: return null
+    val rental = if (targetRentalId != null) {
+        store.rentals.firstOrNull { rental ->
+            rental.id == targetRentalId &&
+                rental.clientId == clientId &&
+                (adminId == null || rental.adminId == adminId)
+        }
+    } else {
+        resolveCurrentRental(clientId = clientId, store = store, asOf = asOf, adminId = adminId)
+            ?.takeIf { includeInactiveFallback || it.isActiveAt(asOf) }
+    } ?: return null
     val bike = store.bikes.firstOrNull { it.id == rental.bikeId } ?: return null
     return ClientBillingSnapshot(
         rentalId = rental.id,
         rentalStartDate = rental.startDate,
+        rentalEndDate = rental.endDate,
         weeklyRateRub = bike.weeklyRateRub,
         bikeModel = bike.model,
         bikePhotoUrl = bike.photoUrl,
@@ -972,6 +994,18 @@ private fun startClientRentalInExistingRental(
 
         store.sessions.entries.removeAll { it.value.clientId == client.id }
 
+        // Preserve previous client's closed rental history before reassigning
+        // this bike rental card to the next client cycle.
+        val previousClientHistoryRental = if (currentRental.clientId.isNotBlank() && currentRental.clientId != client.id) {
+            currentRental.copy(
+                id = "rental-${UUID.randomUUID().toString().take(8)}",
+                endDate = currentRental.endDate ?: periodStart,
+                pipelineStatus = RentalPipelineStatus.LONG_TERM
+            )
+        } else {
+            null
+        }
+
         val restartedRental = currentRental.copy(
             clientId = client.id,
             clientLogin = login,
@@ -980,6 +1014,9 @@ private fun startClientRentalInExistingRental(
             endDate = null,
             pipelineStatus = RentalPipelineStatus.LONG_TERM
         )
+        if (previousClientHistoryRental != null) {
+            store.rentals += previousClientHistoryRental
+        }
         store.rentals[rentalIndex] = restartedRental
         persistState()
 
@@ -994,13 +1031,51 @@ private fun startClientRentalInExistingRental(
     }
 }
 
+private fun transitionRentalToInStock(
+    store: InMemoryStore,
+    rentalIndex: Int,
+    today: LocalDate
+): RentalRecord {
+    val current = store.rentals[rentalIndex]
+    val historySnapshot = if (current.clientId.isNotBlank()) {
+        current.copy(
+            id = "rental-${UUID.randomUUID().toString().take(8)}",
+            endDate = today
+        )
+    } else {
+        null
+    }
+    val next = current.copy(
+        clientId = "",
+        endDate = today,
+        pipelineStatus = RentalPipelineStatus.IN_STOCK
+    )
+    if (historySnapshot != null) {
+        store.rentals += historySnapshot
+    }
+    store.rentals[rentalIndex] = next
+    if (current.clientId.isNotBlank()) {
+        // "Велосипед у меня": клиент больше не привязан к активной аренде.
+        // Очищаем только активные клиентские сессии.
+        // Логин/пароль должны оставаться валидными для просмотра завершенной клиентской аренды.
+        store.sessions.entries.removeAll { it.value.clientId == current.clientId }
+    }
+    return next
+}
+
 private fun buildAdminClientSummary(
     client: ClientAccount,
     store: InMemoryStore,
     now: LocalDate,
     adminId: String? = null
 ): ApiAdminClientSummaryResponse {
-    val snapshot = resolveClientBillingSnapshot(client.id, store, now, adminId)
+    val snapshot = resolveClientBillingSnapshot(
+        client.id,
+        store,
+        now,
+        adminId,
+        includeInactiveFallback = false
+    )
     val projection = if (snapshot?.isActive == true) {
         LedgerCalculator.billingProjection(
             clientId = client.id,
@@ -1040,13 +1115,54 @@ private fun buildAdminClientSummary(
     )
 }
 
+private fun buildAdminRentSummaryFromRental(
+    rental: RentalRecord,
+    store: InMemoryStore,
+    now: LocalDate
+): ApiAdminClientSummaryResponse {
+    val bike = store.bikes.firstOrNull { it.id == rental.bikeId }
+    val isActive = rental.isActiveAt(now)
+    val client = store.clients.firstOrNull { it.id == rental.clientId }
+
+    if (isActive && client != null) {
+        return buildAdminClientSummary(
+            client = client,
+            store = store,
+            now = now,
+            adminId = rental.adminId
+        ).copy(rentalId = rental.id)
+    }
+
+    return ApiAdminClientSummaryResponse(
+        clientId = "",
+        rentalId = rental.id,
+        clientLogin = null,
+        fullName = "",
+        bikeModel = bike?.model ?: "",
+        bikeAvatarUrl = bike?.photoUrl ?: "",
+        statusText = "У меня",
+        paidUntil = null,
+        rentalPipelineStatus = rental.pipelineStatus.let(RentalPipelineStatus::toApi),
+        rentalIsActive = false,
+        debtRub = 0,
+        profitRub = 0,
+        totalAdjustmentRub = 0
+    )
+}
+
 private fun buildAdminClientDetails(
     client: ClientAccount,
     store: InMemoryStore,
     now: LocalDate,
     adminId: String? = null
 ): ApiAdminClientDetailsResponse {
-    val snapshot = resolveClientBillingSnapshot(client.id, store, now, adminId)
+    val snapshot = resolveClientBillingSnapshot(
+        client.id,
+        store,
+        now,
+        adminId,
+        includeInactiveFallback = false
+    )
     val projection = if (snapshot?.isActive == true) {
         LedgerCalculator.billingProjection(
             clientId = client.id,
@@ -1224,14 +1340,24 @@ fun Application.module() {
                     return@get
                 }
                 val now = LocalDate.now()
-                val snapshot = resolveClientBillingSnapshot(client.id, store, now)
-                val projection = if (snapshot?.isActive == true) {
+                val snapshot = resolveClientBillingSnapshot(
+                    clientId = client.id,
+                    store = store,
+                    asOf = now,
+                    targetRentalId = session.rentalId
+                )
+                val projection = if (snapshot != null) {
+                    val chargeAsOf = if (snapshot.isActive) {
+                        now
+                    } else {
+                        snapshot.rentalEndDate ?: now
+                    }
                     LedgerCalculator.billingProjection(
                         clientId = client.id,
                         rentalStartDate = snapshot.rentalStartDate,
                         weeklyRateRub = snapshot.weeklyRateRub,
                         entries = store.ledger,
-                        asOf = now,
+                        asOf = chargeAsOf,
                         rentalId = snapshot.rentalId
                     )
                 } else {
@@ -1250,6 +1376,8 @@ fun Application.module() {
                         bikeAvatarUrl = snapshot?.bikePhotoUrl ?: "",
                         rentalStart = snapshot?.rentalStartDate?.toString() ?: "",
                         paidUntil = paidUntil,
+                        completedAt = snapshot?.rentalEndDate?.toString(),
+                        rentalIsActive = snapshot?.isActive == true,
                         debtRub = debt,
                         balanceRub = balanceRub,
                         totalAdjustmentRub = totalAdjustment,
@@ -1320,13 +1448,12 @@ fun Application.module() {
                 }
 
                 val now = LocalDate.now()
-                val response = store.clients
-                    .filter { client ->
-                        store.rentals.any { rental ->
-                            rental.adminId == session.userId && rental.clientId == client.id
-                        }
-                    }
-                    .map { client -> buildAdminClientSummary(client, store, now, session.userId) }
+                val response = store.rentals
+                    .asSequence()
+                    .filter { rental -> rental.adminId == session.userId }
+                    .sortedByDescending { rental -> rental.startDate }
+                    .map { rental -> buildAdminRentSummaryFromRental(rental, store, now) }
+                    .toList()
                 call.respond(response)
             }
 
@@ -1361,37 +1488,48 @@ fun Application.module() {
                 val response = synchronized(stateLock) {
                     val rental = store.rentals.firstOrNull { it.id == rentalId && it.adminId == session.userId }
                         ?: return@synchronized null
-                    val client = store.clients.firstOrNull { it.id == rental.clientId } ?: return@synchronized null
+                    val client = store.clients.firstOrNull { it.id == rental.clientId }
                     val bike = store.bikes.firstOrNull { it.id == rental.bikeId } ?: return@synchronized null
-                    val projection = LedgerCalculator.billingProjection(
-                        clientId = client.id,
-                        rentalStartDate = rental.startDate,
-                        weeklyRateRub = bike.weeklyRateRub,
-                        entries = store.ledger,
-                        asOf = now,
-                        rentalId = rental.id
-                    )
+                    val rentalIsActive = rental.isActiveAt(now)
+                    val projection = if (rental.clientId.isNotBlank()) {
+                        LedgerCalculator.billingProjection(
+                            clientId = rental.clientId,
+                            rentalStartDate = rental.startDate,
+                            weeklyRateRub = bike.weeklyRateRub,
+                            entries = store.ledger,
+                            asOf = if (rentalIsActive) now else (rental.endDate ?: now),
+                            rentalId = rental.id
+                        )
+                    } else {
+                        null
+                    }
                     val credentials = resolveRentalCredentials(store, rental)
-                    val journal = store.ledger
-                        .asSequence()
-                        .filter { entry ->
-                            entry.clientId == client.id &&
-                                (entry.rentalId == rental.id || entry.rentalId == null)
-                        }
-                        .sortedByDescending { it.createdAt }
-                        .map { entry ->
-                            ApiAdminRentalJournalEntryResponse(
-                                type = entry.type.name.lowercase(),
-                                amountRub = ledgerSignedAmountForUi(entry),
-                                createdAt = entry.createdAt.toString()
-                            )
-                        }
-                        .toList()
+                    val journal = if (rental.pipelineStatus == RentalPipelineStatus.IN_STOCK) {
+                        emptyList()
+                    } else {
+                        store.ledger
+                            .asSequence()
+                            .filter { entry ->
+                                entry.rentalId == rental.id ||
+                                    (rental.clientId.isNotBlank() &&
+                                        entry.clientId == rental.clientId &&
+                                        entry.rentalId == null)
+                            }
+                            .sortedByDescending { it.createdAt }
+                            .map { entry ->
+                                ApiAdminRentalJournalEntryResponse(
+                                    type = entry.type.name.lowercase(),
+                                    amountRub = ledgerSignedAmountForUi(entry),
+                                    createdAt = entry.createdAt.toString()
+                                )
+                            }
+                            .toList()
+                    }
 
                     ApiAdminRentalDetailsResponse(
                         rentalId = rental.id,
-                        clientId = client.id,
-                        clientFullName = client.fullName,
+                        clientId = rental.clientId,
+                        clientFullName = client?.fullName ?: "",
                         clientLogin = credentials.login,
                         clientPassword = credentials.password,
                         bikeId = bike.id,
@@ -1399,12 +1537,21 @@ fun Application.module() {
                         bikeAvatarUrl = bike.photoUrl ?: "",
                         weeklyRateRub = bike.weeklyRateRub,
                         rentalStart = rental.startDate.toString(),
-                        paidUntil = projection.paidUntilDate.toString(),
-                        totalPaidRub = LedgerCalculator.totalPaidRub(store.ledger, client.id, rental.id),
-                        debtRub = projection.debtRub,
-                        totalAdjustmentRub = LedgerCalculator.totalAdjustmentRub(store.ledger, client.id, rental.id),
+                        completedAt = rental.endDate?.toString(),
+                        paidUntil = projection?.paidUntilDate?.toString() ?: "",
+                        totalPaidRub = if (rental.clientId.isNotBlank()) {
+                            LedgerCalculator.totalPaidRub(store.ledger, rental.clientId, rental.id)
+                        } else {
+                            0
+                        },
+                        debtRub = projection?.debtRub ?: 0,
+                        totalAdjustmentRub = if (rental.clientId.isNotBlank()) {
+                            LedgerCalculator.totalAdjustmentRub(store.ledger, rental.clientId, rental.id)
+                        } else {
+                            0
+                        },
                         rentalPipelineStatus = RentalPipelineStatus.toApi(rental.pipelineStatus),
-                        rentalIsActive = rental.isActiveAt(now),
+                        rentalIsActive = rentalIsActive,
                         journalEntries = journal
                     )
                 }
@@ -2116,7 +2263,11 @@ fun Application.module() {
                         if (current.adminId != session.userId) {
                             return@synchronized null
                         }
-                        val next = current.copy(pipelineStatus = pipelineStatus)
+                        val next = if (pipelineStatus == RentalPipelineStatus.IN_STOCK) {
+                            transitionRentalToInStock(store, rentalIndex, LocalDate.now())
+                        } else {
+                            current.copy(pipelineStatus = pipelineStatus)
+                        }
                         store.rentals[rentalIndex] = next
                         persistState()
                         next
@@ -2160,12 +2311,7 @@ fun Application.module() {
                         if (current.adminId != session.userId) {
                             return@synchronized null
                         }
-                        val next = current.copy(endDate = today)
-                        store.rentals[rentalIndex] = next
-                        // "Велосипед у меня": клиент больше не привязан к активной аренде.
-                        // Очищаем его клиентские логины и активные клиентские сессии.
-                        store.users.removeAll { it.role == Role.CLIENT && it.clientId == current.clientId }
-                        store.sessions.entries.removeAll { it.value.clientId == current.clientId }
+                        val next = transitionRentalToInStock(store, rentalIndex, today)
                         persistState()
                         next
                     }
@@ -2301,7 +2447,11 @@ fun Application.module() {
 
                 try {
                     val payment = synchronized(stateLock) {
-                        val createdPayment = paymentService.createPayment(clientId = session.clientId, paymentType = type)
+                        val createdPayment = paymentService.createPayment(
+                            clientId = session.clientId,
+                            paymentType = type,
+                            rentalId = session.rentalId
+                        )
                         persistState()
                         createdPayment
                     }
@@ -2351,9 +2501,15 @@ fun Application.module() {
                     return@get
                 }
 
-                if (session.role == Role.CLIENT && session.clientId != payment.clientId) {
-                    call.respond(HttpStatusCode.Forbidden, ApiErrorResponse(message = "Forbidden"))
-                    return@get
+                if (session.role == Role.CLIENT) {
+                    if (session.clientId != payment.clientId) {
+                        call.respond(HttpStatusCode.Forbidden, ApiErrorResponse(message = "Forbidden"))
+                        return@get
+                    }
+                    if (session.rentalId != null && payment.rentalId != null && session.rentalId != payment.rentalId) {
+                        call.respond(HttpStatusCode.Forbidden, ApiErrorResponse(message = "Forbidden"))
+                        return@get
+                    }
                 }
 
                 try {

@@ -45,6 +45,8 @@ struct ClientDashboardResponse: Decodable {
     let bikeAvatarUrl: String?
     let rentalStart: String
     let paidUntil: String
+    let completedAt: String?
+    let rentalIsActive: Bool
     let debtRub: Int
     let balanceRub: Int?
     let totalAdjustmentRub: Int
@@ -58,12 +60,62 @@ struct ClientDashboardResponse: Decodable {
         case bikeAvatarUrl = "bike_avatar_url"
         case rentalStart = "rental_start"
         case paidUntil = "paid_until"
+        case completedAt = "completed_at"
+        case rentalIsActive = "rental_is_active"
         case debtRub = "debt_rub"
         case balanceRub = "balance_rub"
         case totalAdjustmentRub = "total_adjustment_rub"
         case presets
         case taxMode = "tax_mode"
         case requiresReceiptEmail = "requires_receipt_email"
+    }
+
+    init(
+        clientId: String,
+        bikeModel: String,
+        bikeAvatarUrl: String?,
+        rentalStart: String,
+        paidUntil: String,
+        completedAt: String? = nil,
+        rentalIsActive: Bool = false,
+        debtRub: Int,
+        balanceRub: Int?,
+        totalAdjustmentRub: Int,
+        presets: ClientPaymentPresets,
+        taxMode: String?,
+        requiresReceiptEmail: Bool
+    ) {
+        self.clientId = clientId
+        self.bikeModel = bikeModel
+        self.bikeAvatarUrl = bikeAvatarUrl
+        self.rentalStart = rentalStart
+        self.paidUntil = paidUntil
+        self.completedAt = completedAt
+        self.rentalIsActive = rentalIsActive
+        self.debtRub = debtRub
+        self.balanceRub = balanceRub
+        self.totalAdjustmentRub = totalAdjustmentRub
+        self.presets = presets
+        self.taxMode = taxMode
+        self.requiresReceiptEmail = requiresReceiptEmail
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        clientId = try container.decodeIfPresent(String.self, forKey: .clientId) ?? ""
+        bikeModel = try container.decodeIfPresent(String.self, forKey: .bikeModel) ?? ""
+        bikeAvatarUrl = try container.decodeIfPresent(String.self, forKey: .bikeAvatarUrl)
+        rentalStart = try container.decodeIfPresent(String.self, forKey: .rentalStart) ?? ""
+        paidUntil = try container.decodeIfPresent(String.self, forKey: .paidUntil) ?? ""
+        completedAt = try container.decodeIfPresent(String.self, forKey: .completedAt)
+        rentalIsActive = try container.decodeIfPresent(Bool.self, forKey: .rentalIsActive) ?? false
+        debtRub = try container.decodeIfPresent(Int.self, forKey: .debtRub) ?? 0
+        balanceRub = try container.decodeIfPresent(Int.self, forKey: .balanceRub)
+        totalAdjustmentRub = try container.decodeIfPresent(Int.self, forKey: .totalAdjustmentRub) ?? 0
+        presets = try container.decodeIfPresent(ClientPaymentPresets.self, forKey: .presets)
+            ?? ClientPaymentPresets(dayRub: 0, weekRub: 0, twoWeeksRub: 0, monthRub: 0, debtExactRub: 0)
+        taxMode = try container.decodeIfPresent(String.self, forKey: .taxMode)
+        requiresReceiptEmail = try container.decodeIfPresent(Bool.self, forKey: .requiresReceiptEmail) ?? false
     }
 }
 
@@ -409,6 +461,7 @@ struct AdminRentalDetailsResponse: Decodable, Equatable {
     let bikeAvatarUrl: String
     let weeklyRateRub: Int
     let rentalStart: String
+    let completedAt: String?
     let paidUntil: String
     let totalPaidRub: Int
     let debtRub: Int
@@ -428,6 +481,7 @@ struct AdminRentalDetailsResponse: Decodable, Equatable {
         case bikeAvatarUrl = "bike_avatar_url"
         case weeklyRateRub = "weekly_rate_rub"
         case rentalStart = "rental_start"
+        case completedAt = "completed_at"
         case paidUntil = "paid_until"
         case totalPaidRub = "total_paid_rub"
         case debtRub = "debt_rub"

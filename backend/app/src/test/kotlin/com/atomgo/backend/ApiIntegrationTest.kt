@@ -13,6 +13,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import java.time.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -452,7 +453,7 @@ class ApiIntegrationTest {
     }
 
     @Test
-    fun `finish rental should detach client auth and move rent to mine state`() = testApplication {
+    fun `finish rental should invalidate old session but keep historical client-rental login`() = testApplication {
         application { module() }
         val adminToken = loginAsAdmin()
         val clientId = createClientAndGetId(adminToken, fullName = "Detach Client", phone = "79005550001")
@@ -496,6 +497,7 @@ class ApiIntegrationTest {
             bearerAuth(adminToken)
         }
         assertEquals(HttpStatusCode.OK, finish.status)
+        val finishedAt = LocalDate.now().toString()
 
         val rentsAfterFinish = client.get("/api/v1/admin/rents") {
             bearerAuth(adminToken)
@@ -503,9 +505,9 @@ class ApiIntegrationTest {
         assertEquals(HttpStatusCode.OK, rentsAfterFinish.status)
         val rentEntry = json.parseToJsonElement(rentsAfterFinish.bodyAsText())
             .jsonArray
-            .firstOrNull { it.jsonObject["client_id"]?.jsonPrimitive?.content == clientId }
+            .firstOrNull { it.jsonObject["rental_id"]?.jsonPrimitive?.content == rentalId }
             ?.jsonObject
-            ?: error("Client rent not found after finish")
+            ?: error("Rental card not found after finish")
         assertEquals(false, rentEntry["rental_is_active"]?.jsonPrimitive?.content?.toBooleanStrict())
 
         val dashboardWithOldToken = client.get("/api/v1/client/me/dashboard") {
@@ -517,7 +519,22 @@ class ApiIntegrationTest {
             contentType(ContentType.Application.Json)
             setBody("""{"login":"detach.client","password":"client123"}""")
         }
-        assertEquals(HttpStatusCode.Unauthorized, loginAfterDetach.status)
+        assertEquals(HttpStatusCode.OK, loginAfterDetach.status)
+
+        val historicalToken = json.parseToJsonElement(loginAfterDetach.bodyAsText())
+            .jsonObject["access_token"]
+            ?.jsonPrimitive
+            ?.content
+            ?: error("No historical token")
+
+        val historicalDashboard = client.get("/api/v1/client/me/dashboard") {
+            bearerAuth(historicalToken)
+        }
+        assertEquals(HttpStatusCode.OK, historicalDashboard.status)
+        val historicalDashboardBody = json.parseToJsonElement(historicalDashboard.bodyAsText()).jsonObject
+        assertEquals(clientId, historicalDashboardBody["client_id"]?.jsonPrimitive?.content)
+        assertEquals(false, historicalDashboardBody["rental_is_active"]?.jsonPrimitive?.content?.toBooleanStrict())
+        assertEquals(finishedAt, historicalDashboardBody["completed_at"]?.jsonPrimitive?.content)
     }
 
     @Test
@@ -897,6 +914,308 @@ class ApiIntegrationTest {
             "bike is used by rentals",
             json.parseToJsonElement(deleteRentedBike.bodyAsText()).jsonObject["message"]?.jsonPrimitive?.content
         )
+    }
+
+    @Test
+    fun `finishing rental should keep closed rental in previous client history`() = testApplication {
+        application { module() }
+        val adminToken = loginAsAdmin()
+
+        val firstClientId = createClientAndGetId(adminToken, fullName = "Client One", phone = "79000001001")
+        val bikeId = createBikeAndGetId(adminToken, frameSerial = "LIFE-FRAME-1", motorSerial = "LIFE-MOTOR-1")
+
+        val createRental = client.post("/api/v1/admin/rentals") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "client_id":"$firstClientId",
+                  "bike_id":"$bikeId",
+                  "login":"life.client",
+                  "password":"life123",
+                  "period_start":"2026-05-01"
+                }
+                """.trimIndent()
+            )
+        }
+        assertEquals(HttpStatusCode.Created, createRental.status)
+        val rentalId = json.parseToJsonElement(createRental.bodyAsText()).jsonObject["rental_id"]?.jsonPrimitive?.content
+            ?: error("No rental_id")
+
+        val finishRental = client.post("/api/v1/admin/rentals/$rentalId/finish") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, finishRental.status)
+
+        val firstClientDetails = client.get("/api/v1/admin/clients/$firstClientId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, firstClientDetails.status)
+        val rentals = json.parseToJsonElement(firstClientDetails.bodyAsText()).jsonObject["rentals"]?.jsonArray
+            ?: error("No rentals")
+        val closedRental = rentals.firstOrNull { rental ->
+            rental.jsonObject["bike_id"]?.jsonPrimitive?.content == bikeId &&
+                rental.jsonObject["period_start"]?.jsonPrimitive?.content == "2026-05-01"
+        } ?: error("Closed rental should stay in previous client history")
+        assertTrue(closedRental.jsonObject["period_end"]?.jsonPrimitive?.content?.isNotBlank() == true)
+    }
+
+    @Test
+    fun `starting new client rental must not delete previous client closed rental`() = testApplication {
+        application { module() }
+        val adminToken = loginAsAdmin()
+
+        val firstClientId = createClientAndGetId(adminToken, fullName = "Cycle Client One", phone = "79000002001")
+        val secondClientId = createClientAndGetId(adminToken, fullName = "Cycle Client Two", phone = "79000002002")
+        val bikeId = createBikeAndGetId(adminToken, frameSerial = "LIFE-FRAME-2", motorSerial = "LIFE-MOTOR-2")
+
+        val createRental = client.post("/api/v1/admin/rentals") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "client_id":"$firstClientId",
+                  "bike_id":"$bikeId",
+                  "login":"cycle.client",
+                  "password":"cycle123",
+                  "period_start":"2026-05-01"
+                }
+                """.trimIndent()
+            )
+        }
+        assertEquals(HttpStatusCode.Created, createRental.status)
+        val rentalId = json.parseToJsonElement(createRental.bodyAsText()).jsonObject["rental_id"]?.jsonPrimitive?.content
+            ?: error("No rental_id")
+
+        val finishRental = client.post("/api/v1/admin/rentals/$rentalId/finish") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, finishRental.status)
+
+        val startNewClientRental = client.post("/api/v1/admin/rentals/$rentalId/client-rentals") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "client_id":"$secondClientId",
+                  "login":"cycle.client",
+                  "password":"cycle456",
+                  "period_start":"2026-05-12"
+                }
+                """.trimIndent()
+            )
+        }
+        assertEquals(HttpStatusCode.OK, startNewClientRental.status)
+
+        val firstClientDetails = client.get("/api/v1/admin/clients/$firstClientId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, firstClientDetails.status)
+        val firstClientRentals = json.parseToJsonElement(firstClientDetails.bodyAsText()).jsonObject["rentals"]?.jsonArray
+            ?: error("No rentals")
+        val preservedClosedRental = firstClientRentals.firstOrNull { rental ->
+            rental.jsonObject["bike_id"]?.jsonPrimitive?.content == bikeId &&
+                rental.jsonObject["period_start"]?.jsonPrimitive?.content == "2026-05-01" &&
+                rental.jsonObject["period_end"]?.jsonPrimitive?.content?.isNotBlank() == true
+        }
+        assertTrue(
+            preservedClosedRental != null,
+            "Previous client rental history should be preserved after assigning a new client"
+        )
+    }
+
+    @Test
+    fun `finished rental should be detached from client on admin rents screen`() = testApplication {
+        application { module() }
+        val adminToken = loginAsAdmin()
+
+        val clientId = createClientAndGetId(adminToken, fullName = "Detached Client", phone = "79000003001")
+        val bikeId = createBikeAndGetId(adminToken, frameSerial = "DETACH-FRAME-1", motorSerial = "DETACH-MOTOR-1")
+
+        val createRental = client.post("/api/v1/admin/rentals") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "client_id":"$clientId",
+                  "bike_id":"$bikeId",
+                  "login":"detached.client",
+                  "password":"detached123",
+                  "period_start":"2026-05-01"
+                }
+                """.trimIndent()
+            )
+        }
+        assertEquals(HttpStatusCode.Created, createRental.status)
+        val rentalId = json.parseToJsonElement(createRental.bodyAsText()).jsonObject["rental_id"]?.jsonPrimitive?.content
+            ?: error("No rental_id")
+
+        val finishRental = client.post("/api/v1/admin/rentals/$rentalId/finish") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, finishRental.status)
+
+        val rents = client.get("/api/v1/admin/rents") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, rents.status)
+        val rentsBody = json.parseToJsonElement(rents.bodyAsText()).jsonArray
+        val finishedCard = rentsBody.firstOrNull { item ->
+            item.jsonObject["rental_id"]?.jsonPrimitive?.content == rentalId
+        }?.jsonObject ?: error("Finished rental card not found on /admin/rents")
+
+        assertEquals("", finishedCard["client_id"]?.jsonPrimitive?.content)
+        assertEquals("", finishedCard["full_name"]?.jsonPrimitive?.content)
+        assertEquals(false, finishedCard["rental_is_active"]?.jsonPrimitive?.content?.toBooleanStrict())
+        assertEquals(0, finishedCard["debt_rub"]?.jsonPrimitive?.content?.toInt())
+    }
+
+    @Test
+    fun `finished rental should not keep bike bound in admin clients summary`() = testApplication {
+        application { module() }
+        val adminToken = loginAsAdmin()
+
+        val clientId = createClientAndGetId(adminToken, fullName = "Detached Summary Client", phone = "79000004001")
+        val bikeId = createBikeAndGetId(adminToken, frameSerial = "DETACH-FRAME-2", motorSerial = "DETACH-MOTOR-2")
+
+        val createRental = client.post("/api/v1/admin/rentals") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "client_id":"$clientId",
+                  "bike_id":"$bikeId",
+                  "login":"detached.summary",
+                  "password":"detached456",
+                  "period_start":"2026-05-01"
+                }
+                """.trimIndent()
+            )
+        }
+        assertEquals(HttpStatusCode.Created, createRental.status)
+        val rentalId = json.parseToJsonElement(createRental.bodyAsText()).jsonObject["rental_id"]?.jsonPrimitive?.content
+            ?: error("No rental_id")
+
+        val finishRental = client.post("/api/v1/admin/rentals/$rentalId/finish") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, finishRental.status)
+
+        val clientsResponse = client.get("/api/v1/admin/clients") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, clientsResponse.status)
+        val clientsJson = json.parseToJsonElement(clientsResponse.bodyAsText()).jsonArray
+        val targetClient = clientsJson.firstOrNull { item ->
+            item.jsonObject["client_id"]?.jsonPrimitive?.content == clientId
+        }?.jsonObject ?: error("Client summary not found")
+
+        assertEquals("-", targetClient["bike_model"]?.jsonPrimitive?.content)
+        assertEquals("", targetClient["bike_avatar_url"]?.jsonPrimitive?.content)
+        assertEquals(false, targetClient["rental_is_active"]?.jsonPrimitive?.content?.toBooleanStrict())
+    }
+
+    @Test
+    fun `closed rental details should include completed_at date`() = testApplication {
+        application { module() }
+        val adminToken = loginAsAdmin()
+
+        val clientId = createClientAndGetId(adminToken, fullName = "Closed Details Client", phone = "79000005001")
+        val bikeId = createBikeAndGetId(adminToken, frameSerial = "CLOSE-FRAME-1", motorSerial = "CLOSE-MOTOR-1")
+
+        val createRental = client.post("/api/v1/admin/rentals") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "client_id":"$clientId",
+                  "bike_id":"$bikeId",
+                  "login":"closed.details",
+                  "password":"closed123",
+                  "period_start":"2026-05-01"
+                }
+                """.trimIndent()
+            )
+        }
+        assertEquals(HttpStatusCode.Created, createRental.status)
+        val rentalId = json.parseToJsonElement(createRental.bodyAsText()).jsonObject["rental_id"]?.jsonPrimitive?.content
+            ?: error("No rental_id")
+
+        val finishRental = client.post("/api/v1/admin/rentals/$rentalId/finish") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, finishRental.status)
+
+        val details = client.get("/api/v1/admin/rentals/$rentalId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, details.status)
+        val detailsJson = json.parseToJsonElement(details.bodyAsText()).jsonObject
+        assertTrue(detailsJson["completed_at"]?.jsonPrimitive?.content?.isNotBlank() == true)
+    }
+
+    @Test
+    fun `finish should clear in stock card stats renter and journal while preserving closed client rental`() = testApplication {
+        application { module() }
+        val adminToken = loginAsAdmin()
+
+        val clientId = createClientAndGetId(adminToken, fullName = "InStock Lifecycle Client", phone = "79000006001")
+        val bikeId = createBikeAndGetId(adminToken, frameSerial = "INSTOCK-FRAME-1", motorSerial = "INSTOCK-MOTOR-1")
+
+        val createRental = client.post("/api/v1/admin/rentals") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "client_id":"$clientId",
+                  "bike_id":"$bikeId",
+                  "login":"instock.client",
+                  "password":"instock123",
+                  "period_start":"2026-05-01"
+                }
+                """.trimIndent()
+            )
+        }
+        assertEquals(HttpStatusCode.Created, createRental.status)
+        val rentalId = json.parseToJsonElement(createRental.bodyAsText()).jsonObject["rental_id"]?.jsonPrimitive?.content
+            ?: error("No rental_id")
+
+        val finishRental = client.post("/api/v1/admin/rentals/$rentalId/finish") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, finishRental.status)
+
+        val details = client.get("/api/v1/admin/rentals/$rentalId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, details.status)
+        val detailsJson = json.parseToJsonElement(details.bodyAsText()).jsonObject
+        assertEquals("", detailsJson["client_id"]?.jsonPrimitive?.content)
+        assertEquals("", detailsJson["client_full_name"]?.jsonPrimitive?.content)
+        assertEquals("in_stock", detailsJson["rental_pipeline_status"]?.jsonPrimitive?.content)
+        assertEquals(0, detailsJson["debt_rub"]?.jsonPrimitive?.content?.toInt())
+        assertEquals(0, detailsJson["total_paid_rub"]?.jsonPrimitive?.content?.toInt())
+        assertEquals(0, detailsJson["total_adjustment_rub"]?.jsonPrimitive?.content?.toInt())
+        assertEquals(0, detailsJson["journal_entries"]?.jsonArray?.size)
+
+        val clientDetails = client.get("/api/v1/admin/clients/$clientId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, clientDetails.status)
+        val rentals = json.parseToJsonElement(clientDetails.bodyAsText()).jsonObject["rentals"]?.jsonArray
+            ?: error("No rentals in client details")
+        val closedRental = rentals.firstOrNull { item ->
+            item.jsonObject["bike_id"]?.jsonPrimitive?.content == bikeId &&
+                item.jsonObject["period_end"]?.jsonPrimitive?.content?.isNotBlank() == true
+        }
+        assertTrue(closedRental != null, "Closed rental should be preserved in client history after finish")
     }
 
     private suspend fun io.ktor.server.testing.ApplicationTestBuilder.loginAsAdmin(): String {
