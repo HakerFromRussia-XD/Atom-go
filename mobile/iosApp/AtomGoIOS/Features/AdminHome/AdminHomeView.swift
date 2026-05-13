@@ -3384,7 +3384,7 @@ private struct ClientCatalogSheet: View {
     private let searchHeight: CGFloat = 46
     private let chipsTopGap: CGFloat = 10
     private let chipsHeight: CGFloat = 36
-    private let cardsInitialTop: CGFloat = 172
+    private let cardsInitialTop: CGFloat = 216
     private let tabBarHeight: CGFloat = 76
 
     private var searchTop: CGFloat { topBarHeight + searchTopPadding }
@@ -3765,7 +3765,7 @@ private struct BikeCatalogSheet: View {
     private let searchHeight: CGFloat = 46
     private let chipsTopGap: CGFloat = 10
     private let chipsHeight: CGFloat = 36
-    private let cardsInitialTop: CGFloat = 172
+    private let cardsInitialTop: CGFloat = 216
     private let tabBarHeight: CGFloat = 76
 
     private var searchTop: CGFloat { topBarHeight + searchTopPadding }
