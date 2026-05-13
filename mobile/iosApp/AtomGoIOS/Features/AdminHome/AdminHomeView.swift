@@ -277,7 +277,7 @@ struct AdminHomeView: View {
         .onAppear {
             openStartupRentalIfNeeded()
         }
-        .sheet(isPresented: $isCreateRentalSheetPresented) {
+        .fullScreenCover(isPresented: $isCreateRentalSheetPresented) {
             CreateRentalSheet(
                 clients: viewModel.clientCatalog,
                 bikes: viewModel.bikes,
@@ -1640,13 +1640,23 @@ private struct AdminRentalDetailsScreen: View {
                 )
             }
             HStack(spacing: 8) {
-                Button("Сгенерировать") {}
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 110, height: 47)
-                    .background(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
-                    .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+                // Согласно docs/14_rental_lifecycle.md §4, кнопка «Сгенерировать»
+                // живёт только в lifecycle-аренде в статусе IN_STOCK, где админ
+                // готовит черновик credentials под следующую client_rental.
+                // В активной аренде credentials редактировать нельзя, в закрытой —
+                // тем более; там кнопки быть не должно.
+                if isInStockState {
+                    Button(action: generateCredentials) {
+                        Text("Сгенерировать")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 110, height: 47)
+                            .background(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
+                            .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+                    }
                     .buttonStyle(.plain)
+                    .accessibilityIdentifier("rentalDetails.generateCredentialsButton")
+                }
 
                 Button(action: copyCredentialsToClipboard) {
                     ZStack {
@@ -1835,7 +1845,18 @@ private struct AdminRentalDetailsScreen: View {
     private var completedAtText: String { prettyDate(details?.completedAt ?? completedAtFallback) }
     private var rentalIsActive: Bool { details?.rentalIsActive ?? fallbackSummary?.rentalIsActive ?? false }
     private var runningRentalIsActive: Bool { rentalIsActive && !isInStockState }
+    /// True ⇔ открыта именно lifecycle-аренда в статусе IN_STOCK (велик у админа,
+    /// идёт подготовка credentials под следующий цикл). Закрытая client_rental
+    /// показывается как историческая запись и НЕ считается in_stock, даже если
+    /// её lifecycle сейчас в IN_STOCK (см. docs/14_rental_lifecycle.md §2).
     private var isInStockState: Bool {
+        // Признак «это закрытая client_rental» — есть completedAt либо в данных
+        // ответа, либо в контексте, переданном при открытии из истории.
+        let hasCompletedAt = !(details?.completedAt?.isEmpty ?? true) || completedAtFallback != nil
+        if hasCompletedAt {
+            return false
+        }
+
         let status = (details?.rentalPipelineStatus ?? fallbackSummary?.rentalPipelineStatus ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
@@ -1843,10 +1864,9 @@ private struct AdminRentalDetailsScreen: View {
             return true
         }
 
-        // Current lifecycle rentals in "У меня" can arrive with a stale/empty pipeline
-        // status after closing; completed client rentals pass completedAtFallback and keep
-        // their historical metrics and journal.
-        return !rentalIsActive && completedAtFallback == nil
+        // Свежеоткрытый IN_STOCK lifecycle может прийти с пустым статусом до
+        // догрузки деталей — fallback по rentalIsActive.
+        return !rentalIsActive
     }
     private var bikeId: String? { details?.bikeId }
     private var displayPolicy: RentalDetailsDisplayPolicy {
@@ -2031,6 +2051,14 @@ private struct AdminRentalDetailsScreen: View {
     }
 
     private var avatarBorderColor: Color {
+        // Закрытая клиентская аренда — историческая запись без активной
+        // семантики lifecycle-статуса, рамка нейтральная серая.
+        // См. docs/14_rental_lifecycle.md §2 — статусы long_term/soon_return/in_stock
+        // относятся к lifecycle-аренде, а не к закрытой client_rental.
+        let isCompletedClientRental = !(details?.completedAt?.isEmpty ?? true) || completedAtFallback != nil
+        if isCompletedClientRental {
+            return Color(red: 152 / 255, green: 161 / 255, blue: 173 / 255)
+        }
         if let details {
             if !details.rentalIsActive {
                 return Color(red: 203 / 255, green: 48 / 255, blue: 224 / 255)
@@ -2078,6 +2106,32 @@ private struct AdminRentalDetailsScreen: View {
             comment: nil
         )
         onStartRental(payload)
+    }
+
+    /// Генерация черновика credentials под следующую client_rental.
+    /// Согласно docs/14_rental_lifecycle.md §4 кнопка генерирует И логин,
+    /// И пароль. Логин — короткий человекочитаемый суффикс (admin может
+    /// затем отредактировать), пароль — 12 символов из безопасного
+    /// алфавита (без однозначных глифов).
+    private func generateCredentials() {
+        editableRentalLogin = makeRandomLogin()
+        editableRentalPassword = makeRandomPassword()
+        startValidationMessage = nil
+    }
+
+    private func makeRandomLogin() -> String {
+        // 6 цифр обеспечивают 1_000_000 вариантов — достаточно как черновик
+        // для практически любого числа аренд; уникальность проверяет backend.
+        let digits = "0123456789"
+        let suffix = String((0..<6).map { _ in digits.randomElement()! })
+        return "user\(suffix)"
+    }
+
+    private func makeRandomPassword() -> String {
+        // Алфавит без I, O, l, 1, 0 — чтобы избежать спорных символов
+        // при чтении или озвучивании. Длина 12 даёт примерно ~71 бит энтропии.
+        let alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
+        return String((0..<12).map { _ in alphabet.randomElement()! })
     }
 
     private func copyCredentialsToClipboard() {
@@ -2875,6 +2929,195 @@ private struct RentalStartClientPickerSheet: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("rentalClientPicker.client.\(client.clientId)")
+        .accessibilityValue(isSelected ? "selected" : "normal")
+    }
+}
+
+private struct RentalStartBikePickerSheet: View {
+    let bikes: [AdminBikeResponse]
+    @Binding var selectedBikeId: String?
+    let onClose: () -> Void
+    let onConfirm: () -> Void
+
+    @State private var searchText = ""
+
+    private let athensGray = Color(red: 247 / 255, green: 248 / 255, blue: 250 / 255)
+    private let horizontalInset: CGFloat = 8
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            athensGray.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                header
+
+                if visibleBikes.isEmpty {
+                    emptyState
+                        .padding(.horizontal, horizontalInset)
+                        .padding(.top, 14)
+                } else {
+                    List {
+                        ForEach(visibleBikes) { bike in
+                            bikeRow(bike)
+                        }
+                    }
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                }
+            }
+        }
+    }
+
+    private var visibleBikes: [AdminBikeResponse] {
+        let normalizedQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let searched = bikes.filter { bike in
+            guard !normalizedQuery.isEmpty else { return true }
+            return bike.bikeModel.lowercased().contains(normalizedQuery)
+                || bike.frameSerialNumber.lowercased().contains(normalizedQuery)
+                || bike.motorSerialNumber.lowercased().contains(normalizedQuery)
+                || bike.batterySerialNumber1.lowercased().contains(normalizedQuery)
+                || (bike.batterySerialNumber2?.lowercased().contains(normalizedQuery) ?? false)
+        }
+
+        return searched.sorted { left, right in
+            left.bikeModel.localizedCaseInsensitiveCompare(right.bikeModel) == .orderedAscending
+        }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                headerIconButton(
+                    systemName: "xmark",
+                    accessibilityIdentifier: "rentalBikePicker.closeButton",
+                    action: onClose
+                )
+
+                Spacer()
+
+                Text("Велосипеды")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
+
+                Spacer()
+
+                headerIconButton(
+                    systemName: "checkmark",
+                    accessibilityIdentifier: "rentalBikePicker.confirmButton",
+                    action: onConfirm
+                )
+                .disabled(selectedBikeId == nil)
+                .opacity(selectedBikeId == nil ? 0.45 : 1)
+            }
+            .padding(.horizontal, horizontalInset)
+            .frame(height: 62)
+
+            searchField
+                .padding(.horizontal, horizontalInset)
+                .padding(.top, 6)
+        }
+        .background(athensGray)
+        .accessibilityIdentifier("rentalBikePicker.header")
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(AppDesign.titleText)
+
+            TextField("Поиск: модель, серийный номер", text: $searchText)
+                .font(.system(size: 13, weight: .regular))
+                .foregroundStyle(AppDesign.titleText)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+        }
+        .padding(.horizontal, 15)
+        .frame(height: 46)
+        .background(Color.white)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12.84, style: .continuous)
+                .stroke(AppDesign.accent, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12.84, style: .continuous))
+        .accessibilityIdentifier("rentalBikePicker.searchField")
+    }
+
+    private func headerIconButton(
+        systemName: String,
+        accessibilityIdentifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(AppDesign.accent, lineWidth: 1)
+                )
+                .overlay(
+                    Image(systemName: systemName)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(AppDesign.accent)
+                )
+                .frame(width: 47, height: 47)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(accessibilityIdentifier)
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "bicycle")
+                .font(.system(size: 30, weight: .semibold))
+                .foregroundStyle(AppDesign.iconSoft)
+            Text("Нет велосипедов")
+                .font(.headline)
+                .foregroundStyle(AppDesign.titleText)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(24)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+    }
+
+    private func bikeRow(_ bike: AdminBikeResponse) -> some View {
+        let isSelected = selectedBikeId == bike.bikeId
+
+        return Button {
+            selectedBikeId = bike.bikeId
+        } label: {
+            HStack(spacing: 12) {
+                BikePhotoView(source: bike.photoUrl) {
+                    Image(systemName: "bicycle")
+                        .resizable()
+                        .scaledToFit()
+                        .padding(10)
+                        .foregroundStyle(AppDesign.iconSoft)
+                }
+                .frame(width: 48, height: 48)
+                .background(AppDesign.surfaceBackground)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(bike.bikeModel)
+                        .font(.headline)
+                        .foregroundStyle(AppDesign.titleText)
+                    Text("\(bike.weeklyRateRub) ₽ / неделя")
+                        .font(.subheadline)
+                        .foregroundStyle(AppDesign.subtleText)
+                }
+
+                Spacer()
+
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(isSelected ? AppDesign.success : AppDesign.iconSoft)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("rentalBikePicker.bike.\(bike.bikeId)")
         .accessibilityValue(isSelected ? "selected" : "normal")
     }
 }
@@ -3795,7 +4038,7 @@ private struct AdminClientDetailsSheet: View {
                         }
                     )
                 }
-                .sheet(isPresented: $isCreateRentalPresented) {
+                .fullScreenCover(isPresented: $isCreateRentalPresented) {
                     CreateRentalSheet(
                         clients: clients,
                         bikes: bikes,
@@ -4473,6 +4716,8 @@ private struct CreateRentalSheet: View {
     @State private var contractUrl: String
     @State private var comment: String
     @State private var validationError: String?
+    @State private var isClientPickerPresented = false
+    @State private var isBikePickerPresented = false
 
     init(
         clients: [AdminClientSummaryResponse],
@@ -4488,8 +4733,8 @@ private struct CreateRentalSheet: View {
         self.isSaving = isSaving
         self.onCancel = onCancel
         self.onCreate = onCreate
-        let initialClientId = preselectedClientId ?? clients.first?.clientId ?? ""
-        let initialBikeId = bikes.first?.bikeId ?? ""
+        let initialClientId = preselectedClientId ?? ""
+        let initialBikeId = ""
         let initialClientLogin = clients.first(where: { $0.clientId == initialClientId })?.clientLogin ?? ""
         _selectedClientId = State(initialValue: initialClientId)
         _selectedBikeId = State(initialValue: initialBikeId)
@@ -4503,98 +4748,381 @@ private struct CreateRentalSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("Клиент и велосипед") {
-                    if clients.isEmpty {
-                        Text("Сначала создайте клиента в сервисном экране")
-                            .foregroundStyle(AppDesign.subtleText)
-                    } else {
-                        Picker("Клиент", selection: $selectedClientId) {
-                            ForEach(clients) { client in
-                                Text(client.fullName).tag(client.clientId)
-                            }
+        ZStack {
+            AppDesign.pageBackground.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                topBar
+                    .padding(.horizontal, 23)
+                    .padding(.top, 8)
+
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        if let validationError {
+                            Text(validationError)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(AppDesign.danger)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(14)
+                                .background(Color.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 12.84, style: .continuous))
+                                .accessibilityIdentifier("createRental.validationError")
                         }
+
+                        sectionTitle("КЛИЕНТ И ВЕЛОСИПЕД")
+
+                        selectionField(
+                            title: "КЛИЕНТ",
+                            value: selectedClientName,
+                            placeholder: "выбрать клаента",
+                            leadingMarkerColor: Color(red: 211 / 255, green: 215 / 255, blue: 221 / 255),
+                            action: { isClientPickerPresented = true }
+                        )
                         .accessibilityIdentifier("createRental.clientPicker")
-                    }
 
-                    if bikes.isEmpty {
-                        Text("Сначала создайте велосипед в сервисном экране")
-                            .foregroundStyle(AppDesign.subtleText)
-                    } else {
-                        Picker("Велосипед", selection: $selectedBikeId) {
-                            ForEach(bikes) { bike in
-                                Text("\(bike.bikeModel) • \(bike.weeklyRateRub) ₽/нед").tag(bike.bikeId)
-                            }
-                        }
+                        selectionField(
+                            title: "ВЕЛОСИПЕД",
+                            value: selectedBikeName,
+                            placeholder: "выбрать · покажет ставку",
+                            leadingMarkerColor: Color(red: 205 / 255, green: 209 / 255, blue: 217 / 255),
+                            action: { isBikePickerPresented = true }
+                        )
                         .accessibilityIdentifier("createRental.bikePicker")
-                    }
 
-                    TextField("Дата начала (YYYY-MM-DD)", text: $periodStart)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .accessibilityIdentifier("createRental.periodStartField")
-                    TextField("Дата окончания (необязательно)", text: $periodEnd)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .accessibilityIdentifier("createRental.periodEndField")
-                }
+                        inputField(
+                            title: "ДАТА НАЧАЛА",
+                            placeholder: "YYYY-MM-DD",
+                            text: $periodStart,
+                            id: "createRental.periodStartField"
+                        )
+                        inputField(
+                            title: "ДАТА ОКОНЧАНИЯ",
+                            placeholder: "не обязательно",
+                            text: $periodEnd,
+                            id: "createRental.periodEndField",
+                            isDashed: true
+                        )
 
-                Section("Доступ клиента") {
-                    TextField("Логин клиента", text: $login)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .accessibilityIdentifier("createRental.loginField")
-                    SecureField("Пароль клиента", text: $password)
-                        .accessibilityIdentifier("createRental.passwordField")
-                }
+                        sectionTitle("ДОСТУП КЛИЕНТА", topPadding: 6)
 
-                Section("Документы и комментарий") {
-                    TextField("Ссылка на видео", text: $videoUrl)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .accessibilityIdentifier("createRental.videoUrlField")
-                    TextField("Ссылка на договор", text: $contractUrl)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .accessibilityIdentifier("createRental.contractUrlField")
-                    TextField("Комментарий", text: $comment, axis: .vertical)
-                        .lineLimit(3, reservesSpace: true)
-                        .accessibilityIdentifier("createRental.commentField")
-                }
+                        inputField(
+                            title: "ЛОГИН КЛИЕНТА",
+                            placeholder: "введите...",
+                            text: $login,
+                            id: "createRental.loginField"
+                        )
+                        inputField(
+                            title: "ПАРОЛЬ КЛИЕНТА",
+                            placeholder: "введите...",
+                            text: $password,
+                            id: "createRental.passwordField"
+                        )
 
-                if let validationError {
-                    Section {
-                        Text(validationError)
-                            .foregroundStyle(AppDesign.danger)
-                            .accessibilityIdentifier("createRental.validationError")
+                        credentialButtonsRow
+
+                        sectionTitle("ДОКУМЕНТЫ И КОММЕНТАРИЙ", topPadding: 6)
+
+                        inputField(
+                            title: "ССЫЛКА НА ВИДЕО",
+                            placeholder: "не обязательно",
+                            text: $videoUrl,
+                            id: "createRental.videoUrlField",
+                            isDashed: true
+                        )
+                        inputField(
+                            title: "ССЫЛКА НА ДОГОВОР",
+                            placeholder: "не обязательно",
+                            text: $contractUrl,
+                            id: "createRental.contractUrlField",
+                            isDashed: true
+                        )
+                        inputField(
+                            title: "КОММЕНТАРИЙ",
+                            placeholder: "не обязательно",
+                            text: $comment,
+                            id: "createRental.commentField",
+                            isDashed: true
+                        )
                     }
-                }
-            }
-            .navigationTitle("Новая аренда")
-            .onChange(of: selectedClientId) { newClientId in
-                if let suggestedLogin = clients.first(where: { $0.clientId == newClientId })?.clientLogin,
-                   !suggestedLogin.isEmpty {
-                    login = suggestedLogin
-                }
-            }
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Отмена") {
-                        onCancel()
-                    }
-                    .disabled(isSaving)
-                    .accessibilityIdentifier("createRental.cancelButton")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(isSaving ? "Сохраняем..." : "Создать") {
-                        submit()
-                    }
-                    .disabled(isSaving)
-                    .accessibilityIdentifier("createRental.submitButton")
+                    .padding(.horizontal, 23)
+                    .padding(.top, 14)
+                    .padding(.bottom, 26)
                 }
             }
         }
+        .onChange(of: selectedClientId) { newClientId in
+            if let suggestedLogin = clients.first(where: { $0.clientId == newClientId })?.clientLogin,
+               !suggestedLogin.isEmpty {
+                login = suggestedLogin
+            }
+        }
+        .fullScreenCover(isPresented: $isClientPickerPresented) {
+            RentalStartClientPickerSheet(
+                clients: availableClientsForStart,
+                selectedClientId: Binding(
+                    get: { selectedClientId.isEmpty ? nil : selectedClientId },
+                    set: { selectedClientId = $0 ?? "" }
+                ),
+                onClose: { isClientPickerPresented = false },
+                onConfirm: { isClientPickerPresented = false }
+            )
+        }
+        .fullScreenCover(isPresented: $isBikePickerPresented) {
+            RentalStartBikePickerSheet(
+                bikes: bikes,
+                selectedBikeId: Binding(
+                    get: { selectedBikeId.isEmpty ? nil : selectedBikeId },
+                    set: { selectedBikeId = $0 ?? "" }
+                ),
+                onClose: { isBikePickerPresented = false },
+                onConfirm: { isBikePickerPresented = false }
+            )
+        }
+    }
+
+    private var availableClientsForStart: [AdminClientSummaryResponse] {
+        clients
+            .filter { !$0.rentalIsActive }
+            .sorted { lhs, rhs in
+                lhs.fullName.localizedCaseInsensitiveCompare(rhs.fullName) == .orderedAscending
+            }
+    }
+
+    private var selectedClientName: String? {
+        clients.first(where: { $0.clientId == selectedClientId })?.fullName
+    }
+
+    private var selectedBikeName: String? {
+        guard let bike = bikes.first(where: { $0.bikeId == selectedBikeId }) else { return nil }
+        return "\(bike.bikeModel) · \(bike.weeklyRateRub) ₽/нед"
+    }
+
+    private var topBar: some View {
+        HStack(spacing: 0) {
+            topBarButton(
+                imageName: "chevron.left",
+                isDark: false,
+                accessibilityIdentifier: "createRental.cancelButton",
+                action: onCancel
+            )
+            .disabled(isSaving)
+
+            Spacer(minLength: 12)
+
+            Text("Новая аренда")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(AppDesign.titleText)
+
+            Spacer(minLength: 12)
+
+            topBarButton(
+                imageName: "checkmark",
+                isDark: true,
+                accessibilityIdentifier: "createRental.submitButton",
+                action: submit
+            )
+            .disabled(isSaving)
+            .opacity(isSaving ? 0.45 : 1)
+        }
+        .frame(height: 47)
+    }
+
+    private func topBarButton(
+        imageName: String,
+        isDark: Bool,
+        accessibilityIdentifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(isDark ? AppDesign.accent : Color.white)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(AppDesign.accent, lineWidth: 1)
+                )
+                .overlay(
+                    Image(systemName: imageName)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(isDark ? Color.white : AppDesign.accent)
+                )
+                .frame(width: 47, height: 47)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(accessibilityIdentifier)
+    }
+
+    private func sectionTitle(_ text: String, topPadding: CGFloat = 0) -> some View {
+        Text(text)
+            .font(.system(size: 11, weight: .bold))
+            .tracking(0.88)
+            .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+            .padding(.top, topPadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func selectionField(
+        title: String,
+        value: String?,
+        placeholder: String,
+        leadingMarkerColor: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.system(size: 10, weight: .bold))
+                        .tracking(0.8)
+                        .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                    Text(value ?? placeholder)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(value == nil ? Color(red: 201 / 255, green: 204 / 255, blue: 210 / 255) : AppDesign.titleText)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255))
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                }
+                .frame(width: 28, height: 28)
+            }
+            .padding(.leading, 19)
+            .padding(.trailing, 15)
+            .frame(minHeight: 58)
+            .background(Color.white)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12.84, style: .continuous)
+                    .stroke(AppDesign.accent, lineWidth: 1)
+            )
+            .overlay(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(leadingMarkerColor)
+                    .frame(width: 4)
+                    .padding(.vertical, 8)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 12.84, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var credentialButtonsRow: some View {
+        HStack(spacing: 8) {
+            Button(action: generateCredentials) {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 14, weight: .medium))
+                    Text("Сгенерировать")
+                        .font(.system(size: 13, weight: .bold))
+                }
+                .foregroundStyle(Color.white)
+                .frame(width: 179, height: 44)
+                .background(AppDesign.accent)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("createRental.generateCredentialsButton")
+
+            Button(action: copyCredentials) {
+                HStack(spacing: 8) {
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: 14, weight: .medium))
+                    Text("Скопировать")
+                        .font(.system(size: 13, weight: .bold))
+                }
+                .foregroundStyle(AppDesign.accent)
+                .frame(width: 181, height: 46)
+                .background(Color.white)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(AppDesign.accent, lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("createRental.copyCredentialsButton")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func inputField(
+        title: String,
+        placeholder: String,
+        text: Binding<String>,
+        id: String,
+        isDashed: Bool = false
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.system(size: 11, weight: .regular))
+                .tracking(0.66)
+                .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                .lineLimit(1)
+            TextField(
+                "",
+                text: text,
+                prompt: Text(placeholder)
+                    .foregroundColor(Color(red: 201 / 255, green: 204 / 255, blue: 210 / 255))
+            )
+            .font(.system(size: 13, weight: .regular))
+            .foregroundStyle(AppDesign.titleText)
+            .autocorrectionDisabled()
+            .textInputAutocapitalization(.never)
+            .accessibilityIdentifier(id)
+        }
+        .padding(.horizontal, 19)
+        .frame(height: 58)
+        .background(Color.white)
+        .overlay {
+            if isDashed {
+                RoundedRectangle(cornerRadius: 12.84, style: .continuous)
+                    .stroke(
+                        Color(red: 152 / 255, green: 161 / 255, blue: 173 / 255),
+                        style: StrokeStyle(lineWidth: 1, dash: [3, 2.5])
+                    )
+            } else {
+                RoundedRectangle(cornerRadius: 12.84, style: .continuous)
+                    .stroke(AppDesign.accent, lineWidth: 1)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 12.84, style: .continuous))
+    }
+
+    private func generateCredentials() {
+        let symbols = Array("ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%")
+        password = String((0..<12).compactMap { _ in symbols.randomElement() })
+        if login.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if let selectedClientName {
+                login = selectedClientName
+                    .lowercased()
+                    .replacingOccurrences(of: " ", with: ".")
+                    .filter { $0.isLetter || $0.isNumber || $0 == "." }
+            }
+            if login.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                login = "client\(Int.random(in: 1000...9999))"
+            }
+        }
+    }
+
+    private func copyCredentials() {
+        let normalizedLogin = login.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedPassword = password.trimmingCharacters(in: .whitespacesAndNewlines)
+        if normalizedLogin.isEmpty && normalizedPassword.isEmpty {
+            validationError = "Заполните логин и пароль"
+            return
+        }
+        if normalizedLogin.isEmpty {
+            validationError = "Заполните логин"
+            return
+        }
+        if normalizedPassword.isEmpty {
+            validationError = "Заполните пароль"
+            return
+        }
+        validationError = nil
+        UIPasteboard.general.string = "Логин: \(normalizedLogin)\nПароль: \(normalizedPassword)"
     }
 
     private func submit() {

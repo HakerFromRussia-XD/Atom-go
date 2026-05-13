@@ -2267,6 +2267,103 @@ class ApiIntegrationTest {
         return clientId
     }
 
+    // ---------------------------------------------------------------------------
+    // Инвариант: у каждой client_rental должны быть непустые логин и пароль
+    // (docs/14_rental_lifecycle.md §4). Это покрывает и активную, и закрытую.
+    // ---------------------------------------------------------------------------
+
+    @Test
+    fun `every client rental must expose credentials including after closure`() = testApplication {
+        application { module() }
+        val adminToken = loginAsAdmin()
+        val clientId = createClientAndGetId(
+            adminToken,
+            fullName = "Credentials Invariant",
+            phone = "79009992001"
+        )
+        val bikeId = createBikeAndGetId(
+            adminToken,
+            frameSerial = "CRED-INV-FRAME",
+            motorSerial = "CRED-INV-MOTOR"
+        )
+        val start = LocalDate.now().minusDays(3).toString()
+
+        val createRental = client.post("/api/v1/admin/rentals") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "client_id":"$clientId",
+                  "bike_id":"$bikeId",
+                  "login":"cred.invariant",
+                  "password":"credInv123",
+                  "period_start":"$start"
+                }
+                """.trimIndent()
+            )
+        }
+        assertEquals(HttpStatusCode.Created, createRental.status)
+        val lifecycleRentalId = json.parseToJsonElement(createRental.bodyAsText())
+            .jsonObject["rental_id"]?.jsonPrimitive?.content ?: error("No rental_id")
+
+        // Активная аренда — credentials видны через details.
+        val activeDetails = client.get("/api/v1/admin/rentals/$lifecycleRentalId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, activeDetails.status)
+        val activeBody = json.parseToJsonElement(activeDetails.bodyAsText()).jsonObject
+        assertEquals("cred.invariant", activeBody["client_login"]?.jsonPrimitive?.content)
+        assertEquals("credInv123", activeBody["client_password"]?.jsonPrimitive?.content)
+
+        // Завершаем аренду (transition в in_stock) — закрытая client_rental
+        // должна сохранить логин и пароль.
+        val finish = client.post("/api/v1/admin/rentals/$lifecycleRentalId/finish") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, finish.status)
+
+        // Получаем id закрытой client_rental из истории клиента.
+        val clientDetails = client.get("/api/v1/admin/clients/$clientId") {
+            bearerAuth(adminToken)
+        }
+        val closedClientRentalId = json.parseToJsonElement(clientDetails.bodyAsText())
+            .jsonObject["rentals"]?.jsonArray
+            ?.firstOrNull { it.jsonObject["bike_id"]?.jsonPrimitive?.content == bikeId }
+            ?.jsonObject?.get("rental_id")?.jsonPrimitive?.content
+            ?: error("No closed client rental id")
+
+        val closedDetails = client.get("/api/v1/admin/rentals/$closedClientRentalId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, closedDetails.status)
+        val closedBody = json.parseToJsonElement(closedDetails.bodyAsText()).jsonObject
+        assertEquals(
+            "cred.invariant",
+            closedBody["client_login"]?.jsonPrimitive?.content,
+            "closed client_rental must keep its historical login"
+        )
+        assertEquals(
+            "credInv123",
+            closedBody["client_password"]?.jsonPrimitive?.content,
+            "closed client_rental must keep its historical password"
+        )
+
+        // Bonus: lifecycle сейчас IN_STOCK. Открытие тоже не должно
+        // ломать ответ для закрытой client_rental.
+        val lifecycleDetails = client.get("/api/v1/admin/rentals/$lifecycleRentalId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, lifecycleDetails.status)
+        val lifecycleBody = json.parseToJsonElement(lifecycleDetails.bodyAsText()).jsonObject
+        assertEquals(
+            "in_stock",
+            lifecycleBody["rental_pipeline_status"]?.jsonPrimitive?.content
+        )
+        // У lifecycle в in_stock активной client_rental нет — поля client_login
+        // и client_password могут быть null/empty (это сам lifecycle, не закрытая аренда).
+    }
+
     private suspend fun io.ktor.server.testing.ApplicationTestBuilder.paySingleWeek(
         login: String,
         password: String,

@@ -1073,6 +1073,16 @@ private final class MockAdminBackendService: BackendServicing {
         throw BackendError.invalidResponse
     }
 
+    func applyCarriedDebtOperation(
+        accessToken _: String,
+        clientId _: String,
+        amountRub _: Int,
+        kind _: CarriedDebtOperationKind,
+        comment _: String?
+    ) async throws -> CarriedDebtOperationResult {
+        throw BackendError.invalidResponse
+    }
+
     func updateAdminRentalComment(
         accessToken _: String,
         rentalId _: String,

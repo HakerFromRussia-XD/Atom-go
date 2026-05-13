@@ -296,6 +296,12 @@ final class AdminHomeViewModel: ObservableObject {
         operationErrorMessage = nil
         operationSuccessMessage = nil
 
+        // IN_STOCK lifecycle-аренда не имеет активного клиента, в этом случае
+        // вызывающий передаёт пустой clientId — refreshAfterMutation тогда
+        // не пытается реоткрыть карточку клиента (этого клиента может уже не
+        // существовать или это просто не нужно).
+        let openClientId: String? = clientId.isEmpty ? nil : clientId
+
         Task {
             do {
                 let result = try await apiService.deleteAdminRental(
@@ -303,11 +309,22 @@ final class AdminHomeViewModel: ObservableObject {
                     rentalId: rentalId
                 )
                 if result.deleted {
-                    operationSuccessMessage = "Аренда удалена: \(result.rentalId)"
+                    operationSuccessMessage = "Велосипед выведен из эксплуатации"
                 } else {
                     operationSuccessMessage = "Удаление завершено"
                 }
-                await refreshAfterMutation(openDetailsFor: clientId)
+                await refreshAfterMutation(openDetailsFor: openClientId)
+            } catch let backendError as BackendError {
+                if case .httpError(let code, _) = backendError, code == 404 {
+                    // Параллельное удаление другим админом или устаревший
+                    // список: вместо алёрта-ошибки молча рефрешим состояние
+                    // и сообщаем нейтрально. Согласно docs/14_rental_lifecycle.md §7
+                    // карточка lifecycle-аренды уже исчезла с главного экрана.
+                    operationSuccessMessage = "Аренда уже удалена"
+                    await refreshAfterMutation(openDetailsFor: openClientId)
+                } else {
+                    operationErrorMessage = backendError.localizedDescription
+                }
             } catch {
                 operationErrorMessage = error.localizedDescription
             }
@@ -410,6 +427,53 @@ final class AdminHomeViewModel: ObservableObject {
                 operationErrorMessage = error.localizedDescription
             }
             isOperationInProgress = false
+        }
+    }
+
+    /// Admin-операция над перенесённым долгом клиента
+    /// (docs/14_rental_lifecycle.md §7, docs/04_api_draft.md «Admin: carried debt operations»).
+    /// Для `payment` излишек автоматически уходит в активную клиентскую аренду — backend
+    /// возвращает разбивку, которую мы показываем в success-сообщении.
+    func applyCarriedDebt(
+        clientId: String,
+        amountRub: Int,
+        kind: CarriedDebtOperationKind,
+        comment: String?
+    ) {
+        isOperationInProgress = true
+        operationErrorMessage = nil
+        operationSuccessMessage = nil
+
+        Task {
+            do {
+                let result = try await apiService.applyCarriedDebtOperation(
+                    accessToken: session.accessToken,
+                    clientId: clientId,
+                    amountRub: amountRub,
+                    kind: kind,
+                    comment: comment
+                )
+                operationSuccessMessage = buildCarriedDebtSuccessMessage(kind: kind, result: result)
+                await refreshAfterMutation(openDetailsFor: clientId)
+            } catch {
+                operationErrorMessage = error.localizedDescription
+            }
+            isOperationInProgress = false
+        }
+    }
+
+    private func buildCarriedDebtSuccessMessage(
+        kind: CarriedDebtOperationKind,
+        result: CarriedDebtOperationResult
+    ) -> String {
+        switch kind {
+        case .writeoff:
+            return "Списано \(result.appliedToCarriedRub) ₽. Перенесённый долг: \(result.carriedDebtRub) ₽"
+        case .payment:
+            if result.appliedToActiveRentalRub > 0 {
+                return "Принято \(result.appliedToCarriedRub + result.appliedToActiveRentalRub) ₽: \(result.appliedToCarriedRub) ₽ в перенесённый долг, \(result.appliedToActiveRentalRub) ₽ в активную аренду"
+            }
+            return "Принято \(result.appliedToCarriedRub) ₽. Перенесённый долг: \(result.carriedDebtRub) ₽"
         }
     }
 

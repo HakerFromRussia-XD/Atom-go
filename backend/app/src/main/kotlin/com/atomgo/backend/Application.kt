@@ -746,6 +746,40 @@ private fun ensureClientRentalModel(store: InMemoryStore): Boolean {
         changed = true
     }
 
+    // Инвариант: у каждой ClientRentalRecord должны быть непустые
+    // clientLogin и clientPassword (docs/14_rental_lifecycle.md §4).
+    // Если запись пришла из legacy-миграции с пустыми credentials или из
+    // seed-данных без явных логина/пароля — пробуем заполнить:
+    //   1) из исходной RentalRecord.clientLogin/Password (старый источник);
+    //   2) из AppUser клиента (последний известный логин/пароль).
+    // Этот шаг идемпотентен: запись с уже заполненными credentials не меняется.
+    store.clientRentals.replaceAll { clientRental ->
+        val needsLogin = clientRental.clientLogin.isBlank()
+        val needsPassword = clientRental.clientPassword.isBlank()
+        if (!needsLogin && !needsPassword) return@replaceAll clientRental
+
+        val legacyRental = store.rentals.firstOrNull { it.id == clientRental.rentalId }
+        val fallbackUser = store.users.firstOrNull {
+            it.role == Role.CLIENT && it.clientId == clientRental.clientId
+        }
+        val backfilledLogin = clientRental.clientLogin.ifBlank {
+            legacyRental?.clientLogin?.takeIf { it.isNotBlank() }
+                ?: fallbackUser?.login?.takeIf { it.isNotBlank() }
+                ?: ""
+        }
+        val backfilledPassword = clientRental.clientPassword.ifBlank {
+            legacyRental?.clientPassword?.takeIf { it.isNotBlank() }
+                ?: fallbackUser?.password?.takeIf { it.isNotBlank() }
+                ?: ""
+        }
+        if (backfilledLogin == clientRental.clientLogin && backfilledPassword == clientRental.clientPassword) {
+            clientRental
+        } else {
+            changed = true
+            clientRental.copy(clientLogin = backfilledLogin, clientPassword = backfilledPassword)
+        }
+    }
+
     store.rentals.replaceAll { rental ->
         val activeClientRental = activeClientRentalForLifecycle(rental, store, LocalDate.now())
         if (activeClientRental == null) {
