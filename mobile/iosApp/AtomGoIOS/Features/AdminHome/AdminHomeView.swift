@@ -151,6 +151,34 @@ private enum ClientCatalogFilter: CaseIterable {
     }
 }
 
+private enum BikeCatalogFilter: CaseIterable {
+    case all
+    case free
+    case rented
+
+    var title: String {
+        switch self {
+        case .all:
+            return "Все"
+        case .free:
+            return "Свободны"
+        case .rented:
+            return "В аренде"
+        }
+    }
+
+    var accessibilityIdentifier: String {
+        switch self {
+        case .all:
+            return "bikeCatalog.filter.all"
+        case .free:
+            return "bikeCatalog.filter.free"
+        case .rented:
+            return "bikeCatalog.filter.rented"
+        }
+    }
+}
+
 struct RentalDetailsDisplayPolicy {
     let rentalIsActive: Bool
     let isInStockState: Bool
@@ -523,10 +551,11 @@ struct AdminHomeView: View {
             case .bikes:
                 BikeCatalogSheet(
                     bikes: viewModel.bikes,
+                    rentals: clients,
                     isSaving: viewModel.isOperationInProgress,
                     apiErrorMessage: viewModel.operationErrorMessage,
                     showsCloseButton: false,
-                    onCancel: {},
+                    onCancel: onLogout,
                     onCreate: { payload, onSuccess in
                         viewModel.createBike(payload: payload, onSuccess: onSuccess)
                     },
@@ -2549,69 +2578,280 @@ private struct CreateBikeSheet: View {
     @State private var selectedPhotoPreview: Image?
     @State private var encodedPhotoDataUrl: String?
 
+    private let ebonyClay = Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255)
+    private let paleSky = Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255)
+    private let ghost = Color(red: 201 / 255, green: 204 / 255, blue: 210 / 255)
+    private let grayChateau = Color(red: 152 / 255, green: 161 / 255, blue: 173 / 255)
+    private let athensGray = Color(red: 247 / 255, green: 248 / 255, blue: 250 / 255)
+    private let horizontalPadding: CGFloat = 23
+
     var body: some View {
-        NavigationStack {
-            Form {
-                if let validationError {
-                    Section {
-                        Text(validationError)
-                            .foregroundStyle(AppDesign.danger)
-                    }
-                }
-                if let apiErrorMessage, !apiErrorMessage.isEmpty {
-                    Section {
-                        Text(apiErrorMessage)
-                            .foregroundStyle(AppDesign.danger)
-                    }
-                }
+        GeometryReader { proxy in
+            let fieldWidth = max(0, proxy.size.width - horizontalPadding * 2)
 
-                Section("Фото велосипеда") {
-                    PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
-                        Text("Выбрать фото из галереи")
-                    }
-                    .accessibilityIdentifier("createBike.photoPicker")
-                    if let selectedPhotoPreview {
-                        selectedPhotoPreview
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxHeight: 180)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    }
-                }
+            ZStack {
+                athensGray.ignoresSafeArea()
 
-                Section("Параметры велосипеда") {
-                    TextField("Модель велосипеда", text: $bikeModel)
-                        .accessibilityIdentifier("createBike.modelField")
-                    TextField("Стоимость недели аренды, ₽", text: $weeklyRateRub)
-                        .keyboardType(.numberPad)
-                        .accessibilityIdentifier("createBike.weeklyRateField")
-                    TextField("Серийный номер рамы", text: $frameSerialNumber)
-                        .accessibilityIdentifier("createBike.frameSerialField")
-                    TextField("Серийный номер мотора", text: $motorSerialNumber)
-                        .accessibilityIdentifier("createBike.motorSerialField")
-                    TextField("Серийный номер аккумулятора 1", text: $batterySerialNumber1)
-                        .accessibilityIdentifier("createBike.battery1Field")
-                    TextField("Серийный номер аккумулятора 2", text: $batterySerialNumber2)
-                        .accessibilityIdentifier("createBike.battery2Field")
-                }
-            }
-            .navigationTitle("Новый велосипед")
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Отмена", action: onCancel)
-                        .disabled(isSaving)
-                        .accessibilityIdentifier("createBike.cancelButton")
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(isSaving ? "Сохраняем..." : "Создать") { submit() }
-                        .disabled(isSaving)
-                        .accessibilityIdentifier("createBike.submitButton")
+                VStack(spacing: 0) {
+                    topBar
+                        .padding(.horizontal, horizontalPadding)
+                        .padding(.top, 8)
+
+                    ScrollView(showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: 14) {
+                            if let validationError {
+                                createBikeErrorCard(
+                                    validationError,
+                                    accessibilityIdentifier: "createBike.validationError"
+                                )
+                            }
+                            if let apiErrorMessage, !apiErrorMessage.isEmpty {
+                                createBikeErrorCard(
+                                    apiErrorMessage,
+                                    accessibilityIdentifier: "createBike.apiError"
+                                )
+                            }
+
+                            photoPickerCard(width: fieldWidth)
+
+                            createBikeSectionTitle("Обязательные")
+
+                            createBikeInput(
+                                label: "Название/модель",
+                                placeholder: "введите...",
+                                text: $bikeModel,
+                                accessibilityIdentifier: "createBike.modelField",
+                                textInputAutocapitalization: .words
+                            )
+                            createBikeInput(
+                                label: "Серийный номер / VIN",
+                                placeholder: "введите...",
+                                text: $frameSerialNumber,
+                                accessibilityIdentifier: "createBike.frameSerialField"
+                            )
+                            createBikeInput(
+                                label: "Серийный номер мотора",
+                                placeholder: "введите...",
+                                text: $motorSerialNumber,
+                                accessibilityIdentifier: "createBike.motorSerialField"
+                            )
+                            createBikeInput(
+                                label: "Недельная ставка W (₽)",
+                                placeholder: "введите...",
+                                text: $weeklyRateRub,
+                                accessibilityIdentifier: "createBike.weeklyRateField",
+                                keyboardType: .numberPad
+                            )
+
+                            createBikeSectionTitle("Опционально", topPadding: 4)
+
+                            createBikeInput(
+                                label: "Серийный номер АКБ 1",
+                                placeholder: "не обязательно",
+                                text: $batterySerialNumber1,
+                                accessibilityIdentifier: "createBike.battery1Field",
+                                isDashed: true
+                            )
+                            createBikeInput(
+                                label: "Серийный номер АКБ 2",
+                                placeholder: "не обязательно",
+                                text: $batterySerialNumber2,
+                                accessibilityIdentifier: "createBike.battery2Field",
+                                isDashed: true
+                            )
+                        }
+                        .frame(width: fieldWidth, alignment: .leading)
+                        .padding(.top, 14)
+                        .padding(.bottom, 24)
+                    }
+                    .padding(.horizontal, horizontalPadding)
+                    .scrollDismissesKeyboard(.interactively)
                 }
             }
         }
         .onChange(of: selectedPhotoItem) { newItem in
             Task { await loadPhoto(item: newItem) }
         }
+    }
+
+    private var topBar: some View {
+        HStack(spacing: 0) {
+            createBikeTopButton(
+                imageName: "chevron.left",
+                isDark: false,
+                accessibilityIdentifier: "createBike.cancelButton",
+                action: onCancel
+            )
+            .disabled(isSaving)
+
+            Spacer(minLength: 12)
+
+            Text("Новый велосипед")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(ebonyClay)
+                .lineLimit(1)
+
+            Spacer(minLength: 12)
+
+            createBikeTopButton(
+                imageName: "checkmark",
+                isDark: true,
+                accessibilityIdentifier: "createBike.submitButton",
+                action: submit
+            )
+            .disabled(isSaving)
+            .opacity(isSaving ? 0.45 : 1)
+        }
+        .frame(height: 47)
+    }
+
+    private func createBikeTopButton(
+        imageName: String,
+        isDark: Bool,
+        accessibilityIdentifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(isDark ? ebonyClay : Color.white)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(ebonyClay, lineWidth: 1)
+                )
+                .overlay(
+                    Group {
+                        if isDark && isSaving && accessibilityIdentifier == "createBike.submitButton" {
+                            ProgressView()
+                                .tint(Color.white)
+                        } else {
+                            Image(systemName: imageName)
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(isDark ? Color.white : ebonyClay)
+                        }
+                    }
+                )
+                .frame(width: 47, height: 47)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(accessibilityIdentifier)
+    }
+
+    private func photoPickerCard(width: CGFloat) -> some View {
+        PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color(red: 238 / 255, green: 240 / 255, blue: 243 / 255))
+
+                if let selectedPhotoPreview {
+                    selectedPhotoPreview
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: width, height: 202)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .overlay {
+                            Color.black.opacity(0.2)
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
+                }
+
+                VStack(spacing: 12) {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color.white)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(ebonyClay, lineWidth: 1)
+                        )
+                        .overlay(
+                            Image(systemName: "photo.on.rectangle")
+                                .font(.system(size: 24, weight: .regular))
+                                .foregroundStyle(ebonyClay)
+                        )
+                        .frame(width: 58, height: 58)
+
+                    Text("Загрузить фото")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(ebonyClay)
+
+                    Text("Нажмите, чтобы выбрать из галереи")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(paleSky)
+                }
+            }
+            .frame(width: width, height: 202)
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(ebonyClay, style: StrokeStyle(lineWidth: 1, dash: [3, 2.5]))
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("createBike.photoPicker")
+    }
+
+    private func createBikeSectionTitle(_ text: String, topPadding: CGFloat = 0) -> some View {
+        Text(text)
+            .font(.system(size: 11, weight: .bold))
+            .tracking(0.88)
+            .textCase(.uppercase)
+            .foregroundStyle(paleSky)
+            .padding(.top, topPadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func createBikeInput(
+        label: String,
+        placeholder: String,
+        text: Binding<String>,
+        accessibilityIdentifier: String,
+        isDashed: Bool = false,
+        keyboardType: UIKeyboardType = .default,
+        textInputAutocapitalization: TextInputAutocapitalization = .never
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.system(size: 11, weight: .regular))
+                .tracking(0.66)
+                .textCase(.uppercase)
+                .foregroundStyle(paleSky)
+                .lineLimit(1)
+
+            TextField(
+                "",
+                text: text,
+                prompt: Text(placeholder).foregroundColor(ghost)
+            )
+            .font(.system(size: 13, weight: .regular))
+            .foregroundStyle(ebonyClay)
+            .keyboardType(keyboardType)
+            .textInputAutocapitalization(textInputAutocapitalization)
+            .autocorrectionDisabled()
+            .accessibilityIdentifier(accessibilityIdentifier)
+        }
+        .padding(.horizontal, 19)
+        .frame(height: 58)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white)
+        .overlay {
+            if isDashed {
+                RoundedRectangle(cornerRadius: 12.84, style: .continuous)
+                    .stroke(grayChateau, style: StrokeStyle(lineWidth: 1, dash: [3, 2.5]))
+            } else {
+                RoundedRectangle(cornerRadius: 12.84, style: .continuous)
+                    .stroke(ebonyClay, lineWidth: 1)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 12.84, style: .continuous))
+    }
+
+    private func createBikeErrorCard(_ text: String, accessibilityIdentifier: String) -> some View {
+        Text(text)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(AppDesign.danger)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 12.84, style: .continuous))
+            .accessibilityIdentifier(accessibilityIdentifier)
     }
 
     private func submit() {
@@ -3134,18 +3374,43 @@ private struct ClientCatalogSheet: View {
     @State private var isCreateClientPresented = false
     @State private var searchText = ""
     @State private var selectedFilter: ClientCatalogFilter = .all
+    @State private var initialCardsTopY: CGFloat?
+    @State private var areFiltersInteractive = true
 
     private let athensGray = Color(red: 247 / 255, green: 248 / 255, blue: 250 / 255)
+    private let horizontalInset: CGFloat = 8
+    private let topBarHeight: CGFloat = 62
+    private let searchTopPadding: CGFloat = 6
+    private let searchHeight: CGFloat = 46
+    private let chipsTopGap: CGFloat = 10
+    private let chipsHeight: CGFloat = 36
+    private let cardsInitialTop: CGFloat = 172
+    private let tabBarHeight: CGFloat = 76
+
+    private var searchTop: CGFloat { topBarHeight + searchTopPadding }
+    private var searchMaskHeight: CGFloat { searchTop + searchHeight / 2 }
+    private var chipsTop: CGFloat { searchTop + searchHeight + chipsTopGap }
+    private var chipsBottom: CGFloat { chipsTop + chipsHeight }
 
     var body: some View {
         ZStack(alignment: .top) {
             athensGray.ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                clientHeader
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Color.clear
+                        .frame(height: cardsInitialTop)
+                        .background {
+                            GeometryReader { proxy in
+                                Color.clear.preference(
+                                    key: AdminCardsTopKey.self,
+                                    value: proxy.frame(in: .named("clientCatalogPipeline")).maxY
+                                )
+                            }
+                        }
+                        .allowsHitTesting(false)
 
-                Group {
-                    if visibleClients.isEmpty {
+                    VStack(alignment: .leading, spacing: 0) {
                         if let apiErrorMessage, !apiErrorMessage.isEmpty {
                             Text(apiErrorMessage)
                                 .font(.system(size: 13, weight: .semibold))
@@ -3154,33 +3419,93 @@ private struct ClientCatalogSheet: View {
                                 .padding(16)
                                 .background(Color.white)
                                 .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-                                .padding(.horizontal, 23)
                                 .padding(.top, 14)
                                 .accessibilityIdentifier("clientCatalog.error")
                         }
-                        emptyState
-                            .padding(.horizontal, 23)
-                            .padding(.top, 14)
-                    } else {
-                        List {
-                            if let apiErrorMessage, !apiErrorMessage.isEmpty {
-                                Section {
-                                    Text(apiErrorMessage)
-                                        .foregroundStyle(AppDesign.danger)
+
+                        if visibleClients.isEmpty {
+                            emptyState
+                                .padding(.top, 14)
+                        } else {
+                            LazyVStack(spacing: 0) {
+                                ForEach(Array(visibleClients.enumerated()), id: \.element.id) { index, client in
+                                    clientRow(client)
+                                    if index < visibleClients.count - 1 {
+                                        Divider()
+                                            .padding(.leading, 72)
+                                    }
                                 }
                             }
-
-                            ForEach(visibleClients) { client in
-                                clientRow(client)
-                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         }
-                        .listStyle(.plain)
-                        .scrollContentBackground(.hidden)
                     }
+                    .padding(.top, 1)
+                    .background(AppDesign.pageBackground)
                 }
-                .padding(.bottom, showsCloseButton ? 0 : 106)
+                .padding(.horizontal, horizontalInset)
+                .padding(.bottom, showsCloseButton ? 18 : tabBarHeight + 30)
             }
+            .mask(alignment: .top) {
+                VStack(spacing: 0) {
+                    Color.clear
+                        .frame(height: searchMaskHeight)
+                    Color.white
+                }
+            }
+            .onPreferenceChange(AdminCardsTopKey.self) { cardsTopY in
+                guard cardsTopY.isFinite else { return }
+                if initialCardsTopY == nil || cardsTopY > (initialCardsTopY ?? cardsTopY) {
+                    initialCardsTopY = cardsTopY
+                    if !areFiltersInteractive {
+                        areFiltersInteractive = true
+                    }
+                    return
+                }
+                guard let initialCardsTopY else { return }
+                let overlapDistance = max(10, initialCardsTopY - chipsBottom + 2)
+                let scrollDistance = max(0, initialCardsTopY - cardsTopY)
+                let nextInteractive = scrollDistance < overlapDistance
+                if nextInteractive != areFiltersInteractive {
+                    areFiltersInteractive = nextInteractive
+                }
+            }
+            .zIndex(2)
+
+            clientChipRows(clients: clients)
+                .padding(.horizontal, horizontalInset)
+                .frame(height: chipsHeight, alignment: .topLeading)
+                .offset(y: chipsTop)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+                .zIndex(1)
+
+            clientFilterHitLayer
+                .padding(.horizontal, horizontalInset)
+                .frame(height: chipsHeight, alignment: .topLeading)
+                .offset(y: chipsTop)
+                .allowsHitTesting(areFiltersInteractive)
+                .zIndex(3.5)
+
+            Rectangle()
+                .fill(AppDesign.pageBackground)
+                .frame(height: searchMaskHeight)
+                .ignoresSafeArea(edges: .top)
+                .zIndex(3)
+
+            VStack(spacing: 0) {
+                clientTopBar
+                    .frame(height: topBarHeight)
+                searchField
+                    .padding(.horizontal, horizontalInset)
+                    .padding(.top, searchTopPadding)
+                Spacer(minLength: 0)
+            }
+            .zIndex(4)
         }
+        .coordinateSpace(name: "clientCatalogPipeline")
         .fullScreenCover(isPresented: $isCreateClientPresented) {
             CreateClientSheet(
                 isSaving: isSaving,
@@ -3214,25 +3539,33 @@ private struct ClientCatalogSheet: View {
         }
     }
 
-    private var clientHeader: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            clientTopBar
-                .frame(height: 62)
-
-            searchField
-                .padding(.horizontal, 8)
-                .padding(.top, 6)
-
-            HStack(spacing: 8) {
-                clientFilterChip(.all, count: clients.count)
-                clientFilterChip(.debtors, count: clients.filter { $0.debtRub > 0 }.count)
-                clientFilterChip(.active, count: clients.filter { $0.rentalIsActive }.count)
-            }
-            .padding(.horizontal, 8)
-            .padding(.top, 10)
+    private func clientChipRows(clients: [AdminClientSummaryResponse]) -> some View {
+        HStack(spacing: 8) {
+            clientFilterChip(.all, count: clients.count)
+            clientFilterChip(.debtors, count: clients.filter { $0.debtRub > 0 }.count)
+            clientFilterChip(.active, count: clients.filter { $0.rentalIsActive }.count)
         }
-        .background(athensGray)
-        .accessibilityIdentifier("clientCatalog.header")
+    }
+
+    private var clientFilterHitLayer: some View {
+        HStack(spacing: 8) {
+            clientFilterHitTarget(.all, width: 84)
+            clientFilterHitTarget(.debtors, width: 106)
+            clientFilterHitTarget(.active, width: 106)
+        }
+    }
+
+    private func clientFilterHitTarget(_ filter: ClientCatalogFilter, width: CGFloat) -> some View {
+        Button {
+            selectedFilter = filter
+        } label: {
+            Color.white.opacity(0.001)
+                .frame(width: width, height: 36)
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(filter.accessibilityIdentifier)
+        .accessibilityValue(selectedFilter == filter ? "selected" : "normal")
     }
 
     private var clientTopBar: some View {
@@ -3406,6 +3739,7 @@ private struct ClientCatalogSheet: View {
 
 private struct BikeCatalogSheet: View {
     let bikes: [AdminBikeResponse]
+    let rentals: [AdminClientSummaryResponse]
     let isSaving: Bool
     let apiErrorMessage: String?
     var showsCloseButton: Bool = true
@@ -3417,103 +3751,142 @@ private struct BikeCatalogSheet: View {
     @State private var editingBike: AdminBikeResponse?
     @State private var bikePendingDeletion: AdminBikeResponse?
     @State private var isCreateBikePresented = false
+    @State private var searchText = ""
+    @State private var selectedFilter: BikeCatalogFilter = .all
+    @State private var initialCardsTopY: CGFloat?
+    @State private var areFiltersInteractive = true
+
+    private let athensGray = Color(red: 247 / 255, green: 248 / 255, blue: 250 / 255)
+    private let blackHaze = Color(red: 250 / 255, green: 251 / 255, blue: 251 / 255)
+    private let alto = Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255)
+    private let horizontalInset: CGFloat = 8
+    private let topBarHeight: CGFloat = 62
+    private let searchTopPadding: CGFloat = 6
+    private let searchHeight: CGFloat = 46
+    private let chipsTopGap: CGFloat = 10
+    private let chipsHeight: CGFloat = 36
+    private let cardsInitialTop: CGFloat = 172
+    private let tabBarHeight: CGFloat = 76
+
+    private var searchTop: CGFloat { topBarHeight + searchTopPadding }
+    private var searchMaskHeight: CGFloat { searchTop + searchHeight / 2 }
+    private var chipsTop: CGFloat { searchTop + searchHeight + chipsTopGap }
+    private var chipsBottom: CGFloat { chipsTop + chipsHeight }
+
+    private struct BikeCatalogRuntimeSnapshot {
+        let hasActiveRental: Bool
+        let activeCount: Int
+        let totalDebtRub: Int
+        let borderColor: Color
+    }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if bikes.isEmpty {
-                    VStack(spacing: 12) {
-                        Image(systemName: "bicycle")
-                            .font(.system(size: 30, weight: .semibold))
-                            .foregroundStyle(AppDesign.iconSoft)
-                        Text("Список велосипедов пуст")
-                            .font(.headline)
-                            .foregroundStyle(AppDesign.titleText)
-                        Text("Создайте первый велосипед внутри этого списка.")
-                            .font(.subheadline)
-                            .foregroundStyle(AppDesign.subtleText)
-                            .multilineTextAlignment(.center)
-                        Button("Создать велосипед") {
-                            isCreateBikePresented = true
+        ZStack(alignment: .top) {
+            athensGray.ignoresSafeArea()
+
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Color.clear
+                        .frame(height: cardsInitialTop)
+                        .background {
+                            GeometryReader { proxy in
+                                Color.clear.preference(
+                                    key: AdminCardsTopKey.self,
+                                    value: proxy.frame(in: .named("bikeCatalogPipeline")).maxY
+                                )
+                            }
                         }
-                        .buttonStyle(.borderedProminent)
-                        .accessibilityIdentifier("bikeCatalog.emptyCreateBikeButton")
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding(24)
-                } else {
-                    List {
+                        .allowsHitTesting(false)
+
+                    VStack(alignment: .leading, spacing: 0) {
                         if let apiErrorMessage, !apiErrorMessage.isEmpty {
-                            Section {
-                                Text(apiErrorMessage)
-                                    .foregroundStyle(AppDesign.danger)
-                            }
+                            Text(apiErrorMessage)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(AppDesign.danger)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(14)
+                                .background(Color.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+                                .padding(.top, 10)
+                                .accessibilityIdentifier("bikeCatalog.error")
                         }
 
-                        ForEach(bikes) { bike in
-                            VStack(alignment: .leading, spacing: 6) {
-                                HStack(alignment: .top, spacing: 12) {
-                                    bikePreview(urlString: bike.photoUrl)
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text(bike.bikeModel)
-                                            .font(.headline)
-                                            .foregroundStyle(AppDesign.titleText)
-                                        Text("\(bike.weeklyRateRub) ₽ / неделя")
-                                            .font(.subheadline)
-                                            .foregroundStyle(AppDesign.subtleText)
-                                    }
-                                    Spacer()
-                                    Button("Редактировать") {
-                                        editingBike = bike
-                                    }
-                                    .buttonStyle(.bordered)
-                                    .accessibilityIdentifier("bikeCatalog.edit.\(bike.bikeModel)")
-
-                                    Button("Удалить", role: .destructive) {
-                                        bikePendingDeletion = bike
-                                    }
-                                    .buttonStyle(.bordered)
-                                    .disabled(isSaving)
-                                    .accessibilityIdentifier("bikeCatalog.delete.\(bike.bikeModel)")
-                                }
-
-                                Text("Рама: \(bike.frameSerialNumber)")
-                                    .font(.caption)
-                                    .foregroundStyle(AppDesign.subtleText)
-                                Text("Мотор: \(bike.motorSerialNumber)")
-                                    .font(.caption)
-                                    .foregroundStyle(AppDesign.subtleText)
-                                Text("АКБ1: \(bike.batterySerialNumber1)")
-                                    .font(.caption)
-                                    .foregroundStyle(AppDesign.subtleText)
-                                if let battery2 = bike.batterySerialNumber2, !battery2.isEmpty {
-                                    Text("АКБ2: \(battery2)")
-                                        .font(.caption)
-                                        .foregroundStyle(AppDesign.subtleText)
+                        if visibleBikes.isEmpty {
+                            bikeEmptyState
+                                .padding(.top, 10)
+                        } else {
+                            LazyVStack(spacing: 10) {
+                                ForEach(visibleBikes) { bike in
+                                    bikeRow(bike)
                                 }
                             }
-                            .padding(.vertical, 4)
+                            .padding(.top, 10)
                         }
                     }
-                    .scrollContentBackground(.hidden)
-                    .background(AppDesign.pageBackground.ignoresSafeArea())
+                    .padding(.top, 1)
+                    .background(AppDesign.pageBackground)
+                }
+                .padding(.horizontal, horizontalInset)
+                .padding(.bottom, showsCloseButton ? 18 : tabBarHeight + 30)
+            }
+            .mask(alignment: .top) {
+                VStack(spacing: 0) {
+                    Color.clear
+                        .frame(height: searchMaskHeight)
+                    Color.white
                 }
             }
-            .navigationTitle("Велосипеды")
-            .toolbar {
-                if showsCloseButton {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button("Закрыть") { onCancel() }
+            .onPreferenceChange(AdminCardsTopKey.self) { cardsTopY in
+                guard cardsTopY.isFinite else { return }
+                if initialCardsTopY == nil || cardsTopY > (initialCardsTopY ?? cardsTopY) {
+                    initialCardsTopY = cardsTopY
+                    if !areFiltersInteractive {
+                        areFiltersInteractive = true
                     }
+                    return
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Новый велосипед") {
-                        isCreateBikePresented = true
-                    }
-                    .accessibilityIdentifier("bikeCatalog.addBikeButton")
+                guard let initialCardsTopY else { return }
+                let overlapDistance = max(10, initialCardsTopY - chipsBottom + 2)
+                let scrollDistance = max(0, initialCardsTopY - cardsTopY)
+                let nextInteractive = scrollDistance < overlapDistance
+                if nextInteractive != areFiltersInteractive {
+                    areFiltersInteractive = nextInteractive
                 }
             }
+            .zIndex(2)
+
+            bikeChipRows
+                .padding(.horizontal, horizontalInset)
+                .frame(height: chipsHeight, alignment: .topLeading)
+                .offset(y: chipsTop)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+                .zIndex(1)
+
+            bikeFilterHitLayer
+                .padding(.horizontal, horizontalInset)
+                .frame(height: chipsHeight, alignment: .topLeading)
+                .offset(y: chipsTop)
+                .allowsHitTesting(areFiltersInteractive)
+                .zIndex(3.5)
+
+            Rectangle()
+                .fill(AppDesign.pageBackground)
+                .frame(height: searchMaskHeight)
+                .ignoresSafeArea(edges: .top)
+                .zIndex(3)
+
+            VStack(spacing: 0) {
+                topBar
+                    .frame(height: topBarHeight)
+                searchField
+                    .padding(.horizontal, horizontalInset)
+                    .padding(.top, searchTopPadding)
+                Spacer(minLength: 0)
+            }
+            .zIndex(4)
         }
+        .coordinateSpace(name: "bikeCatalogPipeline")
         .sheet(isPresented: $isCreateBikePresented) {
             CreateBikeSheet(
                 bikes: bikes,
@@ -3568,22 +3941,354 @@ private struct BikeCatalogSheet: View {
         }
     }
 
-    private func bikePreview(urlString: String?) -> some View {
-        BikePhotoView(source: urlString) {
+    private var bikeChipRows: some View {
+        HStack(spacing: 8) {
+            bikeFilterChip(.all, count: bikes.count)
+            bikeFilterChip(.free, count: bikes.filter { !snapshot(for: $0).hasActiveRental }.count)
+            bikeFilterChip(.rented, count: bikes.filter { snapshot(for: $0).hasActiveRental }.count)
+        }
+    }
+
+    private var bikeFilterHitLayer: some View {
+        HStack(spacing: 8) {
+            bikeFilterHitTarget(.all, width: 84)
+            bikeFilterHitTarget(.free, width: 128)
+            bikeFilterHitTarget(.rented, width: 110)
+        }
+    }
+
+    private func bikeFilterHitTarget(_ filter: BikeCatalogFilter, width: CGFloat) -> some View {
+        Button {
+            selectedFilter = filter
+        } label: {
+            Color.white.opacity(0.001)
+                .frame(width: width, height: 36)
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(filter.accessibilityIdentifier)
+        .accessibilityValue(selectedFilter == filter ? "selected" : "normal")
+    }
+
+    private var topBar: some View {
+        HStack {
+            headerIconButton(
+                systemName: showsCloseButton ? "xmark" : "rectangle.portrait.and.arrow.right",
+                accessibilityIdentifier: showsCloseButton ? "bikeCatalog.closeButton" : "bikeCatalog.logoutButton",
+                action: onCancel
+            )
+
+            Spacer()
+
+            Text("Велосипеды")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
+
+            Spacer()
+
+            headerIconButton(
+                systemName: "plus",
+                accessibilityIdentifier: "bikeCatalog.addBikeButton",
+                action: { isCreateBikePresented = true }
+            )
+        }
+        .padding(.horizontal, horizontalInset)
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(AppDesign.titleText)
+
+            TextField("Поиск: ФИО, телефон, паспорт", text: $searchText)
+                .font(.system(size: 13, weight: .regular))
+                .foregroundStyle(AppDesign.titleText)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+        }
+        .padding(.horizontal, 15)
+        .frame(height: 46)
+        .background(Color.white)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12.84, style: .continuous)
+                .stroke(AppDesign.accent, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12.84, style: .continuous))
+        .accessibilityIdentifier("bikeCatalog.searchField")
+    }
+
+    private var visibleBikes: [AdminBikeResponse] {
+        let normalizedQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let searched = bikes.filter { bike in
+            guard !normalizedQuery.isEmpty else { return true }
+            return bike.bikeModel.lowercased().contains(normalizedQuery)
+                || bike.frameSerialNumber.lowercased().contains(normalizedQuery)
+                || bike.motorSerialNumber.lowercased().contains(normalizedQuery)
+                || bike.batterySerialNumber1.lowercased().contains(normalizedQuery)
+                || (bike.batterySerialNumber2?.lowercased().contains(normalizedQuery) ?? false)
+        }
+
+        let filtered: [AdminBikeResponse]
+        switch selectedFilter {
+        case .all:
+            filtered = searched
+        case .free:
+            filtered = searched.filter { !snapshot(for: $0).hasActiveRental }
+        case .rented:
+            filtered = searched.filter { snapshot(for: $0).hasActiveRental }
+        }
+
+        return filtered.sorted {
+            $0.bikeModel.localizedCaseInsensitiveCompare($1.bikeModel) == .orderedAscending
+        }
+    }
+
+    private func bikeFilterChip(_ filter: BikeCatalogFilter, count: Int) -> some View {
+        let isSelected = selectedFilter == filter
+
+        return Button {
+            selectedFilter = filter
+        } label: {
+            HStack(spacing: 6) {
+                Text(filter.title)
+                    .font(.system(size: 12, weight: .bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .allowsTightening(true)
+
+                Text("\(count)")
+                    .font(.system(size: 10, weight: .bold))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(isSelected ? Color.white.opacity(0.2) : Color.black.opacity(0.08))
+                    .clipShape(Capsule())
+            }
+            .foregroundStyle(isSelected ? Color.white : AppDesign.accent)
+            .padding(.horizontal, 15)
+            .frame(height: 36)
+            .background(isSelected ? AppDesign.accent : Color.white)
+            .overlay(
+                RoundedRectangle(cornerRadius: 999, style: .continuous)
+                    .stroke(AppDesign.accent, lineWidth: 1)
+            )
+            .clipShape(Capsule())
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(filter.accessibilityIdentifier)
+        .accessibilityValue(isSelected ? "selected" : "normal")
+    }
+
+    private func headerIconButton(
+        systemName: String,
+        accessibilityIdentifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(AppDesign.accent, lineWidth: 1)
+                )
+                .overlay(
+                    Image(systemName: systemName)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(AppDesign.accent)
+                )
+                .frame(width: 47, height: 47)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(accessibilityIdentifier)
+    }
+
+    private var bikeEmptyState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "bicycle")
+                .font(.system(size: 30, weight: .semibold))
+                .foregroundStyle(AppDesign.iconSoft)
+
+            Text(searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Список велосипедов пуст" : "Ничего не найдено")
+                .font(.headline)
+                .foregroundStyle(AppDesign.titleText)
+
+            Text(
+                searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? "Создайте первый велосипед внутри этого списка."
+                : "Измените запрос или фильтр."
+            )
+            .font(.subheadline)
+            .foregroundStyle(AppDesign.subtleText)
+            .multilineTextAlignment(.center)
+
+            if searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                Button("Создать велосипед") {
+                    isCreateBikePresented = true
+                }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("bikeCatalog.emptyCreateBikeButton")
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(24)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+    }
+
+    private func bikeRow(_ bike: AdminBikeResponse) -> some View {
+        let runtime = snapshot(for: bike)
+        let hasDebt = runtime.totalDebtRub > 0
+
+        return Button {
+            editingBike = bike
+        } label: {
+            HStack(spacing: 16) {
+                bikeThumb(bike: bike, borderColor: runtime.borderColor)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(bike.bikeModel)
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(AppDesign.titleText)
+                        .lineLimit(1)
+
+                    Text("\(bike.weeklyRateRub) ₽/нед")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                        .lineLimit(1)
+
+                    Text(serialLine(for: bike))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color(red: 152 / 255, green: 161 / 255, blue: 173 / 255))
+                        .lineLimit(1)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                if runtime.hasActiveRental {
+                    statusPill(runtime: runtime)
+                }
+            }
+            .padding(.leading, 19)
+            .padding(.trailing, 15)
+            .padding(.vertical, 22)
+            .frame(height: 110)
+            .background(
+                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                    .fill(blackHaze)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                    .stroke(alto, lineWidth: 1)
+            )
+            .shadow(
+                color: Color(red: 25 / 255, green: 28 / 255, blue: 50 / 255).opacity(0.08),
+                radius: 15,
+                x: 0,
+                y: 20
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button("Редактировать") {
+                editingBike = bike
+            }
+            if !runtime.hasActiveRental && !hasDebt {
+                Button("Удалить", role: .destructive) {
+                    bikePendingDeletion = bike
+                }
+            }
+        }
+        .disabled(isSaving)
+        .accessibilityIdentifier("bikeCatalog.edit.\(bike.bikeModel)")
+    }
+
+    private func bikeThumb(bike: AdminBikeResponse, borderColor: Color) -> some View {
+        BikePhotoView(source: bike.photoUrl) {
             placeholder
         }
-        .frame(width: 58, height: 58)
-        .background(AppDesign.surfaceBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .frame(width: 44, height: 44)
+            .background(Color(red: 227 / 255, green: 230 / 255, blue: 235 / 255))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(borderColor, lineWidth: 3)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func statusPill(runtime: BikeCatalogRuntimeSnapshot) -> some View {
+        let isDebt = runtime.totalDebtRub > 0
+        return VStack(spacing: 0) {
+            Text(isDebt ? "Долг" : "Активн.")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(Color.white.opacity(0.85))
+                .lineLimit(1)
+            Text(isDebt ? "\(formattedCompactRub(runtime.totalDebtRub)) ₽" : "\(runtime.activeCount)")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(Color.white)
+                .lineLimit(1)
+        }
+        .frame(minWidth: 108, minHeight: 56)
+        .padding(.horizontal, 14)
+        .background(isDebt ? AppDesign.danger : AppDesign.success)
+        .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+    }
+
+    private func snapshot(for bike: AdminBikeResponse) -> BikeCatalogRuntimeSnapshot {
+        let matchedRentals = rentals.filter { summary in
+            summary.bikeModel.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            == bike.bikeModel.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        }
+
+        let activeRentals = matchedRentals.filter { $0.rentalIsActive }
+        let hasActiveRental = !activeRentals.isEmpty
+        let totalDebt = activeRentals.reduce(0) { partial, item in
+            partial + max(0, item.debtRub)
+        }
+        let hasSoonReturn = activeRentals.contains { $0.rentalPipelineStatus == "soon_return" }
+        let borderColor: Color
+        if hasActiveRental {
+            borderColor = hasSoonReturn
+                ? Color(red: 255 / 255, green: 204 / 255, blue: 0)
+                : Color(red: 52 / 255, green: 199 / 255, blue: 89 / 255)
+        } else {
+            borderColor = Color(red: 203 / 255, green: 48 / 255, blue: 224 / 255)
+        }
+
+        return BikeCatalogRuntimeSnapshot(
+            hasActiveRental: hasActiveRental,
+            activeCount: activeRentals.count,
+            totalDebtRub: totalDebt,
+            borderColor: borderColor
+        )
+    }
+
+    private func formattedCompactRub(_ amount: Int) -> String {
+        let formatted = Self.rubFormatter.string(from: NSNumber(value: max(0, amount))) ?? "\(max(0, amount))"
+        return formatted.replacingOccurrences(of: "\u{00A0}", with: " ")
+    }
+
+    private func serialLine(for bike: AdminBikeResponse) -> String {
+        let serial = bike.frameSerialNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+        if serial.isEmpty { return "Серийный номер не задан" }
+        return "SN \(serial)"
     }
 
     private var placeholder: some View {
         Image(systemName: "bicycle")
             .resizable()
             .scaledToFit()
-            .padding(14)
+            .padding(8)
             .foregroundStyle(AppDesign.iconSoft)
     }
+
+    private static let rubFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.groupingSeparator = " "
+        formatter.locale = Locale(identifier: "ru_RU")
+        return formatter
+    }()
 }
 
 private struct EditBikeSheet: View {
