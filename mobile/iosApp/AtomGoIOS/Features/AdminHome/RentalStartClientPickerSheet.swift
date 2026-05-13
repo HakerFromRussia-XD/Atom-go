@@ -1,0 +1,250 @@
+import SwiftUI
+import PhotosUI
+import UIKit
+
+struct RentalStartClientPickerSheet: View {
+    let clients: [AdminClientSummaryResponse]
+    @Binding var selectedClientId: String?
+    let onClose: () -> Void
+    let onConfirm: () -> Void
+
+    @State private var searchText = ""
+    @State private var selectedFilter: ClientCatalogFilter = .all
+
+    private let athensGray = Color(red: 247 / 255, green: 248 / 255, blue: 250 / 255)
+    private let horizontalInset: CGFloat = 8
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            athensGray.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                header
+
+                if visibleClients.isEmpty {
+                    emptyState
+                        .padding(.horizontal, horizontalInset)
+                        .padding(.top, 14)
+                } else {
+                    List {
+                        ForEach(visibleClients) { client in
+                            clientRow(client)
+                        }
+                    }
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                }
+            }
+        }
+    }
+
+    private var visibleClients: [AdminClientSummaryResponse] {
+        let normalizedQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let searched = clients.filter { client in
+            guard !normalizedQuery.isEmpty else { return true }
+            return client.fullName.lowercased().contains(normalizedQuery)
+                || client.bikeModel.lowercased().contains(normalizedQuery)
+                || (client.clientLogin?.lowercased().contains(normalizedQuery) ?? false)
+        }
+
+        switch selectedFilter {
+        case .all:
+            return searched
+        case .debtors:
+            return searched.filter { $0.debtRub > 0 }
+        case .active:
+            return []
+        }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                headerIconButton(
+                    systemName: "xmark",
+                    accessibilityIdentifier: "rentalClientPicker.closeButton",
+                    action: onClose
+                )
+
+                Spacer()
+
+                Text("Клиенты")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
+
+                Spacer()
+
+                headerIconButton(
+                    systemName: "checkmark",
+                    accessibilityIdentifier: "rentalClientPicker.confirmButton",
+                    action: onConfirm
+                )
+                .disabled(selectedClientId == nil)
+                .opacity(selectedClientId == nil ? 0.45 : 1)
+            }
+            .padding(.horizontal, horizontalInset)
+            .frame(height: 62)
+
+            searchField
+                .padding(.horizontal, horizontalInset)
+                .padding(.top, 6)
+
+            HStack(spacing: 8) {
+                filterChip(.all, count: clients.count)
+                filterChip(.debtors, count: clients.filter { $0.debtRub > 0 }.count)
+                filterChip(.active, count: 0)
+            }
+            .padding(.horizontal, horizontalInset)
+            .padding(.top, 10)
+        }
+        .background(athensGray)
+        .accessibilityIdentifier("rentalClientPicker.header")
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(AppDesign.titleText)
+
+            TextField("Поиск: ФИО, телефон, паспорт", text: $searchText)
+                .font(.system(size: 13, weight: .regular))
+                .foregroundStyle(AppDesign.titleText)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+        }
+        .padding(.horizontal, 15)
+        .frame(height: 46)
+        .background(Color.white)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12.84, style: .continuous)
+                .stroke(AppDesign.accent, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12.84, style: .continuous))
+        .accessibilityIdentifier("rentalClientPicker.searchField")
+    }
+
+    private func filterChip(_ filter: ClientCatalogFilter, count: Int) -> some View {
+        let isSelected = selectedFilter == filter
+
+        return Button {
+            selectedFilter = filter
+        } label: {
+            HStack(spacing: 6) {
+                Text(filter.title)
+                    .font(.system(size: 12, weight: .bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .allowsTightening(true)
+
+                Text("\(count)")
+                    .font(.system(size: 10, weight: .bold))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(isSelected ? Color.white.opacity(0.2) : Color.black.opacity(0.08))
+                    .clipShape(Capsule())
+            }
+            .foregroundStyle(isSelected ? Color.white : AppDesign.accent)
+            .padding(.horizontal, 15)
+            .frame(height: 36)
+            .background(isSelected ? AppDesign.accent : Color.white)
+            .overlay(
+                RoundedRectangle(cornerRadius: 999, style: .continuous)
+                    .stroke(AppDesign.accent, lineWidth: 1)
+            )
+            .clipShape(Capsule())
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("rentalClientPicker.\(filter.accessibilityIdentifier)")
+        .accessibilityValue(isSelected ? "selected" : "normal")
+    }
+
+    private func headerIconButton(
+        systemName: String,
+        accessibilityIdentifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(AppDesign.accent, lineWidth: 1)
+                )
+                .overlay(
+                    Image(systemName: systemName)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(AppDesign.accent)
+                )
+                .frame(width: 47, height: 47)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(accessibilityIdentifier)
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "person.slash")
+                .font(.system(size: 30, weight: .semibold))
+                .foregroundStyle(AppDesign.iconSoft)
+            Text("Нет свободных клиентов")
+                .font(.headline)
+                .foregroundStyle(AppDesign.titleText)
+            Text("В списке выбора скрыты клиенты, которые уже участвуют в активных арендах.")
+                .font(.subheadline)
+                .foregroundStyle(AppDesign.subtleText)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(24)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+    }
+
+    private func clientRow(_ client: AdminClientSummaryResponse) -> some View {
+        let isSelected = selectedClientId == client.clientId
+
+        return Button {
+            selectedClientId = client.clientId
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "person.crop.circle")
+                    .font(.system(size: 28, weight: .semibold))
+                    .foregroundStyle(AppDesign.iconSoft)
+                    .frame(width: 48, height: 48)
+                    .background(AppDesign.surfaceBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(client.fullName)
+                        .font(.headline)
+                        .foregroundStyle(AppDesign.titleText)
+                    if let login = client.clientLogin, !login.isEmpty {
+                        Text("Логин: \(login)")
+                            .font(.subheadline)
+                            .foregroundStyle(AppDesign.subtleText)
+                    } else {
+                        Text("Свободный клиент")
+                            .font(.subheadline)
+                            .foregroundStyle(AppDesign.subtleText)
+                    }
+                    Text(client.bikeModel)
+                        .font(.caption)
+                        .foregroundStyle(AppDesign.subtleText)
+                }
+
+                Spacer()
+
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(isSelected ? AppDesign.success : AppDesign.iconSoft)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("rentalClientPicker.client.\(client.clientId)")
+        .accessibilityValue(isSelected ? "selected" : "normal")
+    }
+}
+

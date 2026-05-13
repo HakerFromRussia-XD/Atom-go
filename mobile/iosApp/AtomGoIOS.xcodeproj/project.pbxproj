@@ -12,9 +12,24 @@
 		1B0785ABA9A78EF21187CE08 /* BackendReachabilityPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAC50F2B0DB149A43363072E /* BackendReachabilityPolicyTests.swift */; };
 		1CB1F67B87E8909AC05561D3 /* CreateClientFlowUnitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC0D7917489EFB24CD545DA4 /* CreateClientFlowUnitTests.swift */; };
 		209D8C09CC0BC7D48D1053F0 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B06085DBE1F31C40421BAE8 /* ContentView.swift */; };
-		2BF942514F63DE33B0CC6ECF /* CreateClientFormValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB9DCC5AB764337899D966D9 /* CreateClientFormValidator.swift */; };
-		5A6A9FF068D7DBE94CE1923B /* AdminHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B437D964BE5A9D2150A1714A /* AdminHomeView.swift */; };
-		7A7CD243D4383880B31466ED /* BackendReachabilityPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E8130A756790E47154B7493 /* BackendReachabilityPolicy.swift */; };
+			2BF942514F63DE33B0CC6ECF /* CreateClientFormValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB9DCC5AB764337899D966D9 /* CreateClientFormValidator.swift */; };
+			5A6A9FF068D7DBE94CE1923B /* AdminHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B437D964BE5A9D2150A1714A /* AdminHomeView.swift */; };
+			5B44FBBF9723BFB711564FA2 /* AdminClientDetailsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDF6F13AE66133406CEEC204 /* AdminClientDetailsSheet.swift */; };
+			E13C5F03DDDA7EB03C010375 /* AdminRentalDetailsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42F9A41582A862639ADF1DFB /* AdminRentalDetailsScreen.swift */; };
+			75737DAB18A72EE5806229EE /* BikeCatalogSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75119606472149E74A98DE24 /* BikeCatalogSheet.swift */; };
+			53822B2649B195EEC76A4976 /* BikePhotoComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2480D79A3E0A4E452DD2F399 /* BikePhotoComponents.swift */; };
+			EE45B746B5EF02F0C79B3032 /* CarriedDebtOperationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B86EF98A0213A14077516D60 /* CarriedDebtOperationSheet.swift */; };
+			7C9AEC1763C75FE3CF472A15 /* ClientCatalogSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F675A849AB471DC92EA7793A /* ClientCatalogSheet.swift */; };
+			987E2A9AE2BE1FF8D5D7C244 /* CreateBikeSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 096455D1B518334D0B33F840 /* CreateBikeSheet.swift */; };
+			0D93C439CDF348CDA62E75CF /* CreateClientSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EA00A4A4DB876D7535AF81F /* CreateClientSheet.swift */; };
+			16264E410EF1C004E56105F8 /* CreateRentalSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3C325ECC051F8A2E2D8FBF6 /* CreateRentalSheet.swift */; };
+			F951FEE7BEA6F7C396D24967 /* DebtAdjustmentSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E555B6AD850FC184DD84D478 /* DebtAdjustmentSheet.swift */; };
+			42011BA56DAA6B8015255AE0 /* EditBikeSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2493E2C52F03457CD04255A /* EditBikeSheet.swift */; };
+			76A03FA774DC3FBB937D9070 /* EditClientProfileSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 279572BFE2AADAB13045CFCB /* EditClientProfileSheet.swift */; };
+			44A4DC71C82F65D6606BA5BC /* RentalHistoryCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6776CE7A02E9F2A0AC8FB280 /* RentalHistoryCard.swift */; };
+			C56D708A15DC07027D86F9C8 /* RentalStartBikePickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98CC1BE96DDA4FED8E284A2E /* RentalStartBikePickerSheet.swift */; };
+			B53A888734BB1EFD0441C5BC /* RentalStartClientPickerSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1DA7D3D3C88B4E330F982E2 /* RentalStartClientPickerSheet.swift */; };
+			7A7CD243D4383880B31466ED /* BackendReachabilityPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E8130A756790E47154B7493 /* BackendReachabilityPolicy.swift */; };
 		8A04768463F13609EC51AE7D /* ClientHomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46CAAFE892071E531ECD6B41 /* ClientHomeViewModel.swift */; };
 		9B33C85F7DD3AD0DC22BC7A9 /* AppDesign.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67DD284CB85AC16F87BA0F13 /* AppDesign.swift */; };
 		A01BE496BEF06FA4CA205127 /* ClientHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2AE583E4DEB4F7AC777CC5 /* ClientHomeView.swift */; };
@@ -64,9 +79,24 @@
 		8681599C5E052529E85B8A40 /* AtomGoIOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtomGoIOSApp.swift; sourceTree = "<group>"; };
 		A8D8E4A279DF4D32920C34A1 /* Poppins-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Poppins-Medium.ttf"; sourceTree = "<group>"; };
 		A8D8E4A279DF4D32920C34A2 /* Urbanist-Variable.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Urbanist-Variable.ttf"; sourceTree = "<group>"; };
-		AB9DCC5AB764337899D966D9 /* CreateClientFormValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateClientFormValidator.swift; sourceTree = "<group>"; };
-		B437D964BE5A9D2150A1714A /* AdminHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminHomeView.swift; sourceTree = "<group>"; };
-		BAC50F2B0DB149A43363072E /* BackendReachabilityPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendReachabilityPolicyTests.swift; sourceTree = "<group>"; };
+			AB9DCC5AB764337899D966D9 /* CreateClientFormValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateClientFormValidator.swift; sourceTree = "<group>"; };
+			B437D964BE5A9D2150A1714A /* AdminHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminHomeView.swift; sourceTree = "<group>"; };
+			DDF6F13AE66133406CEEC204 /* AdminClientDetailsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminClientDetailsSheet.swift; sourceTree = "<group>"; };
+			42F9A41582A862639ADF1DFB /* AdminRentalDetailsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminRentalDetailsScreen.swift; sourceTree = "<group>"; };
+			75119606472149E74A98DE24 /* BikeCatalogSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BikeCatalogSheet.swift; sourceTree = "<group>"; };
+			2480D79A3E0A4E452DD2F399 /* BikePhotoComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BikePhotoComponents.swift; sourceTree = "<group>"; };
+			B86EF98A0213A14077516D60 /* CarriedDebtOperationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarriedDebtOperationSheet.swift; sourceTree = "<group>"; };
+			F675A849AB471DC92EA7793A /* ClientCatalogSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientCatalogSheet.swift; sourceTree = "<group>"; };
+			096455D1B518334D0B33F840 /* CreateBikeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateBikeSheet.swift; sourceTree = "<group>"; };
+			8EA00A4A4DB876D7535AF81F /* CreateClientSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateClientSheet.swift; sourceTree = "<group>"; };
+			E3C325ECC051F8A2E2D8FBF6 /* CreateRentalSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateRentalSheet.swift; sourceTree = "<group>"; };
+			E555B6AD850FC184DD84D478 /* DebtAdjustmentSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebtAdjustmentSheet.swift; sourceTree = "<group>"; };
+			F2493E2C52F03457CD04255A /* EditBikeSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditBikeSheet.swift; sourceTree = "<group>"; };
+			279572BFE2AADAB13045CFCB /* EditClientProfileSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditClientProfileSheet.swift; sourceTree = "<group>"; };
+			6776CE7A02E9F2A0AC8FB280 /* RentalHistoryCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RentalHistoryCard.swift; sourceTree = "<group>"; };
+			98CC1BE96DDA4FED8E284A2E /* RentalStartBikePickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RentalStartBikePickerSheet.swift; sourceTree = "<group>"; };
+			B1DA7D3D3C88B4E330F982E2 /* RentalStartClientPickerSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RentalStartClientPickerSheet.swift; sourceTree = "<group>"; };
+			BAC50F2B0DB149A43363072E /* BackendReachabilityPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendReachabilityPolicyTests.swift; sourceTree = "<group>"; };
 		D57A96027742B435A96FA584 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		E0F3CCB189006AB76FED0B0E /* LoginViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginViewModel.swift; sourceTree = "<group>"; };
 		E4C794ADC216803E9818CD47 /* AtomGoIOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AtomGoIOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -181,16 +211,31 @@
 			path = AtomGoIOSUITests;
 			sourceTree = "<group>";
 		};
-		75015D99B5E4606B15465002 /* AdminHome */ = {
-			isa = PBXGroup;
-			children = (
-				B437D964BE5A9D2150A1714A /* AdminHomeView.swift */,
-				0F7F44A56F9F7489B50CE778 /* AdminHomeViewModel.swift */,
-				AB9DCC5AB764337899D966D9 /* CreateClientFormValidator.swift */,
-			);
-			path = AdminHome;
-			sourceTree = "<group>";
-		};
+			75015D99B5E4606B15465002 /* AdminHome */ = {
+				isa = PBXGroup;
+				children = (
+					B437D964BE5A9D2150A1714A /* AdminHomeView.swift */,
+					0F7F44A56F9F7489B50CE778 /* AdminHomeViewModel.swift */,
+					AB9DCC5AB764337899D966D9 /* CreateClientFormValidator.swift */,
+					DDF6F13AE66133406CEEC204 /* AdminClientDetailsSheet.swift */,
+					42F9A41582A862639ADF1DFB /* AdminRentalDetailsScreen.swift */,
+					75119606472149E74A98DE24 /* BikeCatalogSheet.swift */,
+					2480D79A3E0A4E452DD2F399 /* BikePhotoComponents.swift */,
+					B86EF98A0213A14077516D60 /* CarriedDebtOperationSheet.swift */,
+					F675A849AB471DC92EA7793A /* ClientCatalogSheet.swift */,
+					096455D1B518334D0B33F840 /* CreateBikeSheet.swift */,
+					8EA00A4A4DB876D7535AF81F /* CreateClientSheet.swift */,
+					E3C325ECC051F8A2E2D8FBF6 /* CreateRentalSheet.swift */,
+					E555B6AD850FC184DD84D478 /* DebtAdjustmentSheet.swift */,
+					F2493E2C52F03457CD04255A /* EditBikeSheet.swift */,
+					279572BFE2AADAB13045CFCB /* EditClientProfileSheet.swift */,
+					6776CE7A02E9F2A0AC8FB280 /* RentalHistoryCard.swift */,
+					98CC1BE96DDA4FED8E284A2E /* RentalStartBikePickerSheet.swift */,
+					B1DA7D3D3C88B4E330F982E2 /* RentalStartClientPickerSheet.swift */,
+				);
+				path = AdminHome;
+				sourceTree = "<group>";
+			};
 		E0CE4B3C39247E3446CBB7B3 /* ClientHome */ = {
 			isa = PBXGroup;
 			children = (
@@ -371,12 +416,27 @@
 		DEA4613BAC09CBD6E8B5C14A /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
-			files = (
-				5A6A9FF068D7DBE94CE1923B /* AdminHomeView.swift in Sources */,
-				D6389B61599B0095B34D0554 /* AdminHomeViewModel.swift in Sources */,
-				9B33C85F7DD3AD0DC22BC7A9 /* AppDesign.swift in Sources */,
-				AF45D347D006E922A45BC4A7 /* AppModels.swift in Sources */,
-				FD4CEB41FCE99FEEAFD15476 /* AppRootView.swift in Sources */,
+				files = (
+					5A6A9FF068D7DBE94CE1923B /* AdminHomeView.swift in Sources */,
+					D6389B61599B0095B34D0554 /* AdminHomeViewModel.swift in Sources */,
+					5B44FBBF9723BFB711564FA2 /* AdminClientDetailsSheet.swift in Sources */,
+					E13C5F03DDDA7EB03C010375 /* AdminRentalDetailsScreen.swift in Sources */,
+					75737DAB18A72EE5806229EE /* BikeCatalogSheet.swift in Sources */,
+					53822B2649B195EEC76A4976 /* BikePhotoComponents.swift in Sources */,
+					EE45B746B5EF02F0C79B3032 /* CarriedDebtOperationSheet.swift in Sources */,
+					7C9AEC1763C75FE3CF472A15 /* ClientCatalogSheet.swift in Sources */,
+					987E2A9AE2BE1FF8D5D7C244 /* CreateBikeSheet.swift in Sources */,
+					0D93C439CDF348CDA62E75CF /* CreateClientSheet.swift in Sources */,
+					16264E410EF1C004E56105F8 /* CreateRentalSheet.swift in Sources */,
+					F951FEE7BEA6F7C396D24967 /* DebtAdjustmentSheet.swift in Sources */,
+					42011BA56DAA6B8015255AE0 /* EditBikeSheet.swift in Sources */,
+					76A03FA774DC3FBB937D9070 /* EditClientProfileSheet.swift in Sources */,
+					44A4DC71C82F65D6606BA5BC /* RentalHistoryCard.swift in Sources */,
+					C56D708A15DC07027D86F9C8 /* RentalStartBikePickerSheet.swift in Sources */,
+					B53A888734BB1EFD0441C5BC /* RentalStartClientPickerSheet.swift in Sources */,
+					9B33C85F7DD3AD0DC22BC7A9 /* AppDesign.swift in Sources */,
+					AF45D347D006E922A45BC4A7 /* AppModels.swift in Sources */,
+					FD4CEB41FCE99FEEAFD15476 /* AppRootView.swift in Sources */,
 				B7D05449E1D1732C82744DB6 /* AppViewModel.swift in Sources */,
 				E634E16917E922877ED8E481 /* AtomGoIOSApp.swift in Sources */,
 				7A7CD243D4383880B31466ED /* BackendReachabilityPolicy.swift in Sources */,
