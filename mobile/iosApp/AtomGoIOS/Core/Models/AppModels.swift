@@ -212,6 +212,20 @@ struct AdminClientSummaryResponse: Decodable, Identifiable {
     }
 }
 
+/// Клиенты, доступные как «арендатор» при запуске новой аренды:
+/// у которых сейчас нет активной аренды, отсортированные по ФИО
+/// (docs/14_rental_lifecycle.md §5). Один helper для CreateRentalSheet
+/// и AdminRentalDetailsScreen, чтобы фильтрация всегда совпадала.
+extension Sequence where Element == AdminClientSummaryResponse {
+    func availableForRentalStart() -> [AdminClientSummaryResponse] {
+        self
+            .filter { !$0.rentalIsActive }
+            .sorted { lhs, rhs in
+                lhs.fullName.localizedCaseInsensitiveCompare(rhs.fullName) == .orderedAscending
+            }
+    }
+}
+
 enum ClientPaymentType: String, CaseIterable, Identifiable {
     case day
     case week
@@ -404,8 +418,33 @@ struct AdminBikeResponse: Equatable, Identifiable {
     let motorSerialNumber: String
     let batterySerialNumber1: String
     let batterySerialNumber2: String?
+    /// true ⇔ велик уже привязан к активной (не удалённой) lifecycle-аренде.
+    /// Picker фильтрует свободные по `!bikeIsInRental` (docs/14_rental_lifecycle.md §1).
+    let bikeIsInRental: Bool
 
     var id: String { bikeId }
+
+    init(
+        bikeId: String,
+        photoUrl: String?,
+        bikeModel: String,
+        weeklyRateRub: Int,
+        frameSerialNumber: String,
+        motorSerialNumber: String,
+        batterySerialNumber1: String,
+        batterySerialNumber2: String?,
+        bikeIsInRental: Bool = false
+    ) {
+        self.bikeId = bikeId
+        self.photoUrl = photoUrl
+        self.bikeModel = bikeModel
+        self.weeklyRateRub = weeklyRateRub
+        self.frameSerialNumber = frameSerialNumber
+        self.motorSerialNumber = motorSerialNumber
+        self.batterySerialNumber1 = batterySerialNumber1
+        self.batterySerialNumber2 = batterySerialNumber2
+        self.bikeIsInRental = bikeIsInRental
+    }
 }
 
 struct CreateBikePayload {

@@ -133,6 +133,12 @@ class InMemoryStore(
                     adminId = adminId,
                     taxMode = AdminTaxMode.SELF_EMPLOYED
                 ),
+                // rental-000 — историческая lifecycle-аренда для bikeId1.
+                // ВАЖНО: соблюдаем invariant «один bike — одна неудалённая lifecycle»
+                // (docs/14_rental_lifecycle.md §1). Историческая запись хранится
+                // soft-deleted: data сохраняется как часть истории клиента
+                // (через connected ClientRentalRecord после нормализации),
+                // но в /admin/rents она не появляется.
                 RentalRecord(
                     id = "rental-000",
                     clientId = clientId,
@@ -145,7 +151,8 @@ class InMemoryStore(
                     contractUrl = "https://drive.google.com/file/d/contract-old/view",
                     comment = "Возврат по апгрейду на новую модель",
                     adminId = adminId,
-                    taxMode = AdminTaxMode.SELF_EMPLOYED
+                    taxMode = AdminTaxMode.SELF_EMPLOYED,
+                    deletedAt = Instant.now().minusSeconds(48L * 24 * 3600)
                 ),
                 RentalRecord(
                     id = "rental-002",

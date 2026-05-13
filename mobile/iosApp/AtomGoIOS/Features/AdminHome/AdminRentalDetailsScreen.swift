@@ -632,11 +632,7 @@ struct AdminRentalDetailsScreen: View {
     }
 
     private var availableStartClients: [AdminClientSummaryResponse] {
-        clients
-            .filter { !$0.rentalIsActive }
-            .sorted { left, right in
-                left.fullName.localizedCaseInsensitiveCompare(right.fullName) == .orderedAscending
-            }
+        clients.availableForRentalStart()
     }
 
     private var selectedStartClient: AdminClientSummaryResponse? {

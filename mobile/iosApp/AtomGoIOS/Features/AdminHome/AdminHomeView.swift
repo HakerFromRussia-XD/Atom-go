@@ -1187,17 +1187,34 @@ struct AdminHomeView: View {
         )
     }
 
+    /// Цвет рамки аватарки на главном экране — строго по pipeline-статусу
+    /// lifecycle-аренды (docs/14_rental_lifecycle.md §2):
+    ///   long_term  → зелёный
+    ///   soon_return → жёлтый
+    ///   in_stock   → фиолетовый
+    /// `rentalIsActive` сам по себе НЕ маркирует фиолетовый: активная in_stock
+    /// (теоретически невозможна по invariant, но возможна в момент race)
+    /// должна показываться фиолетовой согласно статусу. И наоборот, неактивная
+    /// long_term-карточка (legacy/race) не должна внезапно стать фиолетовой.
     private func avatarBorderColor(for client: AdminClientSummaryResponse) -> Color {
-        if !client.rentalIsActive {
-            return Color(red: 203 / 255, green: 48 / 255, blue: 224 / 255)
+        let normalizedStatus = (client.rentalPipelineStatus ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        switch normalizedStatus {
+        case "in_stock", "mine":
+            return Color(red: 203 / 255, green: 48 / 255, blue: 224 / 255) // фиолетовый
+        case "soon_return":
+            return Color(red: 255 / 255, green: 204 / 255, blue: 0) // жёлтый
+        case "long_term":
+            return Color(red: 52 / 255, green: 199 / 255, blue: 89 / 255) // зелёный
+        default:
+            // Статус не пришёл (свежесозданная запись / legacy) — fallback
+            // по rentalIsActive: активная зелёная, неактивная фиолетовая.
+            // Этот путь должен быть редким; основной — switch выше.
+            return client.rentalIsActive
+                ? Color(red: 52 / 255, green: 199 / 255, blue: 89 / 255)
+                : Color(red: 203 / 255, green: 48 / 255, blue: 224 / 255)
         }
-        if client.rentalPipelineStatus == "soon_return" {
-            return Color(red: 255 / 255, green: 204 / 255, blue: 0)
-        }
-        if client.debtRub > 0 {
-            return Color(red: 52 / 255, green: 199 / 255, blue: 89 / 255)
-        }
-        return Color(red: 52 / 255, green: 199 / 255, blue: 89 / 255)
     }
 
     private func paidDaysText(for client: AdminClientSummaryResponse) -> String {

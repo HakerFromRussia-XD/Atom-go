@@ -194,7 +194,7 @@ class ApiIntegrationTest {
                   "client_id":"$createdClientId",
                   "bike_id":"$createdBikeId",
                   "login":"roman.client",
-                  "password":"client123",
+                  "password":"roman-client-pwd",
                   "period_start":"2026-05-05",
                   "period_end":"2026-05-20",
                   "video_url":"https://youtube.com/watch?v=rent-1",
@@ -212,7 +212,7 @@ class ApiIntegrationTest {
 
         val loginAsCreatedClient = client.post("/api/v1/auth/login") {
             contentType(ContentType.Application.Json)
-            setBody("""{"login":"roman.client","password":"client123"}""")
+            setBody("""{"login":"roman.client","password":"roman-client-pwd"}""")
         }
         assertEquals(HttpStatusCode.OK, loginAsCreatedClient.status)
 
@@ -301,7 +301,7 @@ class ApiIntegrationTest {
                   "client_id":"$clientId",
                   "bike_id":"$firstBikeId",
                   "login":"update.rental.client",
-                  "password":"client123",
+                  "password":"update-rental-client-pwd",
                   "period_start":"2026-05-05",
                   "period_end":"2026-05-20"
                 }
@@ -348,7 +348,7 @@ class ApiIntegrationTest {
                   "client_id":"$clientId",
                   "bike_id":"$bikeId",
                   "login":"rental.details.client",
-                  "password":"client123",
+                  "password":"rental-details-client-pwd",
                   "period_start":"2026-05-05"
                 }
                 """.trimIndent()
@@ -451,7 +451,7 @@ class ApiIntegrationTest {
                   "client_id":"$clientId",
                   "bike_id":"$bikeId",
                   "login":"delete.rental.client",
-                  "password":"client123",
+                  "password":"delete-rental-client-pwd",
                   "period_start":"2026-06-01",
                   "period_end":"2026-06-15"
                 }
@@ -640,7 +640,7 @@ class ApiIntegrationTest {
                   "client_id":"$clientId",
                   "bike_id":"$bikeId",
                   "login":"detach.client",
-                  "password":"client123",
+                  "password":"detach-client-pwd",
                   "period_start":"2026-05-05"
                 }
                 """.trimIndent()
@@ -652,7 +652,7 @@ class ApiIntegrationTest {
 
         val clientLogin = client.post("/api/v1/auth/login") {
             contentType(ContentType.Application.Json)
-            setBody("""{"login":"detach.client","password":"client123"}""")
+            setBody("""{"login":"detach.client","password":"detach-client-pwd"}""")
         }
         assertEquals(HttpStatusCode.OK, clientLogin.status)
         val clientToken = json.parseToJsonElement(clientLogin.bodyAsText())
@@ -685,7 +685,7 @@ class ApiIntegrationTest {
 
         val loginAfterDetach = client.post("/api/v1/auth/login") {
             contentType(ContentType.Application.Json)
-            setBody("""{"login":"detach.client","password":"client123"}""")
+            setBody("""{"login":"detach.client","password":"detach-client-pwd"}""")
         }
         assertEquals(HttpStatusCode.OK, loginAfterDetach.status)
 
@@ -719,7 +719,7 @@ class ApiIntegrationTest {
                   "client_id":"client-001",
                   "bike_id":"bike-001",
                   "login":"client1",
-                  "password":"client123",
+                  "password":"client1-pwd",
                   "period_start":"2026-05-10",
                   "period_end":"2026-05-01"
                 }
@@ -740,7 +740,7 @@ class ApiIntegrationTest {
                   "client_id":"client-001",
                   "bike_id":"bike-001",
                   "login":"client1",
-                  "password":"client123",
+                  "password":"client1-pwd",
                   "period_start":"2026-05-10"
                 }
                 """.trimIndent()
@@ -834,7 +834,7 @@ class ApiIntegrationTest {
                 {
                   "bike_id":"$bikeId",
                   "login":"client.from.details",
-                  "password":"client123",
+                  "password":"client-from-details-pwd",
                   "period_start":"2026-05-15",
                   "period_end":"2026-05-30",
                   "video_url":"https://youtube.com/watch?v=from-details",
@@ -851,7 +851,7 @@ class ApiIntegrationTest {
 
         val loginAsCreatedClient = client.post("/api/v1/auth/login") {
             contentType(ContentType.Application.Json)
-            setBody("""{"login":"client.from.details","password":"client123"}""")
+            setBody("""{"login":"client.from.details","password":"client-from-details-pwd"}""")
         }
         assertEquals(HttpStatusCode.OK, loginAsCreatedClient.status)
     }
@@ -935,7 +935,7 @@ class ApiIntegrationTest {
                   "client_id":"$ipClientId",
                   "bike_id":"$ipBikeId",
                   "login":"ip.client",
-                  "password":"client123",
+                  "password":"ip-client-pwd",
                   "period_start":"2026-05-05"
                 }
                 """.trimIndent()
@@ -972,7 +972,7 @@ class ApiIntegrationTest {
 
         val ipClientLogin = client.post("/api/v1/auth/login") {
             contentType(ContentType.Application.Json)
-            setBody("""{"login":"ip.client","password":"client123"}""")
+            setBody("""{"login":"ip.client","password":"ip-client-pwd"}""")
         }
         assertEquals(HttpStatusCode.OK, ipClientLogin.status)
         val clientToken = json.parseToJsonElement(ipClientLogin.bodyAsText())
@@ -1057,7 +1057,7 @@ class ApiIntegrationTest {
                   "client_id":"$rentedClientId",
                   "bike_id":"$rentedBikeId",
                   "login":"delete.rules.client",
-                  "password":"client123",
+                  "password":"delete-rules-client-pwd",
                   "period_start":"2026-05-06"
                 }
                 """.trimIndent()
@@ -1544,7 +1544,7 @@ class ApiIntegrationTest {
                   "client_id":"$firstClientId",
                   "bike_id":"$bikeId",
                   "login":"duplicate.lifecycle.one",
-                  "password":"client123",
+                  "password":"duplicate-lifecycle-one-pwd",
                   "period_start":"2026-05-01"
                 }
                 """.trimIndent()
@@ -1913,7 +1913,7 @@ class ApiIntegrationTest {
                   "client_id":"$clientId",
                   "bike_id":"$bike1",
                   "login":"acc.cycle.1",
-                  "password":"acc123",
+                  "password":"acc-cycle-1-pwd",
                   "period_start":"$start1"
                 }
                 """.trimIndent()
@@ -1922,7 +1922,7 @@ class ApiIntegrationTest {
         assertEquals(HttpStatusCode.Created, createRental1.status)
         val rental1 = json.parseToJsonElement(createRental1.bodyAsText())
             .jsonObject["rental_id"]?.jsonPrimitive?.content ?: error("No rental_id (1)")
-        paySingleWeek(login = "acc.cycle.1", password = "acc123", externalId = "provider-acc-1")
+        paySingleWeek(login = "acc.cycle.1", password = "acc-cycle-1-pwd", externalId = "provider-acc-1")
         val delete1 = client.post("/api/v1/admin/rentals/$rental1/delete") {
             bearerAuth(adminToken)
         }
@@ -1954,7 +1954,7 @@ class ApiIntegrationTest {
                   "client_id":"$clientId",
                   "bike_id":"$bike2",
                   "login":"acc.cycle.2",
-                  "password":"acc123",
+                  "password":"acc-cycle-2-pwd",
                   "period_start":"$start2"
                 }
                 """.trimIndent()
@@ -1963,7 +1963,7 @@ class ApiIntegrationTest {
         assertEquals(HttpStatusCode.Created, createRental2.status)
         val rental2 = json.parseToJsonElement(createRental2.bodyAsText())
             .jsonObject["rental_id"]?.jsonPrimitive?.content ?: error("No rental_id (2)")
-        paySingleWeek(login = "acc.cycle.2", password = "acc123", externalId = "provider-acc-2")
+        paySingleWeek(login = "acc.cycle.2", password = "acc-cycle-2-pwd", externalId = "provider-acc-2")
         val delete2 = client.post("/api/v1/admin/rentals/$rental2/delete") {
             bearerAuth(adminToken)
         }

@@ -49,12 +49,14 @@ Backend enum `RentalPipelineStatus`:
 - является владельцем credentials для входа клиента;
 - является владельцем платежей, корректировок и истории через `ledger.rentalId` / `payment.rentalId`.
 
+**Инвариант credentials**: `clientLogin` и `clientPassword` обязаны быть непустыми для каждой `ClientRentalRecord` — и для активной, и для закрытой. Это критично для возможности клиента войти в свою аренду даже после её завершения (просмотр истории и оплата долга). Если запись поступает с пустыми credentials из legacy-данных, `ensureClientRentalModel` бэкфилит их (см. ниже).
+
 Активная клиентская аренда определяется так:
 
 - `startDate <= today`;
 - `endDate == null || endDate > today`.
 
-Завершенная клиентская аренда продолжает открываться по своему старому логину/паролю и должна показывать свои сохраненные данные, включая дату завершения.
+Завершенная клиентская аренда продолжает открываться по своему старому логину/паролю и должна показывать свои сохраненные данные, включая дату завершения. Статус lifecycle-аренды (`long_term/soon_return/in_stock`) — это статус **lifecycle**, а не статус закрытой клиентской аренды; на UI закрытой `ClientRentalRecord` пайплайн-статус НЕ применяется (рамка аватарки нейтрально-серая, метрики показываются как историческая запись).
 
 ## Миграция старых данных
 
@@ -71,6 +73,17 @@ Backend enum `RentalPipelineStatus`:
 Если у lifecycle-аренды нет активной клиентской аренды, она переводится в `IN_STOCK`, очищает клиента и credentials.
 
 Если активная клиентская аренда есть, lifecycle-аренда получает текущий `clientId`, `startDate`, `endDate = null`, но credentials остаются только в `ClientRentalRecord`.
+
+### Backfill credentials для client_rental
+
+Дополнительный шаг внутри `ensureClientRentalModel` (после установки правильного `rentalId` для каждой `ClientRentalRecord`):
+
+- Для каждой `ClientRentalRecord` с пустыми `clientLogin` или `clientPassword`:
+  1. Пробуем заполнить из связанной `RentalRecord` (legacy: пара хранилась там);
+  2. Если там пусто — заполняем из последнего `AppUser` клиента (`role=CLIENT && clientId=...`);
+  3. Если оба источника пусты — оставляем пустыми (ничего фабриковать нельзя, инвариант нарушен на уровне исходных данных).
+- Шаг идемпотентен: запись с уже непустыми credentials не меняется.
+- Это закрывает legacy-кейс «закрытая `ClientRentalRecord` без логина/пароля» и обеспечивает инвариант credentials для всех записей.
 
 ## Создание новой lifecycle-аренды
 
@@ -225,9 +238,59 @@ final_debt    = max(0, round(overdue_days * day_amount) + total_adjustment_rub)
 
 - достраивает `clientRentals`, если store был поднят из legacy payload без отдельного списка `ClientRentalRecord`;
 - перепривязывает `ledger`, `payments` и `sessions` с legacy lifecycle rental id на `ClientRentalRecord.id`;
-- схлопывает legacy-дубли lifecycle-аренд по ключу `adminId + bikeId`, оставляя одну актуальную карточку велосипеда.
+- legacy-дубли lifecycle-аренд по ключу `adminId + bikeId` помечает soft-delete'ом (одна канонической, остальные сохраняются в истории);
+- бэкфилит `clientPasswordFingerprint` (SHA-256 от `clientPassword`), если пустой — это нужно для проверки уникальности паролей среди новых записей.
 
 Это нужно для ситуаций, когда старые lifecycle-записи успели накопиться до разделения сущностей и начинают повторно появляться в `Все аренды`.
+
+## Soft-delete
+
+`RentalRecord.deletedAt`, `ClientAccount.deletedAt`, `BikeAccount.deletedAt` (`Instant?`).
+
+При `/admin/rentals/{id}/delete` / `/admin/clients/{id}/delete` / `/admin/bikes/{id}/delete` — backend проставляет `deletedAt = Instant.now()` ВМЕСТО физического удаления записи из store. Запись остаётся в БД (Postgres `deleted_at TIMESTAMPTZ`).
+
+Все списочные эндпоинты (`GET /admin/rents`, `/admin/clients`, `/admin/bikes`) и валидации (уникальность серийников велосипеда, инвариант «один bike — одна неудалённая lifecycle», уникальность пароля) фильтруют по `deletedAt == null`.
+
+История ClientRentalRecord остаётся доступной даже если связанная lifecycle помечена deletedAt — `lifecycleRentalForClientRental` сначала ищет lifecycle по id (включая soft-deleted), чтобы открытие карточки закрытой client_rental из истории клиента всегда работало.
+
+Постгрес-миграция: `ALTER TABLE ... ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ` для каждой из трёх таблиц.
+
+## Уникальность пароля (docs/14_rental_lifecycle.md §4)
+
+`ClientRentalRecord.clientPasswordFingerprint` (`String`, default `""`) — SHA-256 hex от UTF-8 байт `clientPassword` (с предварительным trim'ом). При создании client_rental через `createRentalForClient` / `startClientRentalInExistingRental` backend:
+
+1. Считает `passwordFingerprint(password)`.
+2. Проверяет, что fingerprint не встречается ни в одной существующей `ClientRentalRecord` (включая soft-deleted lifecycle, чтобы не вернуть к жизни старые credentials как «новые»). Если совпадает — `409 password is already used`.
+3. Сохраняет fingerprint в записи.
+
+Plaintext пароль (`clientPassword`) хранится отдельно — он нужен админу для кнопки «Копировать». Аутентификация продолжает работать по plaintext через `AuthService`. Это компромисс между требованием уникальности и UX-требованием «копировать пароль клиенту».
+
+## Финальный долг закрытой client_rental — единая семантика для `/finish` и `/delete`
+
+При закрытии client_rental (любым путём) долг считается per-day через `LedgerCalculator.finalDebtOnClosure`:
+- `daily_rate = weekly_rate / 7`
+- `covered_days = floor(total_paid / daily_rate)`
+- `used_days = days_between(start, end)`
+- `overdue_days = max(0, used - covered)`
+- `final_debt = max(0, round(overdue * daily_rate) + total_adjustment)`
+
+Эта формула применяется во ВСЕХ местах, где отображается долг закрытой client_rental:
+- `buildAdminClientDetails` (история аренд клиента);
+- `GET /admin/rentals/{closedClientRentalId}` (детали закрытой);
+- `GET /client/me/dashboard` (клиентский экран для закрытой аренды);
+- `PaymentService.createPayment` (расчёт суммы DEBT_EXACT и валидация preset amount).
+
+Активный долг (rentalIsActive == true) по-прежнему считается per-week через `LedgerCalculator.debtRub`.
+
+## Презеты payment-кнопок (closed rental clamp)
+
+Для активной client_rental презеты — фиксированные `{day, week, two_weeks, month}` по тарифу. Для закрытой — кнопка обнуляется (preset = 0), если её сумма больше остаточного долга. Например debt=5999, weekly=3500: `day_rub = clamp(500, 5999) = 500`, `week_rub = clamp(3500, 5999) = 3500`, `two_weeks_rub = clamp(7000, 5999) = 0`, `month_rub = clamp(14000, 5999) = 0`, `debt_exact_rub = 5999`.
+
+iOS должен делать кнопки с amount=0 disabled. Backend в `PaymentService.createPayment` дополнительно проверяет: если closed rental И `rawAmount > debt`, отвергает с «Amount is zero. Nothing to pay.».
+
+## GET /client/me/ledger
+
+Журнал текущей client_rental клиента (`ApiClientLedgerResponse`). Возвращает entries (`type`, `amount_rub`, `created_at`, `note?`), отсортированные по `created_at` убыванием. Источник — `store.ledger`, отфильтрованный по `entry.rentalId == session.rentalId` (плюс legacy-записи с `rentalId == null`, привязанные по clientId). См. `docs/04_api_draft.md` секция «Client».
 
 ## Экран "Новая аренда" (iOS)
 
@@ -266,6 +329,9 @@ Tax mode для платежа берется из связанной lifecycle-
 - Завершенная `ClientRentalRecord` не равна lifecycle-аренде в статусе `IN_STOCK`.
 - Финальный долг при закрытии клиентской аренды считается строго по дням, а не по неделям (см. `LedgerCalculator.finalDebtOnClosure`).
 - Непогашенный финальный долг при удалении lifecycle-аренды переносится в `ClientAccount.carriedDebtRub` накопительно.
+- У каждой `ClientRentalRecord` (активной и закрытой) обязаны быть непустые `clientLogin` и `clientPassword`. Бэкфилл встроен в `ensureClientRentalModel`.
+- Статусы `long_term/soon_return/in_stock` относятся к lifecycle-аренде. К закрытой `ClientRentalRecord` они не применяются: на UI она показывается как историческая запись с нейтрально-серой рамкой аватарки и без пайплайн-семантики.
+- Кнопка «Сгенерировать» в карточке аренды живёт только в lifecycle-аренде в статусе `IN_STOCK`. Она генерирует пару (логин + пароль) одной операцией.
 
 ## Текущий статус задач (см. docs/06_roadmap_2_weeks.md, docs/08_sprint1_execution_plan.md)
 
@@ -278,3 +344,16 @@ Tax mode для платежа берется из связанной lifecycle-
 | iOS UI кнопка "удалить" с подтверждением | ✅ | `AdminRentalDetailsScreen` (trash-иконка) + `confirmationDialog`. `AdminHomeViewModel.deleteRental` отдельно обрабатывает `BackendError.httpError(404)` (рефреш + нейтральное сообщение «Аренда уже удалена») и зовёт `refreshAfterMutation` для главного списка/каталога/велосипедов. |
 | Списание/оплата `carriedDebt` админом | ✅ | `POST /admin/clients/{id}/carried-debt`: `kind=writeoff\|payment`, излишек payment автоматически уходит в активную client_rental. Тесты в `ApiIntegrationTest`: `carriedDebt writeoff…`, `carriedDebt payment full…`, `carriedDebt payment excess should overflow into active client rental`, `carriedDebt payment excess without active rental should fail`, и валидационные. |
 | iOS UI для carriedDebt-операций | ✅ | В `clientStatusCard` (AdminHomeView) появляется блок «Перенесённый долг: N ₽» при `carriedDebtRub > 0` с двумя кнопками: «Принять оплату» (accent CTA) и «Списать» (bordered). Обе открывают `CarriedDebtOperationSheet` с заранее выбранным типом. Sheet знает про наличие активной аренды и заранее показывает понятную подсказку про распределение излишка. `AdminHomeViewModel.applyCarriedDebt` собирает контекстное success-сообщение («Принято 1500 ₽: 1000 ₽ в перенесённый долг, 500 ₽ в активную аренду» и т.п.) и зовёт `refreshAfterMutation`. |
+| iOS: фиолетовая рамка у закрытой client_rental | ✅ | `isInStockState` и `avatarBorderColor` теперь учитывают `details.completedAt`. Для закрытой `ClientRentalRecord` рамка нейтрально-серая, метрики не маскируются дефисами, кнопка «Сгенерировать» скрыта. |
+| iOS: «Сгенерировать» с пустым action | ✅ | `generateCredentials()` создаёт ОБЕ части: логин (`userNNNNNN`) и пароль (12 символов из безопасного алфавита). Кнопка показывается только при `isInStockState`. |
+| Backend: закрытая client_rental без credentials | ✅ | `ensureClientRentalModel` бэкфилит `clientLogin/clientPassword` из связанной `RentalRecord` или из `AppUser` клиента. Тест `every client rental must expose credentials including after closure` проверяет инвариант. |
+| iOS: удаление аренды в статусе IN_STOCK | ✅ | Confirmation dialog в `AdminRentalDetailsScreen` теперь требует только `rentalId` (clientId опционален — в IN_STOCK его нет). Раньше `guard let clientId` тихо валился и кнопка не работала. |
+| `/finish` per-day final debt | ✅ | `LedgerCalculator.finalDebtOnClosure` теперь применяется ВЕЗДЕ, где отображается debt закрытой client_rental: client details, rental details, client dashboard, PaymentService. |
+| Уникальность пароля | ✅ | `clientPasswordFingerprint` (SHA-256) + проверка в `createRentalForClient` и `startClientRentalInExistingRental`. Backfill для legacy через `ensureClientRentalModel`. iOS показывает понятное сообщение «пароль уже используется». |
+| `GET /client/me/ledger` | ✅ | `ApiClientLedgerResponse` с entries (type, amount_rub, created_at, note). Использует session.rentalId. |
+| Clamp payment presets на closed rental | ✅ | В `/client/me/dashboard`: если client_rental закрыта, кнопки `day/week/two_weeks/month` обнуляются когда сумма > debt. `debt_exact_rub` = debt. `PaymentService.createPayment` дополнительно валидирует. |
+| Soft-delete для Rental/Client/Bike | ✅ | `deletedAt: Instant?` на трёх сущностях, Postgres `ALTER TABLE ADD COLUMN deleted_at`. Все listing/validation/normalization фильтруют по `deletedAt == null`. История сохраняется. |
+| iOS pickers фильтруют сами | ✅ | `RentalStartClientPickerSheet` применяет `.availableForRentalStart()` к входному списку. `RentalStartBikePickerSheet` фильтрует по новому полю `bike_is_in_rental` из backend `AdminBikeResponse`. |
+| iOS avatarBorderColor через pipeline_status | ✅ | Switch по `rentalPipelineStatus`: long_term → зелёный, soon_return → жёлтый, in_stock/mine → фиолетовый. Fallback по rentalIsActive только если статус не пришёл. |
+| iOS дедуп availableStartClients | ✅ | `Sequence<AdminClientSummaryResponse>.availableForRentalStart()` extension в `AppModels.swift`. Используется и в `CreateRentalSheet`, и в `AdminRentalDetailsScreen`. |
+| Backend seed без duplicate lifecycle | ✅ | `rental-000` в `InMemoryStore.seed` помечен `deletedAt = Instant.now().minusDays(48)`. Invariant «один bike — одна неудалённая lifecycle» соблюдён. |

@@ -374,7 +374,14 @@ private data class ApiAdminBikeResponse(
     @SerialName("battery_serial_number_1")
     val batterySerialNumber1: String,
     @SerialName("battery_serial_number_2")
-    val batterySerialNumber2: String? = null
+    val batterySerialNumber2: String? = null,
+    /**
+     * true ⇔ к велосипеду сейчас привязана НЕ-удалённая lifecycle-аренда.
+     * Используется в iOS-пикерах для фильтрации свободных велосипедов
+     * без надобности отдельно запрашивать /admin/rents.
+     */
+    @SerialName("bike_is_in_rental")
+    val bikeIsInRental: Boolean = false
 )
 
 @Serializable
@@ -485,6 +492,29 @@ private data class ApiAdminRentalJournalEntryResponse(
     val amountRub: Int,
     @SerialName("created_at")
     val createdAt: String
+)
+
+/**
+ * Журнал клиента — те же записи, что админ видит для client_rental.
+ * Возвращается из GET /client/me/ledger для текущей client_rental клиента
+ * (docs/04_api_draft.md «Client», docs/01_scope_freeze.md §2 «платежи отображаются в журнале»).
+ */
+@Serializable
+private data class ApiClientLedgerEntryResponse(
+    val type: String,
+    @SerialName("amount_rub")
+    val amountRub: Int,
+    @SerialName("created_at")
+    val createdAt: String,
+    val note: String? = null
+)
+
+@Serializable
+private data class ApiClientLedgerResponse(
+    @SerialName("rental_id")
+    val rentalId: String,
+    @SerialName("entries")
+    val entries: List<ApiClientLedgerEntryResponse>
 )
 
 @Serializable
@@ -621,8 +651,16 @@ private fun lifecycleRentalForClientRental(
     clientRental: ClientRentalRecord,
     store: InMemoryStore
 ): RentalRecord? {
-    return store.rentals.firstOrNull { it.id == clientRental.rentalId }
-        ?: store.rentals.firstOrNull { it.bikeId == clientRental.bikeId && it.adminId == clientRental.adminId }
+    // Сначала пытаемся найти именно тот lifecycle, к которому client_rental
+    // была привязана, даже если он сейчас soft-deleted — для отображения
+    // исторической карточки в админке (delete не должен сломать просмотр истории).
+    val byId = store.rentals.firstOrNull { it.id == clientRental.rentalId }
+    if (byId != null) return byId
+    // Fallback: ищем «живой» lifecycle для того же велосипеда и админа
+    // (используется в legacy-нормализации client_rental→lifecycle).
+    return store.rentals.firstOrNull {
+        it.bikeId == clientRental.bikeId && it.adminId == clientRental.adminId && it.deletedAt == null
+    }
 }
 
 private fun activeClientRentalForLifecycle(
@@ -630,6 +668,9 @@ private fun activeClientRentalForLifecycle(
     store: InMemoryStore,
     asOf: LocalDate
 ): ClientRentalRecord? {
+    // У удалённой lifecycle-аренды нет «активной» клиентской: запись в архиве,
+    // но client_rentals могут существовать (история). Возвращаем null.
+    if (rental.deletedAt != null) return null
     return store.clientRentals
         .asSequence()
         .filter { it.rentalId == rental.id }
@@ -718,7 +759,13 @@ private fun ensureClientRentalModel(store: InMemoryStore): Boolean {
         }
     }
 
+    // Группируем «живые» lifecycle-аренды по (adminId, bikeId) — soft-deleted
+    // не участвуют в нормализации, но и не удаляются физически. Это сохраняет
+    // инвариант «один bike — одна неудалённая lifecycle» и при этом не теряет
+    // историю удалённых аренд.
     val lifecycleByGroup = store.rentals
+        .asSequence()
+        .filter { it.deletedAt == null }
         .groupBy { "${it.adminId.orEmpty()}::${it.bikeId}" }
         .mapValues { (_, rentals) ->
             rentals
@@ -741,9 +788,21 @@ private fun ensureClientRentalModel(store: InMemoryStore): Boolean {
         }
     }
 
-    val lifecycleIds = lifecycleByGroup.values.map { it.id }.toSet()
-    if (store.rentals.removeAll { it.id !in lifecycleIds }) {
-        changed = true
+    // Legacy-дубликаты lifecycle на один и тот же (adminId, bikeId), которые
+    // НЕ попали в lifecycleByGroup как «канонический», помечаются soft-delete'ом.
+    // Физически не удаляем — история сохраняется. До soft-delete фичи здесь был
+    // removeAll, что приводило к потере данных при дубликатах.
+    val canonicalLifecycleIds = lifecycleByGroup.values.map { it.id }.toSet()
+    val now = java.time.Instant.now()
+    store.rentals.replaceAll { rental ->
+        if (rental.deletedAt == null && rental.id !in canonicalLifecycleIds) {
+            // Этот lifecycle — duplicate для группы (admin, bike), его «жизненный» собрат
+            // уже выбран. Помечаем soft-deleted.
+            changed = true
+            rental.copy(deletedAt = now)
+        } else {
+            rental
+        }
     }
 
     // Инвариант: у каждой ClientRentalRecord должны быть непустые
@@ -753,6 +812,17 @@ private fun ensureClientRentalModel(store: InMemoryStore): Boolean {
     //   1) из исходной RentalRecord.clientLogin/Password (старый источник);
     //   2) из AppUser клиента (последний известный логин/пароль).
     // Этот шаг идемпотентен: запись с уже заполненными credentials не меняется.
+    // Бэкфилл fingerprint для тех ClientRentalRecord, где он пустой
+    // (legacy-данные до фичи уникальности). Делается ДО backfill credentials,
+    // чтобы случай «и login пустой, и fingerprint пустой» обработался единообразно
+    // после следующего шага: после backfill credentials fingerprint посчитается ниже.
+    store.clientRentals.replaceAll { clientRental ->
+        if (clientRental.clientPasswordFingerprint.isNotBlank()) return@replaceAll clientRental
+        if (clientRental.clientPassword.isBlank()) return@replaceAll clientRental
+        changed = true
+        clientRental.copy(clientPasswordFingerprint = passwordFingerprint(clientRental.clientPassword))
+    }
+
     store.clientRentals.replaceAll { clientRental ->
         val needsLogin = clientRental.clientLogin.isBlank()
         val needsPassword = clientRental.clientPassword.isBlank()
@@ -776,11 +846,25 @@ private fun ensureClientRentalModel(store: InMemoryStore): Boolean {
             clientRental
         } else {
             changed = true
-            clientRental.copy(clientLogin = backfilledLogin, clientPassword = backfilledPassword)
+            // Если пароль появился после backfill — синхронизируем fingerprint.
+            val backfilledFingerprint = if (backfilledPassword.isNotBlank() && clientRental.clientPasswordFingerprint.isBlank()) {
+                passwordFingerprint(backfilledPassword)
+            } else {
+                clientRental.clientPasswordFingerprint
+            }
+            clientRental.copy(
+                clientLogin = backfilledLogin,
+                clientPassword = backfilledPassword,
+                clientPasswordFingerprint = backfilledFingerprint
+            )
         }
     }
 
     store.rentals.replaceAll { rental ->
+        // Soft-deleted lifecycle нормализации не подвергаем — они остаются
+        // в архиве с теми полями, которые были на момент удаления.
+        if (rental.deletedAt != null) return@replaceAll rental
+
         val activeClientRental = activeClientRentalForLifecycle(rental, store, LocalDate.now())
         if (activeClientRental == null) {
             if (
@@ -887,7 +971,7 @@ private fun ledgerSignedAmountForUi(entry: LedgerEntry): Int = when (entry.type)
     LedgerType.ADJUSTMENT -> if (entry.direction == -1) -entry.amountRub else entry.amountRub
 }
 
-private fun bikeToApiResponse(bike: BikeAccount): ApiAdminBikeResponse {
+private fun bikeToApiResponse(bike: BikeAccount, isInRental: Boolean = false): ApiAdminBikeResponse {
     return ApiAdminBikeResponse(
         bikeId = bike.id,
         photoUrl = bike.photoUrl,
@@ -896,8 +980,21 @@ private fun bikeToApiResponse(bike: BikeAccount): ApiAdminBikeResponse {
         frameSerialNumber = bike.frameSerialNumber,
         motorSerialNumber = bike.motorSerialNumber,
         batterySerialNumber1 = bike.batterySerialNumber1,
-        batterySerialNumber2 = bike.batterySerialNumber2
+        batterySerialNumber2 = bike.batterySerialNumber2,
+        bikeIsInRental = isInRental
     )
+}
+
+/**
+ * Заглушка для случаев одиночного bike в ответе на create/update —
+ * подсчёт isInRental по текущему стору. Не использовать в горячих циклах
+ * (для списка велосипедов считаем bike_id-set один раз).
+ */
+private fun bikeToApiResponse(bike: BikeAccount, store: InMemoryStore): ApiAdminBikeResponse {
+    val inRental = store.rentals.any {
+        it.bikeId == bike.id && it.adminId == bike.adminId && it.deletedAt == null
+    }
+    return bikeToApiResponse(bike, isInRental = inRental)
 }
 
 private fun bikeContainsSerial(bike: BikeAccount, serial: String): Boolean {
@@ -1007,8 +1104,12 @@ private fun validateUniqueBikeSerials(
     }
 
     for ((fieldName, serialValue) in serialPairs) {
+        // Soft-delete: серийник освобождается, когда bike помечен deletedAt.
+        // Это даёт админу возможность переиспользовать серийник (например,
+        // если велосипед физически списан, и появляется новый под тем же номером).
         val duplicate = store.bikes.firstOrNull { bike ->
             bike.id != bikeIdToIgnore &&
+                bike.deletedAt == null &&
                 (adminId == null || bike.adminId == adminId) &&
                 bikeContainsSerial(bike, serialValue)
         }
@@ -1052,6 +1153,36 @@ private fun resolveClientRentalCredentials(clientRental: ClientRentalRecord): Re
         login = normalizeCredential(clientRental.clientLogin),
         password = normalizeCredential(clientRental.clientPassword)
     )
+}
+
+/**
+ * Технический отпечаток пароля для проверки неповторяемости
+ * (docs/14_rental_lifecycle.md §4). SHA-256 hex от UTF-8 байт пароля.
+ * При сравнении пароли сначала trim'ятся — пробелы по краям не отличают пароли.
+ */
+private fun passwordFingerprint(password: String): String {
+    val normalized = password.trim()
+    val digest = java.security.MessageDigest.getInstance("SHA-256")
+    val bytes = digest.digest(normalized.toByteArray(Charsets.UTF_8))
+    return bytes.joinToString("") { "%02x".format(it) }
+}
+
+/**
+ * Проверяет, что fingerprint пароля не встречается ни в одной живой
+ * (не soft-deleted) ClientRentalRecord. Возвращает true если уникален.
+ * `ignoreClientRentalId` нужен для случаев апдейта (когда сравнение со
+ * своей же записью не должно считаться коллизией).
+ */
+private fun isPasswordFingerprintUnique(
+    store: InMemoryStore,
+    fingerprint: String,
+    ignoreClientRentalId: String? = null
+): Boolean {
+    if (fingerprint.isBlank()) return true
+    return store.clientRentals.none { record ->
+        record.id != ignoreClientRentalId &&
+            record.clientPasswordFingerprint == fingerprint
+    }
 }
 
 private sealed class RentalCreationOutcome {
@@ -1114,9 +1245,9 @@ private fun createRentalForClient(
         return RentalCreationOutcome.Failure(HttpStatusCode.BadRequest, "period_end must be after or equal to period_start")
     }
 
-    val client = store.clients.firstOrNull { it.id == clientId }
+    val client = store.clients.firstOrNull { it.id == clientId && it.deletedAt == null }
         ?: return RentalCreationOutcome.Failure(HttpStatusCode.NotFound, "Client not found")
-    val bike = store.bikes.firstOrNull { it.id == bikeId }
+    val bike = store.bikes.firstOrNull { it.id == bikeId && it.deletedAt == null }
         ?: return RentalCreationOutcome.Failure(HttpStatusCode.NotFound, "Bike not found")
     if (!adminOwnsClient(store, adminId, client.id)) {
         return RentalCreationOutcome.Failure(HttpStatusCode.Forbidden, "Forbidden")
@@ -1124,8 +1255,16 @@ private fun createRentalForClient(
     if (!adminOwnsBike(store, adminId, bike.id)) {
         return RentalCreationOutcome.Failure(HttpStatusCode.Forbidden, "Forbidden")
     }
-    if (store.rentals.any { it.bikeId == bike.id && it.adminId == adminId }) {
+    // Soft-delete: инвариант «один bike — одна неудалённая lifecycle» проверяется
+    // только среди живых записей. Удалённые lifecycle для того же велосипеда
+    // остаются в store как историческая запись и не блокируют новую аренду.
+    if (store.rentals.any { it.bikeId == bike.id && it.adminId == adminId && it.deletedAt == null }) {
         return RentalCreationOutcome.Failure(HttpStatusCode.Conflict, "bike already has rental")
+    }
+    // Инвариант: пароль клиентской аренды должен быть уникальным (docs/14_rental_lifecycle.md §4).
+    val newPasswordFingerprint = passwordFingerprint(password)
+    if (!isPasswordFingerprintUnique(store, newPasswordFingerprint)) {
+        return RentalCreationOutcome.Failure(HttpStatusCode.Conflict, "password is already used")
     }
 
     return synchronized(stateLock) {
@@ -1173,7 +1312,8 @@ private fun createRentalForClient(
             contractUrl = request.contractUrl?.trim()?.ifBlank { null },
             comment = request.comment?.trim()?.ifBlank { null },
             adminId = adminId,
-            taxMode = taxMode
+            taxMode = taxMode,
+            clientPasswordFingerprint = newPasswordFingerprint
         )
         store.rentals += rental
         store.clientRentals += clientRental
@@ -1226,7 +1366,7 @@ private fun startClientRentalInExistingRental(
     }
 
     return synchronized(stateLock) {
-        val rentalIndex = store.rentals.indexOfFirst { it.id == rentalId }
+        val rentalIndex = store.rentals.indexOfFirst { it.id == rentalId && it.deletedAt == null }
         if (rentalIndex < 0) {
             return@synchronized StartClientRentalOutcome.Failure(HttpStatusCode.NotFound, "rental not found")
         }
@@ -1255,6 +1395,13 @@ private fun startClientRentalInExistingRental(
         }
         if (clientHasActiveRental) {
             return@synchronized StartClientRentalOutcome.Failure(HttpStatusCode.Conflict, "client already has active rental")
+        }
+
+        // Инвариант уникальности пароля (docs/14_rental_lifecycle.md §4) —
+        // проверяем перед мутацией state.
+        val newPasswordFingerprint = passwordFingerprint(password)
+        if (!isPasswordFingerprintUnique(store, newPasswordFingerprint)) {
+            return@synchronized StartClientRentalOutcome.Failure(HttpStatusCode.Conflict, "password is already used")
         }
 
         val existingClientUserIndex = store.users.indexOfFirst { it.clientId == client.id && it.role == Role.CLIENT }
@@ -1297,7 +1444,8 @@ private fun startClientRentalInExistingRental(
             contractUrl = null,
             comment = null,
             adminId = adminId,
-            taxMode = currentRental.taxMode
+            taxMode = currentRental.taxMode,
+            clientPasswordFingerprint = newPasswordFingerprint
         )
         store.clientRentals += clientRental
         store.rentals[rentalIndex] = restartedRental
@@ -1402,7 +1550,14 @@ private fun deleteLifecycleRental(
 
         store.sessions.entries.removeAll { it.value.clientId == activeClientRental.clientId }
     }
-    store.rentals.removeAt(rentalIndex)
+    // Soft-delete: запись остаётся в store с deletedAt != null, перестаёт показываться
+    // в списочных эндпоинтах и валидациях уникальности, но клиентская история
+    // (ClientRentalRecord, ledger, payments) сохраняется и доступна.
+    // Перечитываем current из store, потому что выше мы могли мутировать
+    // store.clients (carriedDebt) — для самого `current: RentalRecord` это
+    // не критично, но используем тот же индекс для консистентности.
+    val rentalToMark = store.rentals[rentalIndex]
+    store.rentals[rentalIndex] = rentalToMark.copy(deletedAt = rentalToMark.deletedAt ?: java.time.Instant.now())
 }
 
 private fun findLifecycleRentalIndexForDeletion(
@@ -1410,12 +1565,17 @@ private fun findLifecycleRentalIndexForDeletion(
     adminId: String,
     rentalId: String
 ): Int {
-    val lifecycleIndex = store.rentals.indexOfFirst { it.id == rentalId && it.adminId == adminId }
+    val lifecycleIndex = store.rentals.indexOfFirst {
+        it.id == rentalId && it.adminId == adminId && it.deletedAt == null
+    }
     if (lifecycleIndex >= 0) return lifecycleIndex
 
     val clientRental = store.clientRentals.firstOrNull { it.id == rentalId && it.adminId == adminId }
         ?: return -1
-    return store.rentals.indexOfFirst { it.id == clientRental.rentalId && it.adminId == adminId }
+    // Не находим повторно уже удалённый lifecycle — фильтруем по deletedAt == null.
+    return store.rentals.indexOfFirst {
+        it.id == clientRental.rentalId && it.adminId == adminId && it.deletedAt == null
+    }
 }
 
 private sealed class CarriedDebtOutcome {
@@ -1678,15 +1838,31 @@ private fun buildAdminClientDetails(
             val rentalAsOf = it.endDate ?: now
             val rentalPaidRub = LedgerCalculator.totalPaidRub(store.ledger, client.id, it.id)
             val rentalAdjustmentRub = LedgerCalculator.totalAdjustmentRub(store.ledger, client.id, it.id)
+            // Долг закрытой client_rental считается строго по дням
+            // (docs/02_money_and_debt_rules.md §5, docs/14_rental_lifecycle.md §3) —
+            // одинаково и при /finish (переход в in_stock), и при /delete.
+            // Для активной client_rental по-прежнему используется per-week
+            // (debtRub), т.к. начисление идёт неделями.
             val rentalDebtRub = if (weeklyRateRub > 0) {
-                LedgerCalculator.debtRub(
-                    clientId = client.id,
-                    rentalStartDate = it.startDate,
-                    weeklyRateRub = weeklyRateRub,
-                    entries = store.ledger,
-                    asOf = rentalAsOf,
-                    rentalId = it.id
-                )
+                if (it.endDate != null) {
+                    LedgerCalculator.finalDebtOnClosure(
+                        clientId = client.id,
+                        rentalStartDate = it.startDate,
+                        rentalEndDate = it.endDate,
+                        weeklyRateRub = weeklyRateRub,
+                        entries = store.ledger,
+                        rentalId = it.id
+                    )
+                } else {
+                    LedgerCalculator.debtRub(
+                        clientId = client.id,
+                        rentalStartDate = it.startDate,
+                        weeklyRateRub = weeklyRateRub,
+                        entries = store.ledger,
+                        asOf = rentalAsOf,
+                        rentalId = it.id
+                    )
+                }
             } else {
                 0
             }
@@ -1885,11 +2061,52 @@ fun Application.module() {
                 } else {
                     null
                 }
-                val debt = projection?.debtRub ?: 0
+                // Долг закрытой client_rental — per-day (см. docs/02_money_and_debt_rules.md §5).
+                val isClosed = snapshot != null && !snapshot.isActive && snapshot.rentalEndDate != null
+                val closedRentalDebt = if (isClosed && snapshot != null) {
+                    LedgerCalculator.finalDebtOnClosure(
+                        clientId = client.id,
+                        rentalStartDate = snapshot.rentalStartDate,
+                        rentalEndDate = snapshot.rentalEndDate!!,
+                        weeklyRateRub = snapshot.weeklyRateRub,
+                        entries = store.ledger,
+                        rentalId = snapshot.clientRentalId
+                    )
+                } else 0
+                val debt = if (isClosed) closedRentalDebt else (projection?.debtRub ?: 0)
                 val paidUntil = projection?.paidUntilDate?.toString() ?: ""
                 val balanceRub = projection?.balanceRub ?: 0
                 val totalAdjustment = LedgerCalculator.totalAdjustmentRub(store.ledger, client.id, snapshot?.clientRentalId)
                 val weeklyRate = snapshot?.weeklyRateRub ?: 0
+
+                // Презеты payment-кнопок (docs/14_rental_lifecycle.md §3, scope_freeze §2):
+                // — для АКТИВНОЙ аренды показываем нормальные суммы (платёж добавляет
+                //   к paid_until);
+                // — для ЗАКРЫТОЙ аренды клиент может только погашать долг. Кнопка,
+                //   чья сумма больше остаточного долга, обнуляется (UI её
+                //   делает disabled). debt_exact_rub всегда = остатку долга.
+                val dayBase = PricingRules.dayAmount(weeklyRate)
+                val weekBase = PricingRules.weekAmount(weeklyRate)
+                val twoWeeksBase = PricingRules.twoWeeksAmount(weeklyRate)
+                val monthBase = PricingRules.monthAmount(weeklyRate)
+                val presets = if (isClosed) {
+                    fun clamp(amount: Int) = if (amount in 1..debt) amount else 0
+                    ApiClientPaymentPresetsResponse(
+                        dayRub = clamp(dayBase),
+                        weekRub = clamp(weekBase),
+                        twoWeeksRub = clamp(twoWeeksBase),
+                        monthRub = clamp(monthBase),
+                        debtExactRub = debt
+                    )
+                } else {
+                    ApiClientPaymentPresetsResponse(
+                        dayRub = dayBase,
+                        weekRub = weekBase,
+                        twoWeeksRub = twoWeeksBase,
+                        monthRub = monthBase,
+                        debtExactRub = debt
+                    )
+                }
 
                 call.respond(
                     ApiClientDashboardResponse(
@@ -1903,19 +2120,52 @@ fun Application.module() {
                         debtRub = debt,
                         balanceRub = balanceRub,
                         totalAdjustmentRub = totalAdjustment,
-                        presets = ApiClientPaymentPresetsResponse(
-                            dayRub = PricingRules.dayAmount(weeklyRate),
-                            weekRub = PricingRules.weekAmount(weeklyRate),
-                            twoWeeksRub = PricingRules.twoWeeksAmount(weeklyRate),
-                            monthRub = PricingRules.monthAmount(weeklyRate),
-                            debtExactRub = debt
-                        ),
+                        presets = presets,
                         taxMode = (snapshot?.taxMode ?: AdminTaxMode.SELF_EMPLOYED).name.lowercase(),
                         requiresReceiptEmail = snapshot?.taxMode == AdminTaxMode.INDIVIDUAL_ENTREPRENEUR &&
                             !clientHasReceiptEmail(client),
                         receiptEmail = extractClientReceiptEmail(client)
                     )
                 )
+            }
+
+            /**
+             * Журнал текущей client_rental клиента
+             * (docs/04_api_draft.md, docs/01_scope_freeze.md §2).
+             * Источник записей — store.ledger, отфильтрованный по client_rental_id
+             * из сессии клиента. Структура входов идентична admin-журналу.
+             */
+            get("/client/me/ledger") {
+                val session = authService.resolveSession(call.request.header("Authorization"))
+                if (session == null || session.role != Role.CLIENT || session.clientId == null) {
+                    call.respond(HttpStatusCode.Unauthorized, ApiErrorResponse(message = "Unauthorized"))
+                    return@get
+                }
+
+                val rentalId = session.rentalId
+                if (rentalId.isNullOrBlank()) {
+                    call.respond(
+                        HttpStatusCode.OK,
+                        ApiClientLedgerResponse(rentalId = "", entries = emptyList())
+                    )
+                    return@get
+                }
+
+                val entries = store.ledger
+                    .asSequence()
+                    .filter { entry -> entry.rentalId == rentalId || (entry.clientId == session.clientId && entry.rentalId == null) }
+                    .sortedByDescending { it.createdAt }
+                    .map { entry ->
+                        ApiClientLedgerEntryResponse(
+                            type = entry.type.name.lowercase(),
+                            amountRub = ledgerSignedAmountForUi(entry),
+                            createdAt = entry.createdAt.toString(),
+                            note = entry.note
+                        )
+                    }
+                    .toList()
+
+                call.respond(HttpStatusCode.OK, ApiClientLedgerResponse(rentalId = rentalId, entries = entries))
             }
 
             post("/client/me/receipt-email") {
@@ -1958,8 +2208,11 @@ fun Application.module() {
 
                 val now = LocalDate.now()
                 val response = store.clients
+                    .asSequence()
+                    .filter { client -> client.deletedAt == null }
                     .filter { client -> adminOwnsClient(store, session.userId, client.id) }
                     .map { client -> buildAdminClientSummary(client, store, now, session.userId) }
+                    .toList()
                 call.respond(response)
             }
 
@@ -1972,12 +2225,13 @@ fun Application.module() {
 
                 val now = LocalDate.now()
                 val response = synchronized(stateLock) {
-                    if (normalizeStoreState()) {
-                        saveState()
-                    }
+                    // normalizeStoreState() убран из read-only пути — он вызывается
+                    // один раз на старте сервиса и затем persistState() при каждой
+                    // мутации. На GET он только добавлял задержку.
                     store.rentals
                         .asSequence()
                         .filter { rental -> rental.adminId == session.userId }
+                        .filter { rental -> rental.deletedAt == null }
                         .sortedByDescending { rental -> rental.startDate }
                         .map { rental -> buildAdminRentSummaryFromRental(rental, store, now) }
                         .toList()
@@ -2014,10 +2268,8 @@ fun Application.module() {
 
                 val now = LocalDate.now()
                 val response = synchronized(stateLock) {
-                    if (normalizeStoreState()) {
-                        saveState()
-                    }
-                    val lifecycleRental = store.rentals.firstOrNull { it.id == rentalId && it.adminId == session.userId }
+                    // normalize не нужен на чтении — см. /admin/rents endpoint выше.
+                    val lifecycleRental = store.rentals.firstOrNull { it.id == rentalId && it.adminId == session.userId && it.deletedAt == null }
                     val targetClientRental = if (lifecycleRental != null) {
                         activeClientRentalForLifecycle(lifecycleRental, store, now)
                     } else {
@@ -2028,17 +2280,32 @@ fun Application.module() {
                     val bike = store.bikes.firstOrNull { it.id == bikeId } ?: return@synchronized null
                     val client = targetClientRental?.let { store.clients.firstOrNull { client -> client.id == it.clientId } }
                     val rentalIsActive = targetClientRental?.isActiveAt(now) == true
-                    val projection = if (targetClientRental != null) {
+                    // Долг для отображения деталей: для активной — per-week через
+                    // billingProjection; для закрытой client_rental — per-day через
+                    // finalDebtOnClosure (docs/02_money_and_debt_rules.md §5).
+                    val projection = if (targetClientRental != null && rentalIsActive) {
                         LedgerCalculator.billingProjection(
                             clientId = targetClientRental.clientId,
                             rentalStartDate = targetClientRental.startDate,
                             weeklyRateRub = bike.weeklyRateRub,
                             entries = store.ledger,
-                            asOf = if (rentalIsActive) now else (targetClientRental.endDate ?: now),
+                            asOf = now,
                             rentalId = targetClientRental.id
                         )
                     } else {
                         null
+                    }
+                    val closedRentalDebtRub = if (targetClientRental != null && !rentalIsActive && targetClientRental.endDate != null) {
+                        LedgerCalculator.finalDebtOnClosure(
+                            clientId = targetClientRental.clientId,
+                            rentalStartDate = targetClientRental.startDate,
+                            rentalEndDate = targetClientRental.endDate,
+                            weeklyRateRub = bike.weeklyRateRub,
+                            entries = store.ledger,
+                            rentalId = targetClientRental.id
+                        )
+                    } else {
+                        0
                     }
                     val credentials = targetClientRental?.let(::resolveClientRentalCredentials) ?: RentalCredentials()
                     val journal = if (targetClientRental == null || lifecycleRental?.pipelineStatus == RentalPipelineStatus.IN_STOCK) {
@@ -2079,7 +2346,7 @@ fun Application.module() {
                         } else {
                             0
                         },
-                        debtRub = projection?.debtRub ?: 0,
+                        debtRub = projection?.debtRub ?: closedRentalDebtRub,
                         totalAdjustmentRub = if (targetClientRental != null) {
                             LedgerCalculator.totalAdjustmentRub(store.ledger, targetClientRental.clientId, targetClientRental.id)
                         } else {
@@ -2131,7 +2398,19 @@ fun Application.module() {
                     call.respond(HttpStatusCode.Unauthorized, ApiErrorResponse(message = "Unauthorized"))
                     return@get
                 }
-                call.respond(store.bikes.filter { it.adminId == session.userId }.map { bikeToApiResponse(it) })
+                // Один раз собираем bikeId, занятые активными lifecycle-арендами,
+                // чтобы O(n*m) превратилось в O(n+m). bike_is_in_rental позволяет
+                // iOS-пикеру фильтровать свободные велосипеды без дополнительных запросов.
+                val rentedBikeIds = store.rentals
+                    .asSequence()
+                    .filter { it.adminId == session.userId && it.deletedAt == null }
+                    .map { it.bikeId }
+                    .toHashSet()
+                call.respond(
+                    store.bikes
+                        .filter { it.adminId == session.userId && it.deletedAt == null }
+                        .map { bikeToApiResponse(it, isInRental = it.id in rentedBikeIds) }
+                )
             }
 
             post("/admin/bikes") {
@@ -2212,7 +2491,7 @@ fun Application.module() {
                     return@post
                 }
 
-                call.respond(HttpStatusCode.Created, bikeToApiResponse(createdBike))
+                call.respond(HttpStatusCode.Created, bikeToApiResponse(createdBike, store))
             }
 
             post("/admin/bikes/{bikeId}") {
@@ -2302,7 +2581,7 @@ fun Application.module() {
                     return@post
                 }
 
-                call.respond(HttpStatusCode.OK, bikeToApiResponse(updated))
+                call.respond(HttpStatusCode.OK, bikeToApiResponse(updated, store))
             }
 
             post("/admin/bikes/{bikeId}/delete") {
@@ -2319,17 +2598,19 @@ fun Application.module() {
                 }
 
                 val result = synchronized(stateLock) {
-                    val bikeIndex = store.bikes.indexOfFirst { it.id == bikeId }
+                    // Ищем только «живой» велосипед — уже удалённый второй раз не удаляется.
+                    val bikeIndex = store.bikes.indexOfFirst { it.id == bikeId && it.deletedAt == null }
                     if (bikeIndex < 0) {
                         HttpStatusCode.NotFound to "Bike not found"
                     } else {
                         val bike = store.bikes[bikeIndex]
                         if (bike.adminId != session.userId) {
                             HttpStatusCode.NotFound to "Bike not found"
-                        } else if (store.rentals.any { it.bikeId == bikeId && it.adminId == session.userId }) {
+                        } else if (store.rentals.any { it.bikeId == bikeId && it.adminId == session.userId && it.deletedAt == null }) {
                             HttpStatusCode.Conflict to "bike is used by rentals"
                         } else {
-                            store.bikes.removeAt(bikeIndex)
+                            // Soft-delete: метим как удалённый, оставляя запись в store.
+                            store.bikes[bikeIndex] = bike.copy(deletedAt = java.time.Instant.now())
                             persistState()
                             null
                         }
@@ -2483,7 +2764,8 @@ fun Application.module() {
                 }
 
                 val deleted = synchronized(stateLock) {
-                    val clientIndex = store.clients.indexOfFirst { it.id == clientId }
+                    // Только «живой» клиент: повторное удаление — 404.
+                    val clientIndex = store.clients.indexOfFirst { it.id == clientId && it.deletedAt == null }
                     if (clientIndex < 0) {
                         HttpStatusCode.NotFound to "Client not found"
                     } else {
@@ -2491,14 +2773,17 @@ fun Application.module() {
                         if (!adminOwnsClient(store, session.userId, client.id)) {
                             return@synchronized HttpStatusCode.NotFound to "Client not found"
                         }
+                        // Удалять клиента можно только если у него нет истории
+                        // client_rentals — иначе нужно редактировать профиль.
+                        // Эта проверка не зависит от soft-delete: история сохраняется
+                        // и не должна теряться вместе с клиентом.
                         if (store.clientRentals.any { it.clientId == clientId && it.adminId == session.userId }) {
                             return@synchronized HttpStatusCode.Conflict to "client is used by rentals"
                         }
-                        store.clients.removeAt(clientIndex)
-                        store.clientRentals.removeAll { it.clientId == clientId }
-                        store.users.removeAll { it.clientId == clientId }
-                        store.ledger.removeAll { it.clientId == clientId }
-                        store.payments.removeAll { it.clientId == clientId }
+                        // Soft-delete: помечаем клиента deletedAt, сессии очищаем,
+                        // AppUser оставляем нетронутыми (logins должны продолжать работать
+                        // для просмотра закрытых аренд, если такие есть).
+                        store.clients[clientIndex] = client.copy(deletedAt = java.time.Instant.now())
                         store.sessions.entries.removeAll { it.value.clientId == clientId }
                         persistState()
                         null
@@ -2627,9 +2912,8 @@ fun Application.module() {
                 }
 
                 val result = synchronized(stateLock) {
-                    if (normalizeStoreState()) {
-                        saveState()
-                    }
+                    // normalize выполнится в persistState() ниже при Success — pre-mutation
+                    // проход здесь избыточен.
                     applyCarriedDebtOperation(
                         store = store,
                         adminId = session.userId,
@@ -2667,7 +2951,7 @@ fun Application.module() {
                     return@post
                 }
 
-                val lifecycleRental = store.rentals.firstOrNull { it.id == rentalId }
+                val lifecycleRental = store.rentals.firstOrNull { it.id == rentalId && it.deletedAt == null }
                 val clientRental = store.clientRentals.firstOrNull { it.id == rentalId }
                 val ownerAdminId = lifecycleRental?.adminId ?: clientRental?.adminId
                 if (lifecycleRental == null && clientRental == null) {
@@ -2716,7 +3000,7 @@ fun Application.module() {
                     return@post
                 }
 
-                val lifecycleRental = store.rentals.firstOrNull { it.id == rentalId }
+                val lifecycleRental = store.rentals.firstOrNull { it.id == rentalId && it.deletedAt == null }
                 val clientRental = store.clientRentals.firstOrNull { it.id == rentalId }
                 val ownerAdminId = lifecycleRental?.adminId ?: clientRental?.adminId
                 if (lifecycleRental == null && clientRental == null) {
@@ -2814,7 +3098,7 @@ fun Application.module() {
                 }
 
 	                val updatedRental = synchronized(stateLock) {
-	                    val rentalIndex = store.rentals.indexOfFirst { it.id == rentalId }
+	                    val rentalIndex = store.rentals.indexOfFirst { it.id == rentalId && it.deletedAt == null }
 	                    if (rentalIndex < 0) {
 	                        null
 	                    } else {
@@ -2886,7 +3170,7 @@ fun Application.module() {
                 }
 
                 val updated = synchronized(stateLock) {
-                    val rentalIndex = store.rentals.indexOfFirst { it.id == rentalId }
+                    val rentalIndex = store.rentals.indexOfFirst { it.id == rentalId && it.deletedAt == null }
                     if (rentalIndex < 0) {
                         null
                     } else {
@@ -2934,7 +3218,7 @@ fun Application.module() {
 
                 val today = LocalDate.now()
                 val updated = synchronized(stateLock) {
-                    val rentalIndex = store.rentals.indexOfFirst { it.id == rentalId }
+                    val rentalIndex = store.rentals.indexOfFirst { it.id == rentalId && it.deletedAt == null }
                     if (rentalIndex < 0) {
                         null
                     } else {
@@ -3008,9 +3292,7 @@ fun Application.module() {
                 }
 
                 val deleted = synchronized(stateLock) {
-                    if (normalizeStoreState()) {
-                        saveState()
-                    }
+                    // normalize выполнится в persistState() при успешном delete.
 
                     val lifecycleIndex = findLifecycleRentalIndexForDeletion(
                         store = store,

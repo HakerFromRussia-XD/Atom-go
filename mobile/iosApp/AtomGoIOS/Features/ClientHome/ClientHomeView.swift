@@ -117,7 +117,7 @@ struct ClientHomeView: View {
 
     private func loadingView(scale: CGFloat, safeTop: CGFloat) -> some View {
         VStack(spacing: 18 * scale) {
-            topBar(scale: scale, safeTop: safeTop)
+            topBar(scale: scale, safeTop: safeTop, canEditReceiptEmail: false)
 
             Spacer(minLength: 0)
 
@@ -133,7 +133,7 @@ struct ClientHomeView: View {
 
     private func failedView(message: String, scale: CGFloat, safeTop: CGFloat) -> some View {
         VStack(spacing: 18 * scale) {
-            topBar(scale: scale, safeTop: safeTop)
+            topBar(scale: scale, safeTop: safeTop, canEditReceiptEmail: false)
 
             Spacer(minLength: 0)
 
@@ -175,7 +175,14 @@ struct ClientHomeView: View {
         return VStack(spacing: 0) {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
-                    topBar(scale: scale, safeTop: safeTop)
+                    topBar(
+                        scale: scale,
+                        safeTop: safeTop,
+                        canEditReceiptEmail: shouldShowReceiptEmailRow(for: dashboard),
+                        onEditReceiptEmail: {
+                            openReceiptEmailEditor(dashboard: dashboard)
+                        }
+                    )
 
                     bikeCard(dashboard: dashboard, scale: scale)
                         .padding(.top, 16 * scale)
@@ -246,7 +253,12 @@ struct ClientHomeView: View {
         .animation(.spring(response: 0.28, dampingFraction: 0.92), value: isTariffSheetPresented)
     }
 
-    private func topBar(scale: CGFloat, safeTop: CGFloat) -> some View {
+    private func topBar(
+        scale: CGFloat,
+        safeTop: CGFloat,
+        canEditReceiptEmail: Bool,
+        onEditReceiptEmail: (() -> Void)? = nil
+    ) -> some View {
         HStack {
             Button {
                 onLogout()
@@ -275,8 +287,30 @@ struct ClientHomeView: View {
 
             Spacer(minLength: 0)
 
-            Color.clear
-                .frame(width: 47 * scale, height: 47 * scale)
+            if canEditReceiptEmail, let onEditReceiptEmail {
+                Button {
+                    onEditReceiptEmail()
+                } label: {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 14 * scale, style: .continuous)
+                            .fill(Color.white)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14 * scale, style: .continuous)
+                                    .stroke(ClientColors.mainText, lineWidth: 1)
+                            )
+
+                        Image(systemName: "square.and.pencil")
+                            .font(.system(size: 16 * scale, weight: .medium))
+                            .foregroundStyle(ClientColors.mainText)
+                    }
+                    .frame(width: 47 * scale, height: 47 * scale)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("client.receiptEmailEditButton")
+            } else {
+                Color.clear
+                    .frame(width: 47 * scale, height: 47 * scale)
+            }
         }
         .padding(.top, 10 * scale)
     }
@@ -284,100 +318,78 @@ struct ClientHomeView: View {
     private func bikeCard(dashboard: ClientDashboardResponse, scale: CGFloat) -> some View {
         let debtDisplay = debtDisplay(for: dashboard)
         let completedAt = completedAtText(for: dashboard)
-
         return VStack(spacing: 16 * scale) {
-            HStack(spacing: 16 * scale) {
-                ClientBikePhotoView(source: dashboard.bikeAvatarUrl) {
-                    BikePlaceholderView(scale: scale)
-                }
-                .frame(width: 84 * scale, height: 84 * scale)
-                .clipShape(RoundedRectangle(cornerRadius: 18 * scale, style: .continuous))
+                HStack(spacing: 16 * scale) {
+                    ClientBikePhotoView(source: dashboard.bikeAvatarUrl) {
+                        BikePlaceholderView(scale: scale)
+                    }
+                    .frame(width: 84 * scale, height: 84 * scale)
+                    .clipShape(RoundedRectangle(cornerRadius: 18 * scale, style: .continuous))
 
-                VStack(alignment: .leading, spacing: 4 * scale) {
-                    Text(dashboard.bikeModel)
-                        .font(.system(size: 16 * scale, weight: .bold))
-                        .foregroundStyle(ClientColors.mainText)
-                        .lineLimit(2)
+                    VStack(alignment: .leading, spacing: 4 * scale) {
+                        Text(dashboard.bikeModel)
+                            .font(.system(size: 16 * scale, weight: .bold))
+                            .foregroundStyle(ClientColors.mainText)
+                            .lineLimit(2)
 
-                    Text("\(moneyText(dashboard.presets.weekRub))/нед")
-                        .font(.system(size: 12 * scale, weight: .medium))
-                        .foregroundStyle(ClientColors.subtleText)
+                        Text("\(moneyText(dashboard.presets.weekRub))/нед")
+                            .font(.system(size: 12 * scale, weight: .medium))
+                            .foregroundStyle(ClientColors.subtleText)
 
-                    if shouldShowReceiptEmailRow(for: dashboard) {
-                        HStack(spacing: 6 * scale) {
+                        if shouldShowReceiptEmailRow(for: dashboard) {
                             Text(receiptEmailText(for: dashboard))
                                 .font(.system(size: 10 * scale, weight: .medium))
                                 .foregroundStyle(receiptEmailColor(for: dashboard))
                                 .lineLimit(1)
                                 .truncationMode(.tail)
-
-                            Button {
-                                openReceiptEmailEditor(dashboard: dashboard)
-                            } label: {
-                                Image(systemName: "square.and.pencil")
-                                    .font(.system(size: 10 * scale, weight: .semibold))
-                                    .foregroundStyle(ClientColors.mainText)
-                                    .frame(width: 20 * scale, height: 20 * scale)
-                                    .background(Color.white.opacity(0.9))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 6 * scale, style: .continuous)
-                                            .stroke(ClientColors.borderSoft, lineWidth: 1)
-                                    )
-                                    .clipShape(RoundedRectangle(cornerRadius: 6 * scale, style: .continuous))
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityIdentifier("client.receiptEmailEditButton")
+                                .padding(.top, 1 * scale)
                         }
-                        .padding(.top, 1 * scale)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+
+                Rectangle()
+                    .fill(ClientColors.borderSoft)
+                    .frame(height: 1)
+
+                HStack(alignment: .top, spacing: 0) {
+                    statItem(
+                        title: debtDisplay.title,
+                        value: moneyText(debtDisplay.amountRub),
+                        valueColor: debtDisplay.color,
+                        scale: scale
+                    )
+
+                    Spacer(minLength: 12 * scale)
+
+                    statItem(
+                        title: "КОРРЕКТ.",
+                        value: moneyText(dashboard.totalAdjustmentRub),
+                        valueColor: ClientColors.mainText,
+                        scale: scale
+                    )
+
+                    Spacer(minLength: 12 * scale)
+
+                    statItem(
+                        title: "ОПЛАЧЕН ДО",
+                        value: paidUntilText(for: dashboard),
+                        valueColor: ClientColors.mainText,
+                        scale: scale
+                    )
+
+                    if let completedAt {
+                        Spacer(minLength: 12 * scale)
+
+                        statItem(
+                            title: "ЗАВЕРШЕНА",
+                            value: completedAt,
+                            valueColor: ClientColors.mainText,
+                            scale: scale
+                        )
                     }
                 }
-
-                Spacer(minLength: 0)
-            }
-
-            Rectangle()
-                .fill(ClientColors.borderSoft)
-                .frame(height: 1)
-
-            HStack(alignment: .top, spacing: 10 * scale) {
-                statItem(
-                    title: debtDisplay.title,
-                    value: moneyText(debtDisplay.amountRub),
-                    valueColor: debtDisplay.color,
-                    scale: scale,
-                    alignTrailing: completedAt == nil,
-                    textLeadingInsideBlock: false
-                )
-
-                statItem(
-                    title: "КОРРЕКТ.",
-                    value: moneyText(dashboard.totalAdjustmentRub),
-                    valueColor: ClientColors.mainText,
-                    scale: scale,
-                    alignTrailing: false,
-                    textLeadingInsideBlock: false
-                )
-
-                statItem(
-                    title: "ОПЛАЧЕН ДО",
-                    value: paidUntilText(for: dashboard),
-                    valueColor: ClientColors.mainText,
-                    scale: scale,
-                    alignTrailing: completedAt == nil,
-                    textLeadingInsideBlock: completedAt == nil
-                )
-
-                if let completedAt {
-                    statItem(
-                        title: "ЗАВЕРШЕНА",
-                        value: completedAt,
-                        valueColor: ClientColors.mainText,
-                        scale: scale,
-                        alignTrailing: true,
-                        textLeadingInsideBlock: true
-                    )
-                }
-            }
         }
         .padding(.horizontal, 23 * scale)
         .padding(.vertical, 21 * scale)
@@ -416,11 +428,9 @@ struct ClientHomeView: View {
         title: String,
         value: String,
         valueColor: Color,
-        scale: CGFloat,
-        alignTrailing: Bool,
-        textLeadingInsideBlock: Bool
+        scale: CGFloat
     ) -> some View {
-        VStack(alignment: textLeadingInsideBlock ? .leading : (alignTrailing ? .trailing : .leading), spacing: 3 * scale) {
+        VStack(alignment: .leading, spacing: 3 * scale) {
             Text(title)
                 .font(.system(size: 9 * scale, weight: .medium))
                 .foregroundStyle(ClientColors.subtleText)
@@ -432,7 +442,6 @@ struct ClientHomeView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
         }
-        .frame(maxWidth: .infinity, alignment: alignTrailing ? .trailing : .leading)
     }
 
     private func quickPaymentSection(dashboard: ClientDashboardResponse, scale: CGFloat) -> some View {
@@ -672,9 +681,7 @@ struct ClientHomeView: View {
     }
 
     private func shouldShowReceiptEmailRow(for dashboard: ClientDashboardResponse) -> Bool {
-        let isIndividualEntrepreneur = dashboard.taxMode == "individual_entrepreneur"
-        let hasEmail = !(dashboard.receiptEmail?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
-        return isIndividualEntrepreneur || hasEmail
+        dashboard.taxMode == "individual_entrepreneur"
     }
 
     private func receiptEmailText(for dashboard: ClientDashboardResponse) -> String {

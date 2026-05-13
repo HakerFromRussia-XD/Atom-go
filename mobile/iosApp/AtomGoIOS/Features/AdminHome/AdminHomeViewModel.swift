@@ -123,7 +123,7 @@ final class AdminHomeViewModel: ObservableObject {
                     payload: payload
                 )
                 operationSuccessMessage = "Клиент создан: \(details.fullName)"
-                await refreshAfterMutation(openDetailsFor: nil)
+                await refreshAfterMutation(scope: .clientCatalog, openDetailsFor: nil)
                 await MainActor.run {
                     onSuccess?()
                 }
@@ -169,7 +169,7 @@ final class AdminHomeViewModel: ObservableObject {
                     payload: payload
                 )
                 operationSuccessMessage = "Велосипед обновлен: \(bike.bikeModel)"
-                await refreshAfterMutation(openDetailsFor: nil)
+                await refreshAfterMutation(scope: .bikes, openDetailsFor: nil)
                 await MainActor.run {
                     onSuccess?()
                 }
@@ -192,7 +192,7 @@ final class AdminHomeViewModel: ObservableObject {
                     bikeId: bikeId
                 )
                 operationSuccessMessage = result.deleted ? "Велосипед удален" : "Удаление завершено"
-                await refreshAfterMutation(openDetailsFor: nil)
+                await refreshAfterMutation(scope: .bikes, openDetailsFor: nil)
                 await MainActor.run {
                     onSuccess?()
                 }
@@ -216,7 +216,7 @@ final class AdminHomeViewModel: ObservableObject {
                     payload: payload
                 )
                 operationSuccessMessage = "Профиль клиента обновлен: \(details.fullName)"
-                await refreshAfterMutation(openDetailsFor: clientId)
+                await refreshAfterMutation(scope: .clientCatalog, openDetailsFor: clientId)
             } catch {
                 operationErrorMessage = error.localizedDescription
             }
@@ -237,7 +237,9 @@ final class AdminHomeViewModel: ObservableObject {
                 )
                 operationSuccessMessage = result.deleted ? "Клиент удален" : "Удаление завершено"
                 selectedClientDetails = nil
-                await refreshAfterMutation(openDetailsFor: nil)
+                // Удаление клиента: каталог клиентов точно меняется, имена в
+                // карточках аренд тоже могут поменяться → catalog + rents.
+                await refreshAfterMutation(scope: [.clientCatalog, .rents], openDetailsFor: nil)
                 await MainActor.run {
                     onSuccess?()
                 }
@@ -260,7 +262,9 @@ final class AdminHomeViewModel: ObservableObject {
                     payload: payload
                 )
                 operationSuccessMessage = "Аренда создана: \(rental.periodStart)"
-                await refreshAfterMutation(openDetailsFor: payload.clientId)
+                // Новая аренда: bike занялся (bikes), client.rentalIsActive
+                // флипнулся (catalog), новая карточка в rents.
+                await refreshAfterMutation(scope: .all, openDetailsFor: payload.clientId)
                 await MainActor.run {
                     onSuccess?(rental)
                 }
@@ -283,7 +287,8 @@ final class AdminHomeViewModel: ObservableObject {
                     payload: payload
                 )
                 operationSuccessMessage = "Аренда обновлена: \(rental.periodStart)"
-                await refreshAfterMutation(openDetailsFor: payload.clientId)
+                // Обновили rental (bike/period) — bike мог поменяться, поэтому полный scope.
+                await refreshAfterMutation(scope: .all, openDetailsFor: payload.clientId)
             } catch {
                 operationErrorMessage = error.localizedDescription
             }
@@ -313,7 +318,8 @@ final class AdminHomeViewModel: ObservableObject {
                 } else {
                     operationSuccessMessage = "Удаление завершено"
                 }
-                await refreshAfterMutation(openDetailsFor: openClientId)
+                // Delete rental — bike освобождается, клиент мог стать «свободным».
+                await refreshAfterMutation(scope: .all, openDetailsFor: openClientId)
             } catch let backendError as BackendError {
                 if case .httpError(let code, _) = backendError, code == 404 {
                     // Параллельное удаление другим админом или устаревший
@@ -321,7 +327,7 @@ final class AdminHomeViewModel: ObservableObject {
                     // и сообщаем нейтрально. Согласно docs/14_rental_lifecycle.md §7
                     // карточка lifecycle-аренды уже исчезла с главного экрана.
                     operationSuccessMessage = "Аренда уже удалена"
-                    await refreshAfterMutation(openDetailsFor: openClientId)
+                    await refreshAfterMutation(scope: .all, openDetailsFor: openClientId)
                 } else {
                     operationErrorMessage = backendError.localizedDescription
                 }
@@ -345,7 +351,8 @@ final class AdminHomeViewModel: ObservableObject {
                     pipelineStatus: pipelineStatus
                 )
                 operationSuccessMessage = "Статус аренды обновлен"
-                await refreshAfterMutation(openDetailsFor: nil)
+                // Только pipeline status — затрагивает rents (цвет рамки/фильтр).
+                await refreshAfterMutation(scope: .rents, openDetailsFor: nil)
             } catch {
                 operationErrorMessage = error.localizedDescription
             }
@@ -365,7 +372,8 @@ final class AdminHomeViewModel: ObservableObject {
                     rentalId: rentalId
                 )
                 operationSuccessMessage = "Аренда завершена"
-                await refreshAfterMutation(openDetailsFor: nil)
+                // Finish: client.rentalIsActive флипнулся (catalog), rents меняется.
+                await refreshAfterMutation(scope: .rentalMutation, openDetailsFor: nil)
             } catch {
                 operationErrorMessage = error.localizedDescription
             }
@@ -396,7 +404,9 @@ final class AdminHomeViewModel: ObservableObject {
                     periodStart: periodStart
                 )
                 operationSuccessMessage = "Новая клиентская аренда запущена"
-                await refreshAfterMutation(openDetailsFor: nil)
+                // Запуск новой client_rental в существующей lifecycle:
+                // catalog + rents (статус flipped, новый клиент в карточке).
+                await refreshAfterMutation(scope: .rentalMutation, openDetailsFor: nil)
                 await MainActor.run {
                     onSuccess?()
                 }
@@ -422,7 +432,8 @@ final class AdminHomeViewModel: ObservableObject {
                     comment: comment
                 )
                 operationSuccessMessage = "Корректировка сохранена. Новый долг: \(result.debtRub) ₽"
-                await refreshAfterMutation(openDetailsFor: clientId)
+                // Корректировка отражается в долге → rents (debt-индикатор на карточке).
+                await refreshAfterMutation(scope: .rents, openDetailsFor: clientId)
             } catch {
                 operationErrorMessage = error.localizedDescription
             }
@@ -454,7 +465,9 @@ final class AdminHomeViewModel: ObservableObject {
                     comment: comment
                 )
                 operationSuccessMessage = buildCarriedDebtSuccessMessage(kind: kind, result: result)
-                await refreshAfterMutation(openDetailsFor: clientId)
+                // carriedDebt отображается в details клиента + влияет на возможный
+                // долг активной аренды (для excess) → catalog (carriedDebtRub) + rents.
+                await refreshAfterMutation(scope: .rentalMutation, openDetailsFor: clientId)
             } catch {
                 operationErrorMessage = error.localizedDescription
             }
@@ -497,7 +510,8 @@ final class AdminHomeViewModel: ObservableObject {
                     comment: normalizedComment
                 )
                 operationSuccessMessage = "Комментарий сохранен"
-                await refreshAfterMutation(openDetailsFor: clientId)
+                // Комментарий — только в карточке rental (отображается в /admin/rents).
+                await refreshAfterMutation(scope: .rents, openDetailsFor: clientId)
             } catch {
                 operationErrorMessage = error.localizedDescription
             }
@@ -524,7 +538,9 @@ final class AdminHomeViewModel: ObservableObject {
                     contractUrl: safeContractUrl
                 )
                 operationSuccessMessage = "Ссылки аренды обновлены"
-                await refreshAfterMutation(openDetailsFor: clientId)
+                // Ссылки видны только в details — main listing не меняется.
+                // Но обновим rents на случай если они туда попадут в виде индикаторов.
+                await refreshAfterMutation(scope: .rents, openDetailsFor: clientId)
             } catch {
                 operationErrorMessage = error.localizedDescription
             }
@@ -532,25 +548,97 @@ final class AdminHomeViewModel: ObservableObject {
         }
     }
 
-    private func refreshAfterMutation(openDetailsFor clientId: String?) async {
+    /// Какие списки нужно перезагрузить после мутации. Раньше каждая операция
+    /// тянула все 3 списка + opened client details = 4 HTTP-запроса. Это давало
+    /// видимый лаг — особенно после правки rental comment или adjust debt,
+    /// которые меняют только rents.
+    struct RefreshScope: OptionSet, Sendable {
+        let rawValue: Int
+        static let rents = RefreshScope(rawValue: 1 << 0)
+        static let clientCatalog = RefreshScope(rawValue: 1 << 1)
+        static let bikes = RefreshScope(rawValue: 1 << 2)
+        /// «Стандартный» scope для мутаций на rental: список аренд + каталог
+        /// клиентов (т.к. client.rentalIsActive может поменяться).
+        static let rentalMutation: RefreshScope = [.rents, .clientCatalog]
+        /// Полный refresh — для крупных операций (deleteRental, удаление клиента, etc).
+        static let all: RefreshScope = [.rents, .clientCatalog, .bikes]
+    }
+
+    /// Параллельно перезагружает выбранные списки. Open client details обновляется,
+    /// только если sheet уже был открыт (selectedClientDetails != nil) ИЛИ caller
+    /// явно передал clientId. На сетевую ошибку refresh'а НЕ сбрасываем
+    /// `state = .failed` — оставляем существующие данные, ошибку показываем
+    /// в operationErrorMessage.
+    private func refreshAfterMutation(
+        scope: RefreshScope = .rentalMutation,
+        openDetailsFor clientId: String? = nil
+    ) async {
+        // Details обновляем ТОЛЬКО если sheet клиентских деталей сейчас открыт.
+        // Раньше мы делали лишний request на details даже если карточка закрыта.
+        let normalizedClientId = clientId?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let detailsClientId: String? = (normalizedClientId?.isEmpty == false && selectedClientDetails != nil)
+            ? normalizedClientId
+            : nil
+        let accessToken = session.accessToken
+        let api = apiService
+
         do {
-            async let clientsTask = apiService.fetchAdminRents(accessToken: session.accessToken)
-            async let clientCatalogTask = apiService.fetchAdminClientCatalog(accessToken: session.accessToken)
-            async let bikesTask = apiService.fetchAdminBikes(accessToken: session.accessToken)
-            let clients = try await clientsTask
-            let loadedClientCatalog = try await clientCatalogTask
-            let loadedBikes = try await bikesTask
-            state = .loaded(clients)
-            clientCatalog = loadedClientCatalog
-            bikes = loadedBikes
-            if let clientId {
-                selectedClientDetails = try? await apiService.fetchAdminClientDetails(
-                    accessToken: session.accessToken,
-                    clientId: clientId
-                )
+            try await withThrowingTaskGroup(of: PartialRefreshResult.self) { group in
+                if scope.contains(.rents) {
+                    group.addTask { .rents(try await api.fetchAdminRents(accessToken: accessToken)) }
+                }
+                if scope.contains(.clientCatalog) {
+                    group.addTask { .catalog(try await api.fetchAdminClientCatalog(accessToken: accessToken)) }
+                }
+                if scope.contains(.bikes) {
+                    group.addTask { .bikes(try await api.fetchAdminBikes(accessToken: accessToken)) }
+                }
+                if let id = detailsClientId {
+                    group.addTask {
+                        do {
+                            return .details(try await api.fetchAdminClientDetails(accessToken: accessToken, clientId: id))
+                        } catch {
+                            // Details — не критичны для refresh, ошибку проглатываем.
+                            return .details(nil)
+                        }
+                    }
+                }
+
+                for try await partial in group {
+                    apply(partial)
+                }
             }
         } catch {
-            state = .failed(error.localizedDescription)
+            // Refresh упал — НЕ сбрасываем state в .failed (мутация-то могла
+            // быть успешной). Просто оставляем существующие данные и
+            // показываем сообщение об ошибке refresh'а.
+            if case .loaded = state {
+                operationErrorMessage = "Не удалось обновить список: \(error.localizedDescription)"
+            } else {
+                state = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    private enum PartialRefreshResult {
+        case rents([AdminClientSummaryResponse])
+        case catalog([AdminClientSummaryResponse])
+        case bikes([AdminBikeResponse])
+        case details(AdminClientDetailsResponse?)
+    }
+
+    private func apply(_ partial: PartialRefreshResult) {
+        switch partial {
+        case .rents(let value):
+            state = .loaded(value)
+        case .catalog(let value):
+            clientCatalog = value
+        case .bikes(let value):
+            bikes = value
+        case .details(let value):
+            if let value {
+                selectedClientDetails = value
+            }
         }
     }
 

@@ -92,6 +92,7 @@ class PostgresStateStore private constructor(
             )
             statement.execute("ALTER TABLE atomgo_clients ADD COLUMN IF NOT EXISTS admin_id TEXT")
             statement.execute("ALTER TABLE atomgo_clients ADD COLUMN IF NOT EXISTS carried_debt_rub INT NOT NULL DEFAULT 0")
+            statement.execute("ALTER TABLE atomgo_clients ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ")
             statement.execute(
                 """
                 CREATE TABLE IF NOT EXISTS atomgo_client_phones (
@@ -119,6 +120,7 @@ class PostgresStateStore private constructor(
                 """.trimIndent()
             )
             statement.execute("ALTER TABLE atomgo_bikes ADD COLUMN IF NOT EXISTS admin_id TEXT")
+            statement.execute("ALTER TABLE atomgo_bikes ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ")
             statement.execute(
                 """
                 CREATE TABLE IF NOT EXISTS atomgo_rentals (
@@ -159,6 +161,7 @@ class PostgresStateStore private constructor(
             statement.execute("ALTER TABLE atomgo_rentals ADD COLUMN IF NOT EXISTS pipeline_status TEXT NOT NULL DEFAULT 'LONG_TERM'")
             statement.execute("ALTER TABLE atomgo_rentals ADD COLUMN IF NOT EXISTS client_login TEXT")
             statement.execute("ALTER TABLE atomgo_rentals ADD COLUMN IF NOT EXISTS client_password TEXT")
+            statement.execute("ALTER TABLE atomgo_rentals ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ")
             statement.execute(
                 """
                 CREATE TABLE IF NOT EXISTS atomgo_client_rentals (
@@ -178,6 +181,7 @@ class PostgresStateStore private constructor(
                 )
                 """.trimIndent()
             )
+            statement.execute("ALTER TABLE atomgo_client_rentals ADD COLUMN IF NOT EXISTS client_password_fingerprint TEXT NOT NULL DEFAULT ''")
             statement.execute(
                 """
                 CREATE TABLE IF NOT EXISTS atomgo_ledger_entries (
@@ -442,7 +446,7 @@ class PostgresStateStore private constructor(
         val clients = linkedMapOf<String, ClientAccount>()
         connection.prepareStatement(
             """
-	            SELECT id, full_name, address, passport_data, admin_id, carried_debt_rub
+	            SELECT id, full_name, address, passport_data, admin_id, carried_debt_rub, deleted_at
             FROM atomgo_clients
             ORDER BY id
             """.trimIndent()
@@ -456,7 +460,8 @@ class PostgresStateStore private constructor(
 	                        passportData = rs.getString("passport_data"),
 	                        phones = mutableListOf(),
 	                        adminId = rs.getString("admin_id"),
-	                        carriedDebtRub = rs.getInt("carried_debt_rub")
+	                        carriedDebtRub = rs.getInt("carried_debt_rub"),
+	                        deletedAt = rs.getTimestamp("deleted_at")?.toInstant()
                     )
                     clients[client.id] = client
                 }
@@ -494,7 +499,8 @@ class PostgresStateStore private constructor(
                 motor_serial_number,
                 battery_serial_number_1,
 	                battery_serial_number_2,
-	                admin_id
+	                admin_id,
+	                deleted_at
             FROM atomgo_bikes
             ORDER BY id
             """.trimIndent()
@@ -510,7 +516,8 @@ class PostgresStateStore private constructor(
 	                        motorSerialNumber = rs.getString("motor_serial_number"),
 	                        batterySerialNumber1 = rs.getString("battery_serial_number_1"),
 	                        batterySerialNumber2 = rs.getString("battery_serial_number_2"),
-	                        adminId = rs.getString("admin_id")
+	                        adminId = rs.getString("admin_id"),
+	                        deletedAt = rs.getTimestamp("deleted_at")?.toInstant()
                     )
                 }
             }
@@ -519,7 +526,7 @@ class PostgresStateStore private constructor(
         val rentals = mutableListOf<RentalRecord>()
         connection.prepareStatement(
             """
-            SELECT id, client_id, bike_id, client_login, client_password, start_date, end_date, video_url, contract_url, comment, admin_id, tax_mode, pipeline_status
+            SELECT id, client_id, bike_id, client_login, client_password, start_date, end_date, video_url, contract_url, comment, admin_id, tax_mode, pipeline_status, deleted_at
             FROM atomgo_rentals
             ORDER BY start_date DESC, id
             """.trimIndent()
@@ -539,7 +546,8 @@ class PostgresStateStore private constructor(
                         comment = rs.getString("comment"),
                         adminId = rs.getString("admin_id"),
                         taxMode = enumValueOf<AdminTaxMode>(rs.getString("tax_mode")),
-                        pipelineStatus = enumValueOf<RentalPipelineStatus>(rs.getString("pipeline_status"))
+                        pipelineStatus = enumValueOf<RentalPipelineStatus>(rs.getString("pipeline_status")),
+                        deletedAt = rs.getTimestamp("deleted_at")?.toInstant()
                     )
                 }
             }
@@ -549,7 +557,7 @@ class PostgresStateStore private constructor(
         connection.prepareStatement(
             """
             SELECT id, rental_id, client_id, bike_id, client_login, client_password, start_date, end_date,
-                   video_url, contract_url, comment, admin_id, tax_mode
+                   video_url, contract_url, comment, admin_id, tax_mode, client_password_fingerprint
             FROM atomgo_client_rentals
             ORDER BY start_date DESC, id
             """.trimIndent()
@@ -569,7 +577,8 @@ class PostgresStateStore private constructor(
                         contractUrl = rs.getString("contract_url"),
                         comment = rs.getString("comment"),
                         adminId = rs.getString("admin_id"),
-                        taxMode = enumValueOf<AdminTaxMode>(rs.getString("tax_mode"))
+                        taxMode = enumValueOf<AdminTaxMode>(rs.getString("tax_mode")),
+                        clientPasswordFingerprint = rs.getString("client_password_fingerprint") ?: ""
                     )
                 }
             }
@@ -696,8 +705,8 @@ class PostgresStateStore private constructor(
 
         connection.prepareStatement(
             """
-            INSERT INTO atomgo_clients (id, full_name, address, passport_data, admin_id, carried_debt_rub)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO atomgo_clients (id, full_name, address, passport_data, admin_id, carried_debt_rub, deleted_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """.trimIndent()
         ).use { statement ->
             state.clients.forEach { client ->
@@ -707,6 +716,7 @@ class PostgresStateStore private constructor(
                 statement.setString(4, client.passportData)
                 statement.setString(5, client.adminId)
                 statement.setInt(6, client.carriedDebtRub)
+                statement.setTimestamp(7, client.deletedAt?.let { java.sql.Timestamp.from(it) })
                 statement.addBatch()
             }
             statement.executeBatch()
@@ -741,9 +751,10 @@ class PostgresStateStore private constructor(
                 motor_serial_number,
                 battery_serial_number_1,
                 battery_serial_number_2,
-                admin_id
+                admin_id,
+                deleted_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent()
         ).use { statement ->
             state.bikes.forEach { bike ->
@@ -756,6 +767,7 @@ class PostgresStateStore private constructor(
                 statement.setString(7, bike.batterySerialNumber1)
                 statement.setString(8, bike.batterySerialNumber2)
                 statement.setString(9, bike.adminId)
+                statement.setTimestamp(10, bike.deletedAt?.let { java.sql.Timestamp.from(it) })
                 statement.addBatch()
             }
             statement.executeBatch()
@@ -776,9 +788,10 @@ class PostgresStateStore private constructor(
                 comment,
                 admin_id,
                 tax_mode,
-                pipeline_status
+                pipeline_status,
+                deleted_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent()
         ).use { statement ->
             state.rentals.forEach { rental ->
@@ -795,6 +808,7 @@ class PostgresStateStore private constructor(
                 statement.setString(11, rental.adminId)
                 statement.setString(12, rental.taxMode.name)
                 statement.setString(13, rental.pipelineStatus.name)
+                statement.setTimestamp(14, rental.deletedAt?.let { java.sql.Timestamp.from(it) })
                 statement.addBatch()
             }
             statement.executeBatch()
@@ -815,9 +829,10 @@ class PostgresStateStore private constructor(
                 contract_url,
                 comment,
                 admin_id,
-                tax_mode
+                tax_mode,
+                client_password_fingerprint
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent()
         ).use { statement ->
             state.clientRentals.forEach { rental ->
@@ -834,6 +849,7 @@ class PostgresStateStore private constructor(
                 statement.setString(11, rental.comment)
                 statement.setString(12, rental.adminId)
                 statement.setString(13, rental.taxMode.name)
+                statement.setString(14, rental.clientPasswordFingerprint)
                 statement.addBatch()
             }
             statement.executeBatch()
@@ -1090,7 +1106,8 @@ private object InMemoryStoreJsonMapper {
         val bikeAvatarUrl: String? = null,
         val weeklyRateRub: Int? = null,
         val adminId: String? = null,
-        val carriedDebtRub: Int = 0
+        val carriedDebtRub: Int = 0,
+        val deletedAt: String? = null
     )
 
     @Serializable
@@ -1103,7 +1120,8 @@ private object InMemoryStoreJsonMapper {
         val motorSerialNumber: String,
         val batterySerialNumber1: String,
         val batterySerialNumber2: String? = null,
-        val adminId: String? = null
+        val adminId: String? = null,
+        val deletedAt: String? = null
     )
 
     @Serializable
@@ -1122,7 +1140,8 @@ private object InMemoryStoreJsonMapper {
         val comment: String? = null,
         val adminId: String? = null,
         val taxMode: String = AdminTaxMode.SELF_EMPLOYED.name,
-        val pipelineStatus: String = RentalPipelineStatus.LONG_TERM.name
+        val pipelineStatus: String = RentalPipelineStatus.LONG_TERM.name,
+        val deletedAt: String? = null
     )
 
     @Serializable
@@ -1139,7 +1158,8 @@ private object InMemoryStoreJsonMapper {
         val contractUrl: String? = null,
         val comment: String? = null,
         val adminId: String? = null,
-        val taxMode: String = AdminTaxMode.SELF_EMPLOYED.name
+        val taxMode: String = AdminTaxMode.SELF_EMPLOYED.name,
+        val clientPasswordFingerprint: String = ""
     )
 
     @Serializable
@@ -1213,7 +1233,8 @@ private object InMemoryStoreJsonMapper {
 	                        PersistedClientPhone(label = phone.label, number = phone.number)
 	                    },
 	                    adminId = it.adminId,
-	                    carriedDebtRub = it.carriedDebtRub
+	                    carriedDebtRub = it.carriedDebtRub,
+	                    deletedAt = it.deletedAt?.toString()
 	                )
             },
             bikes = store.bikes.map {
@@ -1226,7 +1247,8 @@ private object InMemoryStoreJsonMapper {
 	                    motorSerialNumber = it.motorSerialNumber,
 	                    batterySerialNumber1 = it.batterySerialNumber1,
 	                    batterySerialNumber2 = it.batterySerialNumber2,
-	                    adminId = it.adminId
+	                    adminId = it.adminId,
+	                    deletedAt = it.deletedAt?.toString()
 	                )
             },
             rentals = store.rentals.map {
@@ -1243,7 +1265,8 @@ private object InMemoryStoreJsonMapper {
                     comment = it.comment,
                     adminId = it.adminId,
                     taxMode = it.taxMode.name,
-                    pipelineStatus = it.pipelineStatus.name
+                    pipelineStatus = it.pipelineStatus.name,
+                    deletedAt = it.deletedAt?.toString()
                 )
             },
             clientRentals = store.clientRentals.map {
@@ -1260,7 +1283,8 @@ private object InMemoryStoreJsonMapper {
                     contractUrl = it.contractUrl,
                     comment = it.comment,
                     adminId = it.adminId,
-                    taxMode = it.taxMode.name
+                    taxMode = it.taxMode.name,
+                    clientPasswordFingerprint = it.clientPasswordFingerprint
                 )
             },
             ledger = store.ledger.map {
@@ -1321,7 +1345,8 @@ private object InMemoryStoreJsonMapper {
                 motorSerialNumber = bike.motorSerialNumber,
 	                batterySerialNumber1 = bike.batterySerialNumber1,
 	                batterySerialNumber2 = bike.batterySerialNumber2,
-	                adminId = bike.adminId
+	                adminId = bike.adminId,
+	                deletedAt = bike.deletedAt?.let(java.time.Instant::parse)
 	            )
         }
 
@@ -1373,7 +1398,8 @@ private object InMemoryStoreJsonMapper {
                 comment = rental.comment,
                 adminId = rental.adminId,
                 taxMode = enumValueOf<AdminTaxMode>(rental.taxMode),
-                pipelineStatus = enumValueOf<RentalPipelineStatus>(rental.pipelineStatus)
+                pipelineStatus = enumValueOf<RentalPipelineStatus>(rental.pipelineStatus),
+                deletedAt = rental.deletedAt?.let(java.time.Instant::parse)
             )
         }.toMutableList()
 
@@ -1398,7 +1424,8 @@ private object InMemoryStoreJsonMapper {
 	                        ClientPhone(label = phone.label, number = phone.number)
 	                    }.toMutableList(),
 	                    adminId = it.adminId,
-	                    carriedDebtRub = it.carriedDebtRub
+	                    carriedDebtRub = it.carriedDebtRub,
+	                    deletedAt = it.deletedAt?.let(java.time.Instant::parse)
 	                )
             }.toMutableList(),
             bikes = bikesById.values.toMutableList(),
@@ -1417,7 +1444,8 @@ private object InMemoryStoreJsonMapper {
                     contractUrl = it.contractUrl,
                     comment = it.comment,
                     adminId = it.adminId,
-                    taxMode = enumValueOf<AdminTaxMode>(it.taxMode)
+                    taxMode = enumValueOf<AdminTaxMode>(it.taxMode),
+                    clientPasswordFingerprint = it.clientPasswordFingerprint
                 )
             }.toMutableList(),
             ledger = persisted.ledger.map {

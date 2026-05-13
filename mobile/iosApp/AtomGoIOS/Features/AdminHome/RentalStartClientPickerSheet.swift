@@ -38,9 +38,16 @@ struct RentalStartClientPickerSheet: View {
         }
     }
 
+    /// Базовый список — свободные клиенты (без активной аренды), отсортированные
+    /// по ФИО (docs/14_rental_lifecycle.md §5). Sheet применяет фильтр сам,
+    /// чтобы call-сайт не мог случайно передать активного клиента.
+    private var baseClients: [AdminClientSummaryResponse] {
+        clients.availableForRentalStart()
+    }
+
     private var visibleClients: [AdminClientSummaryResponse] {
         let normalizedQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let searched = clients.filter { client in
+        let searched = baseClients.filter { client in
             guard !normalizedQuery.isEmpty else { return true }
             return client.fullName.lowercased().contains(normalizedQuery)
                 || client.bikeModel.lowercased().contains(normalizedQuery)
@@ -90,8 +97,8 @@ struct RentalStartClientPickerSheet: View {
                 .padding(.top, 6)
 
             HStack(spacing: 8) {
-                filterChip(.all, count: clients.count)
-                filterChip(.debtors, count: clients.filter { $0.debtRub > 0 }.count)
+                filterChip(.all, count: baseClients.count)
+                filterChip(.debtors, count: baseClients.filter { $0.debtRub > 0 }.count)
                 filterChip(.active, count: 0)
             }
             .padding(.horizontal, horizontalInset)

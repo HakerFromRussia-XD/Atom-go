@@ -229,7 +229,13 @@ data class AdminBikeResponse(
     @SerialName("battery_serial_number_1")
     val batterySerialNumber1: String,
     @SerialName("battery_serial_number_2")
-    val batterySerialNumber2: String? = null
+    val batterySerialNumber2: String? = null,
+    /**
+     * true ⇔ к велосипеду сейчас привязана НЕ-удалённая lifecycle-аренда.
+     * iOS picker свободных велосипедов фильтрует по этому полю.
+     */
+    @SerialName("bike_is_in_rental")
+    val bikeIsInRental: Boolean = false
 )
 
 @Serializable

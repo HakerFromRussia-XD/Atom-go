@@ -63,6 +63,7 @@ class PaymentService(
     private data class BillingTerms(
         val rentalId: String,
         val rentalStartDate: LocalDate,
+        val rentalEndDate: LocalDate?,
         val weeklyRateRub: Int,
         val clientName: String,
         val bikeModel: String,
@@ -80,15 +81,35 @@ class PaymentService(
 
         val terms = resolveBillingTerms(clientId = clientId, asOf = now, rentalId = rentalId)
 
-        val debt = LedgerCalculator.debtRub(
-            clientId = clientId,
-            rentalStartDate = terms.rentalStartDate,
-            weeklyRateRub = terms.weeklyRateRub,
-            entries = store.ledger,
-            asOf = now,
-            rentalId = terms.rentalId
-        )
-        val amount = PricingRules.amountForType(paymentType, terms.weeklyRateRub, debt)
+        // Долг закрытой client_rental считается per-day (docs/02_money_and_debt_rules.md §5),
+        // активной — per-week. Это влияет и на отображаемый debt, и на расчёт
+        // amount для DEBT_EXACT.
+        val isClosed = terms.rentalEndDate != null && !terms.rentalEndDate.isAfter(now)
+        val debt = if (isClosed) {
+            LedgerCalculator.finalDebtOnClosure(
+                clientId = clientId,
+                rentalStartDate = terms.rentalStartDate,
+                rentalEndDate = terms.rentalEndDate!!,
+                weeklyRateRub = terms.weeklyRateRub,
+                entries = store.ledger,
+                rentalId = terms.rentalId
+            )
+        } else {
+            LedgerCalculator.debtRub(
+                clientId = clientId,
+                rentalStartDate = terms.rentalStartDate,
+                weeklyRateRub = terms.weeklyRateRub,
+                entries = store.ledger,
+                asOf = now,
+                rentalId = terms.rentalId
+            )
+        }
+        val rawAmount = PricingRules.amountForType(paymentType, terms.weeklyRateRub, debt)
+        // Для закрытой аренды клиент может только погашать долг: кнопка,
+        // чья сумма больше остаточного долга, обнуляется (см. dashboard presets
+        // в Application.kt). Здесь та же логика на бэкенде — если клиент всё
+        // же отправил такой запрос, отвергаем.
+        val amount = if (isClosed && rawAmount > debt) 0 else rawAmount
 
         if (amount <= 0) {
             throw IllegalStateException("Amount is zero. Nothing to pay.")
@@ -370,6 +391,7 @@ class PaymentService(
         return BillingTerms(
             rentalId = activeRental.id,
             rentalStartDate = activeRental.startDate,
+            rentalEndDate = activeRental.endDate,
             weeklyRateRub = bike.weeklyRateRub,
             clientName = client.fullName,
             bikeModel = bike.model,

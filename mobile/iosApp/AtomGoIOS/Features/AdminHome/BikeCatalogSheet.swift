@@ -152,7 +152,7 @@ struct BikeCatalogSheet: View {
             .zIndex(4)
         }
         .coordinateSpace(name: "bikeCatalogPipeline")
-        .sheet(isPresented: $isCreateBikePresented) {
+        .fullScreenCover(isPresented: $isCreateBikePresented) {
             CreateBikeSheet(
                 bikes: bikes,
                 isSaving: isSaving,
@@ -164,7 +164,6 @@ struct BikeCatalogSheet: View {
                     }
                 }
             )
-            .presentationDetents([.large])
         }
         .fullScreenCover(item: $editingBike) { bike in
             EditBikeSheet(
@@ -554,4 +553,3 @@ struct BikeCatalogSheet: View {
         return formatter
     }()
 }
-

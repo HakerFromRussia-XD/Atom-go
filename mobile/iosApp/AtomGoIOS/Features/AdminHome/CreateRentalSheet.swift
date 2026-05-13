@@ -185,11 +185,7 @@ struct CreateRentalSheet: View {
     }
 
     private var availableClientsForStart: [AdminClientSummaryResponse] {
-        clients
-            .filter { !$0.rentalIsActive }
-            .sorted { lhs, rhs in
-                lhs.fullName.localizedCaseInsensitiveCompare(rhs.fullName) == .orderedAscending
-            }
+        clients.availableForRentalStart()
     }
 
     private var selectedClientName: String? {

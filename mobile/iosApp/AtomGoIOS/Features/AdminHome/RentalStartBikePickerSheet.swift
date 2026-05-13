@@ -37,9 +37,18 @@ struct RentalStartBikePickerSheet: View {
         }
     }
 
+    /// Свободные велосипеды — те, что НЕ привязаны к активной lifecycle-аренде
+    /// (`bike_is_in_rental == false`). Picker применяет фильтр сам, чтобы
+    /// call-сайт не мог случайно показать занятый велосипед как выбираемый.
+    /// См. docs/14_rental_lifecycle.md §1 — invariant «один bike — одна
+    /// неудалённая lifecycle».
+    private var availableBikes: [AdminBikeResponse] {
+        bikes.filter { !$0.bikeIsInRental }
+    }
+
     private var visibleBikes: [AdminBikeResponse] {
         let normalizedQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let searched = bikes.filter { bike in
+        let searched = availableBikes.filter { bike in
             guard !normalizedQuery.isEmpty else { return true }
             return bike.bikeModel.lowercased().contains(normalizedQuery)
                 || bike.frameSerialNumber.lowercased().contains(normalizedQuery)

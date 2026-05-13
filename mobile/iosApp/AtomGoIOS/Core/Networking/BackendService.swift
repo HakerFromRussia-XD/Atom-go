@@ -291,6 +291,7 @@ extension BackendError: LocalizedError {
 private enum BackendErrorMessageParser {
     private static let knownMessageMap: [String: String] = [
         "login is already used": "Логин уже занят. Укажите другой логин.",
+        "password is already used": "Этот пароль уже используется в системе. Сгенерируйте новый.",
         "login and password are required": "Укажите логин и пароль клиента.",
         "неверный логин или пароль": "Неверный логин или пароль.",
         "full_name is required": "Укажите ФИО клиента.",
@@ -556,7 +557,8 @@ final class BackendService: BackendServicing {
                 frameSerialNumber: $0.frameSerialNumber,
                 motorSerialNumber: $0.motorSerialNumber,
                 batterySerialNumber1: $0.batterySerialNumber1,
-                batterySerialNumber2: $0.batterySerialNumber2
+                batterySerialNumber2: $0.batterySerialNumber2,
+                bikeIsInRental: $0.bikeIsInRental
             )
         }
     }
@@ -614,7 +616,8 @@ final class BackendService: BackendServicing {
             frameSerialNumber: bike.frameSerialNumber,
             motorSerialNumber: bike.motorSerialNumber,
             batterySerialNumber1: bike.batterySerialNumber1,
-            batterySerialNumber2: bike.batterySerialNumber2
+            batterySerialNumber2: bike.batterySerialNumber2,
+            bikeIsInRental: bike.bikeIsInRental
         )
     }
 
@@ -645,7 +648,8 @@ final class BackendService: BackendServicing {
             frameSerialNumber: bike.frameSerialNumber,
             motorSerialNumber: bike.motorSerialNumber,
             batterySerialNumber1: bike.batterySerialNumber1,
-            batterySerialNumber2: bike.batterySerialNumber2
+            batterySerialNumber2: bike.batterySerialNumber2,
+            bikeIsInRental: bike.bikeIsInRental
         )
     }
 

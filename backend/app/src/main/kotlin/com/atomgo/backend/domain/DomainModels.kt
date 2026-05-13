@@ -84,7 +84,13 @@ data class ClientAccount(
      * и не уменьшается автоматически — управляется отдельной admin-логикой (списание/оплата).
      * См. docs/14_rental_lifecycle.md §7 и docs/02_money_and_debt_rules.md §7.
      */
-    val carriedDebtRub: Int = 0
+    val carriedDebtRub: Int = 0,
+    /**
+     * Метка soft-delete. null = запись «живая» и показывается во всех списках/валидациях.
+     * Не-null = удалена; в админских списках не показывается, но история client_rental
+     * клиента сохраняется. См. docs/14_rental_lifecycle.md §7.
+     */
+    val deletedAt: Instant? = null
 )
 
 data class ClientPhone(
@@ -105,7 +111,13 @@ data class RentalRecord(
     var comment: String?,
     val adminId: String? = null,
     val taxMode: AdminTaxMode = AdminTaxMode.SELF_EMPLOYED,
-    val pipelineStatus: RentalPipelineStatus = RentalPipelineStatus.LONG_TERM
+    val pipelineStatus: RentalPipelineStatus = RentalPipelineStatus.LONG_TERM,
+    /**
+     * Soft-delete метка. См. ClientAccount.deletedAt и docs/05_db_schema.sql.
+     * Все списки и валидации уникальности должны фильтровать по `deletedAt == null`,
+     * включая инвариант «один bike — одна неудалённая lifecycle».
+     */
+    val deletedAt: Instant? = null
 )
 
 data class ClientRentalRecord(
@@ -121,7 +133,16 @@ data class ClientRentalRecord(
     var contractUrl: String?,
     var comment: String?,
     val adminId: String? = null,
-    val taxMode: AdminTaxMode = AdminTaxMode.SELF_EMPLOYED
+    val taxMode: AdminTaxMode = AdminTaxMode.SELF_EMPLOYED,
+    /**
+     * SHA-256 hex отпечаток пароля для проверки неповторяемости среди
+     * неудалённых client_rental (docs/14_rental_lifecycle.md §4). Сам пароль
+     * хранится в `clientPassword` plaintext, потому что админ должен мочь
+     * скопировать его клиенту (см. кнопку «Копировать» в карточке аренды).
+     * Заполняется при создании ClientRentalRecord и при бэкфилле в
+     * `ensureClientRentalModel`.
+     */
+    val clientPasswordFingerprint: String = ""
 )
 
 data class BikeAccount(
@@ -133,7 +154,12 @@ data class BikeAccount(
     val motorSerialNumber: String,
     val batterySerialNumber1: String,
     val batterySerialNumber2: String?,
-    val adminId: String? = null
+    val adminId: String? = null,
+    /**
+     * Soft-delete метка. Удалённые велосипеды не появляются в списке велосипедов
+     * и не учитываются при проверке уникальности серийников при создании нового.
+     */
+    val deletedAt: Instant? = null
 )
 
 data class LedgerEntry(
