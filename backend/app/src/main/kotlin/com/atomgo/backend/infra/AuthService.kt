@@ -17,7 +17,7 @@ class AuthService(private val store: InMemoryStore) {
             return token to session
         }
 
-        val rentalByCredentials = store.rentals.firstOrNull { rental ->
+        val rentalByCredentials = store.clientRentals.firstOrNull { rental ->
             rental.clientId.isNotBlank() &&
                 rental.clientLogin == login &&
                 rental.clientPassword == password
@@ -38,7 +38,7 @@ class AuthService(private val store: InMemoryStore) {
             it.role == Role.CLIENT && it.login == login && it.password == password
         } ?: return null
 
-        val activeOrLatestRental = store.rentals
+        val activeOrLatestClientRental = store.clientRentals
             .asSequence()
             .filter { it.clientId == clientUser.clientId }
             .sortedByDescending { it.startDate }
@@ -49,7 +49,7 @@ class AuthService(private val store: InMemoryStore) {
             userId = clientUser.id,
             role = clientUser.role,
             clientId = clientUser.clientId,
-            rentalId = activeOrLatestRental?.id
+            rentalId = activeOrLatestClientRental?.id
         )
         store.sessions[token] = session
         return token to session

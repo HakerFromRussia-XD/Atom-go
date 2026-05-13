@@ -99,7 +99,9 @@ data class AdminClientSummaryResponse(
     @SerialName("profit_rub")
     val profitRub: Int,
     @SerialName("total_adjustment_rub")
-    val totalAdjustmentRub: Int
+    val totalAdjustmentRub: Int,
+    @SerialName("carried_debt_rub")
+    val carriedDebtRub: Int = 0
 )
 
 @Serializable
@@ -126,7 +128,15 @@ data class AdminRentalHistoryItemResponse(
     val videoUrl: String? = null,
     @SerialName("contract_url")
     val contractUrl: String? = null,
-    val comment: String? = null
+    val comment: String? = null,
+    @SerialName("weekly_rate_rub")
+    val weeklyRateRub: Int = 0,
+    @SerialName("total_paid_rub")
+    val totalPaidRub: Int = 0,
+    @SerialName("debt_rub")
+    val debtRub: Int = 0,
+    @SerialName("total_adjustment_rub")
+    val totalAdjustmentRub: Int = 0
 )
 
 @Serializable
@@ -156,7 +166,9 @@ data class AdminClientDetailsResponse(
     @SerialName("total_adjustment_rub")
     val totalAdjustmentRub: Int,
     val phones: List<AdminClientPhone>,
-    val rentals: List<AdminRentalHistoryItemResponse>
+    val rentals: List<AdminRentalHistoryItemResponse>,
+    @SerialName("carried_debt_rub")
+    val carriedDebtRub: Int = 0
 )
 
 @Serializable

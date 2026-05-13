@@ -347,7 +347,7 @@ class PaymentService(
     private fun resolveBillingTerms(clientId: String, asOf: LocalDate, rentalId: String? = null): BillingTerms {
         val client = store.clients.firstOrNull { it.id == clientId }
             ?: throw IllegalStateException("Client not found")
-        val scopedRentals = store.rentals
+        val scopedRentals = store.clientRentals
             .asSequence()
             .filter { it.clientId == clientId }
             .filter { rental -> rentalId == null || rental.id == rentalId }
@@ -365,6 +365,7 @@ class PaymentService(
 
         val bike = store.bikes.firstOrNull { it.id == activeRental.bikeId }
             ?: throw IllegalStateException("Bike not found for active rental")
+        val lifecycleRental = store.rentals.firstOrNull { it.id == activeRental.rentalId }
 
         return BillingTerms(
             rentalId = activeRental.id,
@@ -372,7 +373,7 @@ class PaymentService(
             weeklyRateRub = bike.weeklyRateRub,
             clientName = client.fullName,
             bikeModel = bike.model,
-            taxMode = activeRental.taxMode
+            taxMode = lifecycleRental?.taxMode ?: activeRental.taxMode
         )
     }
 }

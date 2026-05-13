@@ -2,6 +2,43 @@ import XCTest
 @testable import AtomGoIOS
 
 final class CreateClientFlowUnitTests: XCTestCase {
+    func testAdminClientSummaryUsesRentalIdAsIdentityForInStockCards() {
+        let first = AdminClientSummaryResponse(
+            clientId: "",
+            rentalId: "rental-in-stock-1",
+            clientLogin: nil,
+            fullName: "",
+            bikeModel: "№16 Model X",
+            bikeAvatarUrl: "",
+            statusText: "У меня",
+            paidUntil: nil,
+            rentalPipelineStatus: "in_stock",
+            rentalIsActive: false,
+            debtRub: 0,
+            profitRub: 0,
+            totalAdjustmentRub: 0
+        )
+        let second = AdminClientSummaryResponse(
+            clientId: "",
+            rentalId: "rental-in-stock-2",
+            clientLogin: nil,
+            fullName: "",
+            bikeModel: "№13 Aventon Level 2",
+            bikeAvatarUrl: "",
+            statusText: "У меня",
+            paidUntil: nil,
+            rentalPipelineStatus: "in_stock",
+            rentalIsActive: false,
+            debtRub: 0,
+            profitRub: 0,
+            totalAdjustmentRub: 0
+        )
+
+        XCTAssertEqual(first.id, "rental-in-stock-1")
+        XCTAssertEqual(second.id, "rental-in-stock-2")
+        XCTAssertNotEqual(first.id, second.id)
+    }
+
     func testClientDashboardDecodesWhenHistoricalFieldsAreMissing() throws {
         let payload = """
         {
@@ -362,7 +399,11 @@ final class CreateClientFlowUnitTests: XCTestCase {
                 bikeModel: "Монстер",
                 videoUrl: "https://youtube.com/watch?v=rental-100",
                 contractUrl: "https://drive.google.com/file/d/rental-100/view",
-                comment: "Тест аренды"
+                comment: "Тест аренды",
+                weeklyRateRub: 3000,
+                totalPaidRub: 0,
+                debtRub: 0,
+                totalAdjustmentRub: 0
             )
         )
         let viewModel = makeViewModel(service: service)
@@ -404,7 +445,11 @@ final class CreateClientFlowUnitTests: XCTestCase {
                 bikeModel: "Монстер",
                 videoUrl: nil,
                 contractUrl: nil,
-                comment: nil
+                comment: nil,
+                weeklyRateRub: 3000,
+                totalPaidRub: 0,
+                debtRub: 0,
+                totalAdjustmentRub: 0
             )
         )
         let viewModel = makeViewModel(service: service)

@@ -77,7 +77,14 @@ data class ClientAccount(
     val address: String,
     val passportData: String,
     val phones: MutableList<ClientPhone> = mutableListOf(),
-    val adminId: String? = null
+    val adminId: String? = null,
+    /**
+     * Клиентская задолженность, перенесённая на клиента при удалении (вывод из эксплуатации)
+     * lifecycle-аренды с непогашенным долгом. Сумма аккумулируется по всем таким событиям
+     * и не уменьшается автоматически — управляется отдельной admin-логикой (списание/оплата).
+     * См. docs/14_rental_lifecycle.md §7 и docs/02_money_and_debt_rules.md §7.
+     */
+    val carriedDebtRub: Int = 0
 )
 
 data class ClientPhone(
@@ -99,6 +106,22 @@ data class RentalRecord(
     val adminId: String? = null,
     val taxMode: AdminTaxMode = AdminTaxMode.SELF_EMPLOYED,
     val pipelineStatus: RentalPipelineStatus = RentalPipelineStatus.LONG_TERM
+)
+
+data class ClientRentalRecord(
+    val id: String,
+    val rentalId: String,
+    val clientId: String,
+    val bikeId: String,
+    val clientLogin: String,
+    val clientPassword: String,
+    val startDate: LocalDate,
+    val endDate: LocalDate?,
+    var videoUrl: String?,
+    var contractUrl: String?,
+    var comment: String?,
+    val adminId: String? = null,
+    val taxMode: AdminTaxMode = AdminTaxMode.SELF_EMPLOYED
 )
 
 data class BikeAccount(

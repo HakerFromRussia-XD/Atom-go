@@ -138,8 +138,11 @@ struct AdminClientSummaryResponse: Decodable, Identifiable {
     let debtRub: Int
     let profitRub: Int
     let totalAdjustmentRub: Int
+    /// Перенесённая задолженность клиента, накопленная при удалении
+    /// lifecycle-аренд с непогашенным долгом. См. docs/14_rental_lifecycle.md §7.
+    let carriedDebtRub: Int
 
-    var id: String { clientId }
+    var id: String { rentalId ?? clientId }
 
     init(
         clientId: String,
@@ -154,7 +157,8 @@ struct AdminClientSummaryResponse: Decodable, Identifiable {
         rentalIsActive: Bool = false,
         debtRub: Int,
         profitRub: Int,
-        totalAdjustmentRub: Int
+        totalAdjustmentRub: Int,
+        carriedDebtRub: Int = 0
     ) {
         self.clientId = clientId
         self.rentalId = rentalId
@@ -169,6 +173,7 @@ struct AdminClientSummaryResponse: Decodable, Identifiable {
         self.debtRub = debtRub
         self.profitRub = profitRub
         self.totalAdjustmentRub = totalAdjustmentRub
+        self.carriedDebtRub = carriedDebtRub
     }
 
     enum CodingKeys: String, CodingKey {
@@ -185,6 +190,7 @@ struct AdminClientSummaryResponse: Decodable, Identifiable {
         case debtRub = "debt_rub"
         case profitRub = "profit_rub"
         case totalAdjustmentRub = "total_adjustment_rub"
+        case carriedDebtRub = "carried_debt_rub"
     }
 
     init(from decoder: Decoder) throws {
@@ -202,6 +208,7 @@ struct AdminClientSummaryResponse: Decodable, Identifiable {
         debtRub = try container.decode(Int.self, forKey: .debtRub)
         profitRub = try container.decode(Int.self, forKey: .profitRub)
         totalAdjustmentRub = try container.decode(Int.self, forKey: .totalAdjustmentRub)
+        carriedDebtRub = try container.decodeIfPresent(Int.self, forKey: .carriedDebtRub) ?? 0
     }
 }
 
@@ -303,6 +310,10 @@ struct AdminRentalHistoryItem: Identifiable, Equatable {
     let videoUrl: String?
     let contractUrl: String?
     var comment: String?
+    let weeklyRateRub: Int
+    let totalPaidRub: Int
+    let debtRub: Int
+    let totalAdjustmentRub: Int
 }
 
 struct AdminClientDetailsResponse: Equatable {
@@ -320,6 +331,42 @@ struct AdminClientDetailsResponse: Equatable {
     let totalAdjustmentRub: Int
     let phones: [AdminClientPhone]
     let rentals: [AdminRentalHistoryItem]
+    /// Перенесённая задолженность клиента (см. docs/14_rental_lifecycle.md §7).
+    let carriedDebtRub: Int
+
+    init(
+        clientId: String,
+        fullName: String,
+        address: String,
+        passportData: String,
+        weeklyRateRub: Int,
+        bikeModel: String,
+        bikeAvatarUrl: String,
+        rentalStart: String,
+        paidUntil: String,
+        totalPaidRub: Int,
+        debtRub: Int,
+        totalAdjustmentRub: Int,
+        phones: [AdminClientPhone],
+        rentals: [AdminRentalHistoryItem],
+        carriedDebtRub: Int = 0
+    ) {
+        self.clientId = clientId
+        self.fullName = fullName
+        self.address = address
+        self.passportData = passportData
+        self.weeklyRateRub = weeklyRateRub
+        self.bikeModel = bikeModel
+        self.bikeAvatarUrl = bikeAvatarUrl
+        self.rentalStart = rentalStart
+        self.paidUntil = paidUntil
+        self.totalPaidRub = totalPaidRub
+        self.debtRub = debtRub
+        self.totalAdjustmentRub = totalAdjustmentRub
+        self.phones = phones
+        self.rentals = rentals
+        self.carriedDebtRub = carriedDebtRub
+    }
 }
 
 struct CreateClientPayload {
@@ -433,6 +480,34 @@ struct DebtAdjustmentResult: Equatable {
     let clientId: String
     let debtRub: Int
     let totalAdjustmentRub: Int
+}
+
+/// Тип admin-операции с перенесённым долгом клиента.
+/// См. docs/14_rental_lifecycle.md §7 и docs/04_api_draft.md «Admin: carried debt operations».
+enum CarriedDebtOperationKind {
+    /// Списание без оплаты (акция, компенсация). amount должен быть ≤ carriedDebt.
+    case writeoff
+    /// Приём наличного/безналичного платежа вне YooKassa.
+    /// Излишек автоматически уходит в активную клиентскую аренду, если есть.
+    case payment
+
+    var apiValue: String {
+        switch self {
+        case .writeoff:
+            return "writeoff"
+        case .payment:
+            return "payment"
+        }
+    }
+}
+
+/// Ответ backend после применения операции над carriedDebt.
+struct CarriedDebtOperationResult: Equatable {
+    let clientId: String
+    let carriedDebtRub: Int
+    let appliedToCarriedRub: Int
+    let appliedToActiveRentalRub: Int
+    let activeRentalId: String?
 }
 
 struct AdminRentalLinksUpdateResult: Equatable {

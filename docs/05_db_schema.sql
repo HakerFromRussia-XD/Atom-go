@@ -44,7 +44,7 @@ create table rental (
   id uuid primary key,
   bike_id uuid not null references bike(id),
   admin_id uuid not null references app_user(id),
-  pipeline_status text not null default 'long_term' check (pipeline_status in ('long_term', 'soon_return', 'mine')),
+  pipeline_status text not null default 'long_term' check (pipeline_status in ('long_term', 'soon_return', 'in_stock')),
   next_login text,
   next_password_hash text,
   next_password_fingerprint text,

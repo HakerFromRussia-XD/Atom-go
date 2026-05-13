@@ -10,6 +10,20 @@ private struct DebtAdjustmentContext: Identifiable {
     var id: String { clientId }
 }
 
+/// Контекст модала операции над перенесённым долгом
+/// (docs/14_rental_lifecycle.md §7). Передаёт всё, что нужно для UX:
+/// текущую сумму долга и подсказку «есть ли активная аренда»
+/// — чтобы UI заранее показал, что излишек payment-а уйдёт в неё.
+private struct CarriedDebtOperationContext: Identifiable {
+    let clientId: String
+    let clientName: String
+    let carriedDebtRub: Int
+    let hasActiveRental: Bool
+    let initialKind: CarriedDebtOperationKind
+
+    var id: String { "\(clientId)-\(initialKind.apiValue)" }
+}
+
 private struct CreateClientPhoneDraft: Identifiable {
     let id: UUID = .init()
     var label: String
@@ -144,8 +158,8 @@ struct RentalDetailsDisplayPolicy {
     private static let dash = "—"
     private static let inactiveMetricColor = Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255)
 
-    var showsJournalHistory: Bool { rentalIsActive || !isInStockState }
-    var adjustmentButtonEnabled: Bool { rentalIsActive }
+    var showsJournalHistory: Bool { !isInStockState }
+    var adjustmentButtonEnabled: Bool { rentalIsActive && !isInStockState }
 
     func metricText(activeValue: String) -> String {
         if isInStockState { return Self.dash }
@@ -196,6 +210,7 @@ struct AdminHomeView: View {
     @State private var detailsClientId: String?
     @State private var rentalDetailsContext: RentalDetailsContext?
     @State private var debtAdjustmentContext: DebtAdjustmentContext?
+    @State private var carriedDebtOperationContext: CarriedDebtOperationContext?
     @State private var ignoredNextTapClientId: String?
     @State private var searchText = ""
     @State private var selectedFilter: AdminRentFilter = .all
@@ -275,7 +290,7 @@ struct AdminHomeView: View {
             )
             .presentationDetents([.large])
         }
-        .sheet(isPresented: $isDetailsSheetPresented, onDismiss: {
+        .fullScreenCover(isPresented: $isDetailsSheetPresented, onDismiss: {
             viewModel.closeClientDetails()
             detailsClientId = nil
         }) {
@@ -288,6 +303,9 @@ struct AdminHomeView: View {
                 isOperationInProgress: viewModel.isOperationInProgress,
                 clients: viewModel.clientCatalog,
                 bikes: viewModel.bikes,
+                onClose: {
+                    isDetailsSheetPresented = false
+                },
                 onRetry: {
                     if let clientId = detailsClientId {
                         viewModel.openClientDetails(clientId: clientId)
@@ -299,6 +317,21 @@ struct AdminHomeView: View {
                         clientId: details.clientId,
                         clientName: details.fullName,
                         currentDebtRub: details.debtRub
+                    )
+                },
+                onOpenCarriedDebtSheet: { details, initialKind in
+                    // У клиента есть активная клиентская аренда, если в списке
+                    // его аренд хотя бы одна без period_end. Backend использует
+                    // это же правило (см. applyCarriedDebtOperation), так что
+                    // подсказка в UI совпадает с реальной валидацией.
+                    let hasActive = details.rentals.contains { $0.periodEnd == nil }
+                    isDetailsSheetPresented = false
+                    carriedDebtOperationContext = CarriedDebtOperationContext(
+                        clientId: details.clientId,
+                        clientName: details.fullName,
+                        carriedDebtRub: details.carriedDebtRub,
+                        hasActiveRental: hasActive,
+                        initialKind: initialKind
                     )
                 },
                 onSaveRentalComment: { clientId, rentalId, comment in
@@ -345,7 +378,6 @@ struct AdminHomeView: View {
                     viewModel.openRentalDetails(rentalId: rentalId)
                 }
             )
-            .presentationDetents([.large])
         }
         .fullScreenCover(item: $rentalDetailsContext, onDismiss: {
             viewModel.closeRentalDetails()
@@ -420,6 +452,25 @@ struct AdminHomeView: View {
                         comment: comment
                     )
                     debtAdjustmentContext = nil
+                }
+            )
+            .presentationDetents([.medium])
+        }
+        .sheet(item: $carriedDebtOperationContext) { context in
+            CarriedDebtOperationSheet(
+                context: context,
+                isSaving: viewModel.isOperationInProgress,
+                onCancel: {
+                    carriedDebtOperationContext = nil
+                },
+                onApply: { amountRub, kind, comment in
+                    viewModel.applyCarriedDebt(
+                        clientId: context.clientId,
+                        amountRub: amountRub,
+                        kind: kind,
+                        comment: comment
+                    )
+                    carriedDebtOperationContext = nil
                 }
             )
             .presentationDetents([.medium])
@@ -746,7 +797,7 @@ struct AdminHomeView: View {
                 action: onLogout
             )
             Spacer()
-            Text("All rent's")
+            Text("Все аренды")
                 .font(.system(size: 18, weight: .bold))
                 .foregroundStyle(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
             Spacer()
@@ -1278,10 +1329,27 @@ private struct AdminRentalDetailsScreen: View {
         }
         .confirmationDialog("Удалить аренду?", isPresented: $isDeleteDialogPresented, titleVisibility: .visible) {
             Button("Удалить", role: .destructive) {
-                guard let clientId, let rentalId else { return }
-                onDeleteRental(clientId, rentalId)
+                // Для удаления нужен только rentalId — backend работает на уровне
+                // lifecycle-аренды. В IN_STOCK состоянии clientId возвращает nil
+                // (нет активного клиента), поэтому раньше guard валился и кнопка
+                // молча не работала. Теперь пропускаем без клиента — viewModel
+                // умеет вызывать refreshAfterMutation без openDetailsFor.
+                guard let rentalId else { return }
+                onDeleteRental(clientId ?? "", rentalId)
             }
             Button("Отмена", role: .cancel) {}
+        }
+        .fullScreenCover(isPresented: $isClientPickerPresented) {
+            RentalStartClientPickerSheet(
+                clients: availableStartClients,
+                selectedClientId: $selectedStartClientId,
+                onClose: {
+                    isClientPickerPresented = false
+                },
+                onConfirm: {
+                    isClientPickerPresented = false
+                }
+            )
         }
         .onChange(of: rentalId ?? "") { _ in
             selectedStartClientId = nil
@@ -1442,8 +1510,8 @@ private struct AdminRentalDetailsScreen: View {
                 )
                 Spacer(minLength: 0)
                 metricColumn(
-                    title: rentalIsActive ? "ОПЛАЧ. ДО" : (isInStockState ? "ОПЛАЧ. ДО" : "ЗАВЕРШЕНА"),
-                    value: displayPolicy.metricText(activeValue: rentalIsActive ? paidUntilText : completedAtText),
+                    title: runningRentalIsActive ? "ОПЛАЧ. ДО" : "ЗАВЕРШЕНА",
+                    value: displayPolicy.metricText(activeValue: runningRentalIsActive ? paidUntilText : completedAtText),
                     color: displayPolicy.metricColor(activeColor: Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
                 )
             }
@@ -1468,7 +1536,7 @@ private struct AdminRentalDetailsScreen: View {
             if isInStockState {
                 Button {
                     guard !isOperationInProgress else { return }
-                    isClientPickerPresented.toggle()
+                    isClientPickerPresented = true
                 } label: {
                     startClientSelectorControl
                         .padding(.horizontal, 18)
@@ -1476,9 +1544,6 @@ private struct AdminRentalDetailsScreen: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .popover(isPresented: $isClientPickerPresented, attachmentAnchor: .rect(.bounds), arrowEdge: .top) {
-                    startClientPickerPopover
-                }
             } else if rentalIsActive {
                 Button(action: onOpenClientCard) {
                     HStack {
@@ -1556,7 +1621,7 @@ private struct AdminRentalDetailsScreen: View {
                 credentialField(
                     title: "ЛОГИН",
                     text: $editableRentalLogin,
-                    isEditable: !rentalIsActive,
+                    isEditable: !runningRentalIsActive,
                     readOnlyText: displayPolicy.readOnlyCredentialText(
                         serverValue: details?.clientLogin ?? fallbackSummary?.clientLogin,
                         draftValue: editableRentalLogin
@@ -1566,7 +1631,7 @@ private struct AdminRentalDetailsScreen: View {
                 credentialField(
                     title: "ПАРОЛЬ",
                     text: $editableRentalPassword,
-                    isEditable: !rentalIsActive,
+                    isEditable: !runningRentalIsActive,
                     readOnlyText: displayPolicy.readOnlyCredentialText(
                         serverValue: details?.clientPassword,
                         draftValue: editableRentalPassword
@@ -1700,7 +1765,7 @@ private struct AdminRentalDetailsScreen: View {
                 .disabled(!displayPolicy.adjustmentButtonEnabled || clientId == nil || isOperationInProgress)
                 .opacity((displayPolicy.adjustmentButtonEnabled && clientId != nil) ? 1 : 0.9)
 
-                if rentalIsActive {
+                if runningRentalIsActive {
                     Button {
                         guard let clientId, let rentalId else { return }
                         onFinishRental(clientId, rentalId)
@@ -1738,7 +1803,8 @@ private struct AdminRentalDetailsScreen: View {
     }
 
     private var clientId: String? {
-        details?.clientId ?? fallbackSummary?.clientId
+        if isInStockState { return nil }
+        return details?.clientId ?? fallbackSummary?.clientId
     }
 
     private var rentalId: String? {
@@ -1746,7 +1812,8 @@ private struct AdminRentalDetailsScreen: View {
     }
 
     private var clientName: String {
-        details?.clientFullName ?? fallbackSummary?.fullName ?? "Клиент"
+        if isInStockState { return "Клиент не выбран" }
+        return details?.clientFullName ?? fallbackSummary?.fullName ?? "Клиент"
     }
 
     private var bikeTitle: String {
@@ -1767,8 +1834,19 @@ private struct AdminRentalDetailsScreen: View {
     private var paidUntilText: String { prettyDate(details?.paidUntil) }
     private var completedAtText: String { prettyDate(details?.completedAt ?? completedAtFallback) }
     private var rentalIsActive: Bool { details?.rentalIsActive ?? fallbackSummary?.rentalIsActive ?? false }
+    private var runningRentalIsActive: Bool { rentalIsActive && !isInStockState }
     private var isInStockState: Bool {
-        (details?.rentalPipelineStatus ?? fallbackSummary?.rentalPipelineStatus ?? "").lowercased() == "in_stock"
+        let status = (details?.rentalPipelineStatus ?? fallbackSummary?.rentalPipelineStatus ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if status == "in_stock" || status == "mine" {
+            return true
+        }
+
+        // Current lifecycle rentals in "У меня" can arrive with a stale/empty pipeline
+        // status after closing; completed client rentals pass completedAtFallback and keep
+        // their historical metrics and journal.
+        return !rentalIsActive && completedAtFallback == nil
     }
     private var bikeId: String? { details?.bikeId }
     private var displayPolicy: RentalDetailsDisplayPolicy {
@@ -1936,7 +2014,7 @@ private struct AdminRentalDetailsScreen: View {
     }
 
     private var canStartRental: Bool {
-        !rentalIsActive &&
+        isInStockState &&
             selectedStartClient != nil &&
             !normalizedCredential(editableRentalLogin).isEmpty &&
             !normalizedCredential(editableRentalPassword).isEmpty
@@ -1966,7 +2044,7 @@ private struct AdminRentalDetailsScreen: View {
     }
 
     private func startRentalForSelectedClient() {
-        guard !rentalIsActive else { return }
+        guard isInStockState else { return }
         guard let selectedStartClient else {
             startValidationMessage = "Выберите клиента"
             return
@@ -2552,6 +2630,252 @@ private struct CreateBikeSheet: View {
                 validationError = "Не удалось загрузить фото"
             }
         }
+    }
+}
+
+private struct RentalStartClientPickerSheet: View {
+    let clients: [AdminClientSummaryResponse]
+    @Binding var selectedClientId: String?
+    let onClose: () -> Void
+    let onConfirm: () -> Void
+
+    @State private var searchText = ""
+    @State private var selectedFilter: ClientCatalogFilter = .all
+
+    private let athensGray = Color(red: 247 / 255, green: 248 / 255, blue: 250 / 255)
+    private let horizontalInset: CGFloat = 8
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            athensGray.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                header
+
+                if visibleClients.isEmpty {
+                    emptyState
+                        .padding(.horizontal, horizontalInset)
+                        .padding(.top, 14)
+                } else {
+                    List {
+                        ForEach(visibleClients) { client in
+                            clientRow(client)
+                        }
+                    }
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                }
+            }
+        }
+    }
+
+    private var visibleClients: [AdminClientSummaryResponse] {
+        let normalizedQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let searched = clients.filter { client in
+            guard !normalizedQuery.isEmpty else { return true }
+            return client.fullName.lowercased().contains(normalizedQuery)
+                || client.bikeModel.lowercased().contains(normalizedQuery)
+                || (client.clientLogin?.lowercased().contains(normalizedQuery) ?? false)
+        }
+
+        switch selectedFilter {
+        case .all:
+            return searched
+        case .debtors:
+            return searched.filter { $0.debtRub > 0 }
+        case .active:
+            return []
+        }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                headerIconButton(
+                    systemName: "xmark",
+                    accessibilityIdentifier: "rentalClientPicker.closeButton",
+                    action: onClose
+                )
+
+                Spacer()
+
+                Text("Клиенты")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
+
+                Spacer()
+
+                headerIconButton(
+                    systemName: "checkmark",
+                    accessibilityIdentifier: "rentalClientPicker.confirmButton",
+                    action: onConfirm
+                )
+                .disabled(selectedClientId == nil)
+                .opacity(selectedClientId == nil ? 0.45 : 1)
+            }
+            .padding(.horizontal, horizontalInset)
+            .frame(height: 62)
+
+            searchField
+                .padding(.horizontal, horizontalInset)
+                .padding(.top, 6)
+
+            HStack(spacing: 8) {
+                filterChip(.all, count: clients.count)
+                filterChip(.debtors, count: clients.filter { $0.debtRub > 0 }.count)
+                filterChip(.active, count: 0)
+            }
+            .padding(.horizontal, horizontalInset)
+            .padding(.top, 10)
+        }
+        .background(athensGray)
+        .accessibilityIdentifier("rentalClientPicker.header")
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(AppDesign.titleText)
+
+            TextField("Поиск: ФИО, телефон, паспорт", text: $searchText)
+                .font(.system(size: 13, weight: .regular))
+                .foregroundStyle(AppDesign.titleText)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+        }
+        .padding(.horizontal, 15)
+        .frame(height: 46)
+        .background(Color.white)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12.84, style: .continuous)
+                .stroke(AppDesign.accent, lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12.84, style: .continuous))
+        .accessibilityIdentifier("rentalClientPicker.searchField")
+    }
+
+    private func filterChip(_ filter: ClientCatalogFilter, count: Int) -> some View {
+        let isSelected = selectedFilter == filter
+
+        return Button {
+            selectedFilter = filter
+        } label: {
+            HStack(spacing: 6) {
+                Text(filter.title)
+                    .font(.system(size: 12, weight: .bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .allowsTightening(true)
+
+                Text("\(count)")
+                    .font(.system(size: 10, weight: .bold))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(isSelected ? Color.white.opacity(0.2) : Color.black.opacity(0.08))
+                    .clipShape(Capsule())
+            }
+            .foregroundStyle(isSelected ? Color.white : AppDesign.accent)
+            .padding(.horizontal, 15)
+            .frame(height: 36)
+            .background(isSelected ? AppDesign.accent : Color.white)
+            .overlay(
+                RoundedRectangle(cornerRadius: 999, style: .continuous)
+                    .stroke(AppDesign.accent, lineWidth: 1)
+            )
+            .clipShape(Capsule())
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("rentalClientPicker.\(filter.accessibilityIdentifier)")
+        .accessibilityValue(isSelected ? "selected" : "normal")
+    }
+
+    private func headerIconButton(
+        systemName: String,
+        accessibilityIdentifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(AppDesign.accent, lineWidth: 1)
+                )
+                .overlay(
+                    Image(systemName: systemName)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(AppDesign.accent)
+                )
+                .frame(width: 47, height: 47)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(accessibilityIdentifier)
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "person.slash")
+                .font(.system(size: 30, weight: .semibold))
+                .foregroundStyle(AppDesign.iconSoft)
+            Text("Нет свободных клиентов")
+                .font(.headline)
+                .foregroundStyle(AppDesign.titleText)
+            Text("В списке выбора скрыты клиенты, которые уже участвуют в активных арендах.")
+                .font(.subheadline)
+                .foregroundStyle(AppDesign.subtleText)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(24)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+    }
+
+    private func clientRow(_ client: AdminClientSummaryResponse) -> some View {
+        let isSelected = selectedClientId == client.clientId
+
+        return Button {
+            selectedClientId = client.clientId
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "person.crop.circle")
+                    .font(.system(size: 28, weight: .semibold))
+                    .foregroundStyle(AppDesign.iconSoft)
+                    .frame(width: 48, height: 48)
+                    .background(AppDesign.surfaceBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(client.fullName)
+                        .font(.headline)
+                        .foregroundStyle(AppDesign.titleText)
+                    if let login = client.clientLogin, !login.isEmpty {
+                        Text("Логин: \(login)")
+                            .font(.subheadline)
+                            .foregroundStyle(AppDesign.subtleText)
+                    } else {
+                        Text("Свободный клиент")
+                            .font(.subheadline)
+                            .foregroundStyle(AppDesign.subtleText)
+                    }
+                    Text(client.bikeModel)
+                        .font(.caption)
+                        .foregroundStyle(AppDesign.subtleText)
+                }
+
+                Spacer()
+
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(isSelected ? AppDesign.success : AppDesign.iconSoft)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("rentalClientPicker.client.\(client.clientId)")
+        .accessibilityValue(isSelected ? "selected" : "normal")
     }
 }
 
@@ -3270,6 +3594,126 @@ private struct DebtAdjustmentSheet: View {
     }
 }
 
+/// Модал admin-операций над перенесённым долгом клиента.
+/// Списать (без оплаты) или Принять оплату (наличные/перевод вне YooKassa).
+/// Излишек payment-а автоматически уходит в активную клиентскую аренду —
+/// в UI это видно по подсказке «Излишек уйдёт в активную аренду» и
+/// в итоговом success-сообщении.
+private struct CarriedDebtOperationSheet: View {
+    let context: CarriedDebtOperationContext
+    let isSaving: Bool
+    let onCancel: () -> Void
+    let onApply: (Int, CarriedDebtOperationKind, String?) -> Void
+
+    @State private var kind: CarriedDebtOperationKind
+    @State private var amountRub: String = ""
+    @State private var comment: String = ""
+    @State private var validationError: String?
+
+    init(
+        context: CarriedDebtOperationContext,
+        isSaving: Bool,
+        onCancel: @escaping () -> Void,
+        onApply: @escaping (Int, CarriedDebtOperationKind, String?) -> Void
+    ) {
+        self.context = context
+        self.isSaving = isSaving
+        self.onCancel = onCancel
+        self.onApply = onApply
+        _kind = State(initialValue: context.initialKind)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Клиент") {
+                    Text(context.clientName)
+                    Text("Перенесённый долг: \(context.carriedDebtRub) ₽")
+                        .foregroundStyle(AppDesign.subtleText)
+                }
+
+                Section("Операция") {
+                    Picker("Тип", selection: $kind) {
+                        Text("Принять оплату").tag(CarriedDebtOperationKind.payment)
+                        Text("Списать").tag(CarriedDebtOperationKind.writeoff)
+                    }
+                    .pickerStyle(.segmented)
+
+                    TextField("Сумма, ₽", text: $amountRub)
+                        .keyboardType(.numberPad)
+                    TextField("Комментарий (необязательно)", text: $comment)
+                }
+
+                Section {
+                    Text(hintText)
+                        .font(.footnote)
+                        .foregroundStyle(AppDesign.subtleText)
+                }
+
+                if let validationError {
+                    Section {
+                        Text(validationError)
+                            .foregroundStyle(AppDesign.danger)
+                    }
+                }
+            }
+            .navigationTitle("Перенесённый долг")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Отмена") {
+                        onCancel()
+                    }
+                    .disabled(isSaving)
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(isSaving ? "Сохраняем..." : "Сохранить") {
+                        submit()
+                    }
+                    .disabled(isSaving)
+                }
+            }
+        }
+    }
+
+    /// Подсказка под полями: меняется в зависимости от выбранного типа
+    /// и наличия активной аренды, чтобы админ заранее понимал поведение
+    /// (особенно про excess для payment).
+    private var hintText: String {
+        switch kind {
+        case .writeoff:
+            return "Сумма списания не может превышать перенесённый долг (\(context.carriedDebtRub) ₽)."
+        case .payment:
+            if context.hasActiveRental {
+                return "До \(context.carriedDebtRub) ₽ уйдёт в перенесённый долг. Излишек автоматически зачтётся в активную клиентскую аренду."
+            } else {
+                return "До \(context.carriedDebtRub) ₽ уйдёт в перенесённый долг. У клиента нет активной аренды — сумма больше \(context.carriedDebtRub) ₽ не пройдёт."
+            }
+        }
+    }
+
+    private func submit() {
+        validationError = nil
+        guard let amount = Int(amountRub), amount > 0 else {
+            validationError = "Введите положительную сумму"
+            return
+        }
+
+        // Локальная валидация: writeoff заведомо больше carriedDebt — не дёргать backend.
+        if kind == .writeoff && amount > context.carriedDebtRub {
+            validationError = "Сумма списания больше перенесённого долга (\(context.carriedDebtRub) ₽)"
+            return
+        }
+        // Payment с amount > carriedDebt без активной аренды backend заведомо отклонит,
+        // покажем понятный текст сразу, не делая запрос.
+        if kind == .payment && amount > context.carriedDebtRub && !context.hasActiveRental {
+            validationError = "У клиента нет активной аренды, поэтому излишек платежа некуда направить"
+            return
+        }
+
+        onApply(amount, kind, comment.trimmedToOptional)
+    }
+}
+
 private struct AdminClientDetailsSheet: View {
     let details: AdminClientDetailsResponse?
     let isLoading: Bool
@@ -3279,8 +3723,12 @@ private struct AdminClientDetailsSheet: View {
     let isOperationInProgress: Bool
     let clients: [AdminClientSummaryResponse]
     let bikes: [AdminBikeResponse]
+    let onClose: () -> Void
     let onRetry: () -> Void
     let onAdjustDebtTap: (AdminClientDetailsResponse) -> Void
+    /// Открыть модал admin-операции над carriedDebt с заранее выбранным типом
+    /// (payment по «Принять оплату», writeoff по «Списать»).
+    let onOpenCarriedDebtSheet: (AdminClientDetailsResponse, CarriedDebtOperationKind) -> Void
     let onSaveRentalComment: (String, String, String) -> Void
     let onSaveRentalLinks: (String, String, String?, String?) -> Void
     let onSaveClientProfile: (String, UpdateClientProfilePayload) -> Void
@@ -3296,93 +3744,499 @@ private struct AdminClientDetailsSheet: View {
     @State private var isDeleteClientConfirmationPresented = false
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if isLoading && details == nil {
-                    ProgressView("Загружаем карточку клиента...")
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if let errorMessage, details == nil {
-                    VStack(spacing: 12) {
-                        Text("Не удалось загрузить клиента")
-                            .font(.headline)
-                            .foregroundStyle(AppDesign.titleText)
-                        Text(errorMessage)
-                            .font(.subheadline)
-                            .foregroundStyle(AppDesign.subtleText)
-                            .multilineTextAlignment(.center)
-                        Button("Повторить") {
-                            onRetry()
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
-                    .padding(24)
+        ZStack {
+            AppDesign.pageBackground.ignoresSafeArea()
+
+            if isLoading && details == nil {
+                ProgressView("Загружаем карточку клиента...")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if let details {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 12) {
-                            header(details)
-                            profileSection(details)
-                            financialSection(details)
-                            rentalsSection(details)
-                            if let operationErrorMessage {
-                                Text(operationErrorMessage)
-                                    .font(.subheadline)
-                                    .foregroundStyle(AppDesign.danger)
-                            }
-                            if let operationSuccessMessage {
-                                Text(operationSuccessMessage)
-                                    .font(.subheadline)
-                                    .foregroundStyle(AppDesign.success)
-                            }
-                        }
-                        .padding(16)
+            } else if let errorMessage, details == nil {
+                VStack(spacing: 12) {
+                    Text("Не удалось загрузить клиента")
+                        .font(.headline)
+                        .foregroundStyle(AppDesign.titleText)
+                    Text(errorMessage)
+                        .font(.subheadline)
+                        .foregroundStyle(AppDesign.subtleText)
+                        .multilineTextAlignment(.center)
+                    Button("Повторить") {
+                        onRetry()
                     }
-                    .background(AppDesign.pageBackground.ignoresSafeArea())
-                    .sheet(isPresented: $isProfileEditorPresented) {
-                        EditClientProfileSheet(
-                            details: details,
-                            isSaving: isOperationInProgress,
-                            onCancel: {
-                                isProfileEditorPresented = false
-                            },
-                            onSave: { payload in
-                                onSaveClientProfile(details.clientId, payload)
-                                isProfileEditorPresented = false
-                            }
-                        )
-                        .presentationDetents([.large])
-                    }
-                    .sheet(isPresented: $isCreateRentalPresented) {
-                        CreateRentalSheet(
-                            clients: clients,
-                            bikes: bikes,
-                            preselectedClientId: details.clientId,
-                            isSaving: isOperationInProgress,
-                            onCancel: {
-                                isCreateRentalPresented = false
-                            },
-                            onCreate: { payload in
-                                onCreateRental(payload)
-                                isCreateRentalPresented = false
-                            }
-                        )
-                        .presentationDetents([.large])
-                    }
-                    .overlay(alignment: .center) {
-                        if isOperationInProgress {
-                            ProgressView()
-                                .padding(16)
-                                .background(.ultraThinMaterial)
-                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        }
-                    }
-                } else {
-                    Color.clear
+                    .buttonStyle(.borderedProminent)
                 }
+                .padding(24)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let details {
+                VStack(spacing: 0) {
+                    clientDetailsTopBar(details)
+
+                    ScrollView(showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: 20) {
+                            clientStatusCard(details)
+                            profileBlock(details)
+                            rentalHistoryBlock(details)
+                            operationMessages
+                        }
+                        .padding(.horizontal, 23)
+                        .padding(.top, 14)
+                        .padding(.bottom, 126)
+                    }
+                }
+                .fullScreenCover(isPresented: $isProfileEditorPresented) {
+                    EditClientProfileSheet(
+                        details: details,
+                        isSaving: isOperationInProgress,
+                        onCancel: {
+                            isProfileEditorPresented = false
+                        },
+                        onSave: { payload in
+                            onSaveClientProfile(details.clientId, payload)
+                            isProfileEditorPresented = false
+                        }
+                    )
+                }
+                .sheet(isPresented: $isCreateRentalPresented) {
+                    CreateRentalSheet(
+                        clients: clients,
+                        bikes: bikes,
+                        preselectedClientId: details.clientId,
+                        isSaving: isOperationInProgress,
+                        onCancel: {
+                            isCreateRentalPresented = false
+                        },
+                        onCreate: { payload in
+                            onCreateRental(payload)
+                            isCreateRentalPresented = false
+                        }
+                    )
+                    .presentationDetents([.large])
+                }
+                .confirmationDialog(
+                    "Удалить клиента?",
+                    isPresented: $isDeleteClientConfirmationPresented,
+                    titleVisibility: .visible
+                ) {
+                    Button("Удалить", role: .destructive) {
+                        onDeleteClient(details.clientId)
+                    }
+                    Button("Отмена", role: .cancel) {}
+                } message: {
+                    Text("Клиент без истории аренд будет удален из каталога.")
+                }
+                .overlay(alignment: .center) {
+                    if isOperationInProgress {
+                        ProgressView()
+                            .padding(16)
+                            .background(.ultraThinMaterial)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
+                }
+            } else {
+                Color.clear
             }
-            .navigationTitle("Клиент")
         }
     }
+
+    private func clientDetailsTopBar(_ details: AdminClientDetailsResponse) -> some View {
+        HStack(spacing: 8) {
+            detailsTopButton(systemName: "chevron.left", color: AppDesign.accent, action: onClose)
+
+            Spacer()
+
+            Text("Клиент")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(AppDesign.titleText)
+
+            Spacer()
+
+            HStack(spacing: 8) {
+                detailsTopButton(systemName: "pencil", color: AppDesign.accent) {
+                    isProfileEditorPresented = true
+                }
+                detailsTopButton(systemName: "trash", color: AppDesign.danger) {
+                    isDeleteClientConfirmationPresented = true
+                }
+                .disabled(!details.rentals.isEmpty || isOperationInProgress)
+                .opacity(details.rentals.isEmpty ? 1 : 0.45)
+            }
+        }
+        .padding(.horizontal, 23)
+        .frame(height: 86)
+    }
+
+    private func detailsTopButton(
+        systemName: String,
+        color: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(color)
+                .frame(width: 47, height: 47)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(color, lineWidth: 1)
+                }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func clientStatusCard(_ details: AdminClientDetailsResponse) -> some View {
+        let isActive = hasOpenRental(details)
+
+        return VStack(alignment: .leading, spacing: isActive ? 16 : 18) {
+            if isActive {
+                HStack(spacing: 14) {
+                    clientBikeAvatar(details, size: 80, cornerRadius: 14)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(details.bikeModel.isEmpty ? "—" : details.bikeModel)
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(AppDesign.titleText)
+                            .lineLimit(2)
+                        Text("\(formattedRub(details.weeklyRateRub))/нед")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(AppDesign.subtleText)
+                        statusPill(title: "Активный", color: AppDesign.success)
+                            .padding(.top, 4)
+                    }
+                    Spacer(minLength: 0)
+                }
+
+                Divider().background(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255))
+            } else {
+                statusPill(title: "Неактивный", color: Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
+            }
+
+            financeMetrics(details)
+
+            // Перенесённый долг — отдельный визуальный блок под основными метриками.
+            // Появляется только когда он есть; в обычной карточке клиента не виден
+            // и не занимает место. Здесь же две admin-операции — «Принять оплату»
+            // и «Списать» — открывают модал CarriedDebtOperationSheet.
+            // См. docs/14_rental_lifecycle.md §7.
+            if details.carriedDebtRub > 0 {
+                Divider().background(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255))
+                carriedDebtBlock(details)
+            }
+
+            if let comment = latestComment(details), !comment.isEmpty {
+                Divider().background(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Комментарий")
+                        .font(.system(size: 9, weight: .medium))
+                        .tracking(0.54)
+                        .textCase(.uppercase)
+                        .foregroundStyle(AppDesign.subtleText)
+                    Text(comment)
+                        .font(.system(size: 12, weight: .medium))
+                        .lineSpacing(4)
+                        .foregroundStyle(AppDesign.titleText)
+                }
+            }
+        }
+        .padding(isActive ? EdgeInsets(top: 21, leading: 23, bottom: 21, trailing: 23) : EdgeInsets(top: 20, leading: 20, bottom: 20, trailing: 20))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(red: 250 / 255, green: 251 / 255, blue: 251 / 255))
+        .overlay {
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                .stroke(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255), lineWidth: 1)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+        .shadow(color: Color(red: 25 / 255, green: 28 / 255, blue: 50 / 255).opacity(0.08), radius: 15, x: 0, y: 20)
+    }
+
+    private func clientBikeAvatar(_ details: AdminClientDetailsResponse, size: CGFloat, cornerRadius: CGFloat) -> some View {
+        BikePhotoView(source: details.bikeAvatarUrl) {
+            PlaceholderBikeAvatar(cornerRadius: cornerRadius)
+        }
+        .frame(width: size, height: size)
+        .background(Color(red: 227 / 255, green: 230 / 255, blue: 235 / 255))
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .stroke(AppDesign.success, lineWidth: 3)
+        }
+    }
+
+    private func statusPill(title: String, color: Color) -> some View {
+        Text(title)
+            .font(.system(size: 11, weight: .bold))
+            .foregroundStyle(Color.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(color)
+            .clipShape(Capsule())
+    }
+
+    private func financeMetrics(_ details: AdminClientDetailsResponse) -> some View {
+        HStack {
+            clientMetric(title: "Оплачено", value: "+\(formattedRub(details.totalPaidRub))", color: AppDesign.success)
+            Spacer()
+            clientMetric(
+                title: "Долг",
+                value: formattedRub(details.debtRub),
+                color: details.debtRub > 0 ? AppDesign.danger : AppDesign.titleText
+            )
+            Spacer()
+            clientMetric(title: "Коррект.", value: formattedRub(details.totalAdjustmentRub), color: AppDesign.titleText)
+        }
+    }
+
+    /// Блок перенесённого долга в карточке клиента (показывается только при carriedDebtRub > 0).
+    /// Сумма как клиентский долг — красным. Две admin-операции:
+    /// `payment` (зелёный CTA — наличный/безналичный приём оплаты)
+    /// и `writeoff` (вспомогательный bordered — списание без денег).
+    /// Колбэк `onAdjustDebtTap` уже есть в Sheet, но это про обычный долг;
+    /// для carriedDebt используется отдельный `onOpenCarriedDebtSheet`.
+    private func carriedDebtBlock(_ details: AdminClientDetailsResponse) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Перенесённый долг")
+                        .font(.system(size: 9, weight: .medium))
+                        .tracking(0.36)
+                        .textCase(.uppercase)
+                        .foregroundStyle(AppDesign.subtleText)
+                    Text(formattedRub(details.carriedDebtRub))
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(AppDesign.danger)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+            }
+
+            HStack(spacing: 8) {
+                Button {
+                    onOpenCarriedDebtSheet(details, .payment)
+                } label: {
+                    Text("Принять оплату")
+                        .font(.system(size: 12, weight: .bold))
+                        .frame(maxWidth: .infinity, minHeight: 36)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(AppDesign.accent)
+
+                Button {
+                    onOpenCarriedDebtSheet(details, .writeoff)
+                } label: {
+                    Text("Списать")
+                        .font(.system(size: 12, weight: .bold))
+                        .frame(maxWidth: .infinity, minHeight: 36)
+                }
+                .buttonStyle(.bordered)
+                .tint(AppDesign.subtleText)
+            }
+        }
+    }
+
+    private func clientMetric(title: String, value: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.system(size: 9, weight: .medium))
+                .tracking(0.36)
+                .textCase(.uppercase)
+                .foregroundStyle(AppDesign.subtleText)
+            Text(value)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(color)
+                .lineLimit(1)
+        }
+    }
+
+    private func profileBlock(_ details: AdminClientDetailsResponse) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            detailsSectionTitle("Профиль")
+            readonlyInput(label: "ФИО", value: details.fullName)
+            readonlyInput(label: "Адрес", value: details.address)
+            readonlyInput(label: "Паспорт", value: details.passportData)
+            ForEach(details.phones) { phone in
+                readonlyInput(label: phone.label, value: phone.number)
+            }
+        }
+    }
+
+    private func readonlyInput(label: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.system(size: 11, weight: .regular))
+                .tracking(0.66)
+                .textCase(.uppercase)
+                .foregroundStyle(AppDesign.subtleText)
+            Text(value.isEmpty ? "—" : value)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(AppDesign.titleText)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 19)
+        .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 12.84, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12.84, style: .continuous)
+                .stroke(AppDesign.accent, lineWidth: 1)
+        }
+    }
+
+    private func rentalHistoryBlock(_ details: AdminClientDetailsResponse) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            detailsSectionTitle("История аренд")
+            if details.rentals.isEmpty {
+                Text("История аренд пока пустая")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(AppDesign.subtleText)
+                    .padding(.top, 4)
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(details.rentals) { rental in
+                        rentalHistoryRow(details: details, rental: rental)
+                    }
+                }
+            }
+        }
+    }
+
+    private func rentalHistoryRow(details: AdminClientDetailsResponse, rental: AdminRentalHistoryItem) -> some View {
+        Button {
+            onOpenRental(details.clientId, rental.id, rental.periodEnd)
+        } label: {
+            HStack(spacing: 12) {
+                historyAvatar(rental)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(prettyPeriod(rental))
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(AppDesign.titleText)
+                        .lineLimit(1)
+                    Text(rental.bikeModel)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(AppDesign.subtleText)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 8)
+
+                Text(historyAmountText(rental))
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(rental.debtRub > 0 ? AppDesign.danger : AppDesign.success)
+                    .lineLimit(1)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(AppDesign.subtleText)
+            }
+            .padding(.horizontal, 15)
+            .padding(.vertical, 13)
+            .frame(maxWidth: .infinity)
+            .background(Color(red: 250 / 255, green: 251 / 255, blue: 251 / 255))
+            .overlay {
+                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                    .stroke(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255), lineWidth: 1)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+            .shadow(color: Color(red: 25 / 255, green: 28 / 255, blue: 50 / 255).opacity(0.08), radius: 15, x: 0, y: 20)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func historyAvatar(_ rental: AdminRentalHistoryItem) -> some View {
+        BikePhotoView(source: rental.bikeAvatarUrl) {
+            PlaceholderBikeAvatar(cornerRadius: 10)
+        }
+        .frame(width: 36, height: 36)
+        .background(Color(red: 227 / 255, green: 230 / 255, blue: 235 / 255))
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+
+    private func detailsSectionTitle(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 11, weight: .bold))
+            .tracking(0.88)
+            .textCase(.uppercase)
+            .foregroundStyle(AppDesign.subtleText)
+    }
+
+    @ViewBuilder
+    private var operationMessages: some View {
+        if let operationErrorMessage {
+            Text(operationErrorMessage)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(AppDesign.danger)
+        }
+        if let operationSuccessMessage {
+            Text(operationSuccessMessage)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(AppDesign.success)
+        }
+    }
+
+    private func hasOpenRental(_ details: AdminClientDetailsResponse) -> Bool {
+        details.rentals.contains { rental in
+            (rental.periodEnd ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+
+    private func latestComment(_ details: AdminClientDetailsResponse) -> String? {
+        details.rentals
+            .compactMap { $0.comment?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty }
+    }
+
+    private func historyAmountText(_ rental: AdminRentalHistoryItem) -> String {
+        if rental.debtRub > 0 {
+            return "- \(formattedRub(rental.debtRub))"
+        }
+        return "+\(formattedRub(rental.totalPaidRub))"
+    }
+
+    private func prettyPeriod(_ rental: AdminRentalHistoryItem) -> String {
+        let start = shortRuDate(rental.periodStart)
+        let end = rental.periodEnd
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .flatMap { $0.isEmpty ? nil : fullRuDate($0) } ?? "н.в."
+        return "\(start) – \(end)"
+    }
+
+    private func shortRuDate(_ value: String) -> String {
+        guard let date = DateFormatter.apiDate.date(from: value) else { return value }
+        return Self.shortRuDateFormatter.string(from: date)
+    }
+
+    private func fullRuDate(_ value: String) -> String {
+        guard let date = DateFormatter.apiDate.date(from: value) else { return value }
+        return Self.fullRuDateFormatter.string(from: date)
+    }
+
+    private func formattedRub(_ amount: Int) -> String {
+        let formatted = Self.rubFormatter.string(from: NSNumber(value: abs(amount))) ?? "\(abs(amount))"
+        return "\(formatted) ₽"
+    }
+
+    private static let rubFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.groupingSeparator = " "
+        formatter.usesGroupingSeparator = true
+        formatter.maximumFractionDigits = 0
+        return formatter
+    }()
+
+    private static let shortRuDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ru_RU")
+        formatter.dateFormat = "dd MMM"
+        return formatter
+    }()
+
+    private static let fullRuDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ru_RU")
+        formatter.dateFormat = "dd MMM yyyy"
+        return formatter
+    }()
 
     private func header(_ details: AdminClientDetailsResponse) -> some View {
         HStack(spacing: 12) {
@@ -3481,6 +4335,16 @@ private struct AdminClientDetailsSheet: View {
             detailRow("Всего оплачено", "\(details.totalPaidRub) ₽")
             detailRow("Текущий долг", "\(details.debtRub) ₽", color: details.debtRub > 0 ? AppDesign.danger : AppDesign.titleText)
             detailRow("Суммарная корректировка", "\(details.totalAdjustmentRub) ₽")
+            // Перенесённый долг показываем только если он есть. Это редкое состояние
+            // (только после удаления lifecycle-аренды с непогашенным долгом),
+            // и пустая строка в обычной карточке клиента не нужна.
+            if details.carriedDebtRub > 0 {
+                detailRow(
+                    "Перенесённый долг",
+                    "\(details.carriedDebtRub) ₽",
+                    color: AppDesign.danger
+                )
+            }
 
             Button("Скорректировать долг") {
                 onAdjustDebtTap(details)
@@ -3488,6 +4352,27 @@ private struct AdminClientDetailsSheet: View {
             .buttonStyle(.borderedProminent)
             .tint(details.debtRub > 0 ? AppDesign.danger : AppDesign.accent)
             .padding(.top, 4)
+
+            if details.carriedDebtRub > 0 {
+                // Две admin-операции над перенесённым долгом
+                // (docs/14_rental_lifecycle.md §7, docs/04_api_draft.md
+                //  «Admin: carried debt operations»). Принять оплату — приоритетный
+                // зелёный CTA, Списать — вспомогательный bordered.
+                HStack(spacing: 8) {
+                    Button("Принять оплату") {
+                        onOpenCarriedDebtSheet(details, .payment)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(AppDesign.accent)
+
+                    Button("Списать") {
+                        onOpenCarriedDebtSheet(details, .writeoff)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(AppDesign.subtleText)
+                }
+                .padding(.top, 2)
+            }
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -3788,10 +4673,18 @@ private struct EditClientProfileSheet: View {
     let onCancel: () -> Void
     let onSave: (UpdateClientProfilePayload) -> Void
 
+    private let ebonyClay = Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255)
+    private let paleSky = Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255)
+    private let ghost = Color(red: 201 / 255, green: 204 / 255, blue: 210 / 255)
+    private let grayChateau = Color(red: 152 / 255, green: 161 / 255, blue: 173 / 255)
+    private let athensGray = Color(red: 247 / 255, green: 248 / 255, blue: 250 / 255)
+
     @State private var fullName: String
     @State private var address: String
     @State private var passportData: String
     @State private var phones: [EditClientProfilePhone]
+    @State private var isCommentVisible = false
+    @State private var comment = ""
     @State private var validationError: String?
 
     init(
@@ -3813,57 +4706,241 @@ private struct EditClientProfileSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("Профиль") {
-                    TextField("ФИО", text: $fullName)
-                    TextField("Адрес", text: $address)
-                    TextField("Паспортные данные", text: $passportData)
-                }
+        GeometryReader { proxy in
+            let horizontalPadding: CGFloat = 8
+            let fieldWidth = max(0, proxy.size.width - horizontalPadding * 2)
 
-                Section("Телефоны") {
-                    ForEach($phones) { $phone in
-                        VStack(alignment: .leading, spacing: 6) {
-                            TextField("Подпись", text: $phone.label)
-                            TextField("Телефон", text: $phone.number)
-                                .keyboardType(.phonePad)
-                        }
-                    }
+            ZStack(alignment: .top) {
+                athensGray.ignoresSafeArea()
 
-                    Button("Добавить телефон") {
-                        phones.append(
-                            EditClientProfilePhone(
-                                id: UUID().uuidString,
-                                label: "",
-                                number: ""
+                VStack(spacing: 0) {
+                    editClientTopBar(horizontalPadding: horizontalPadding)
+
+                    ScrollView(showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: 18) {
+                            editSectionTitle("Профиль")
+
+                            editClientInput(
+                                label: "ФИО",
+                                placeholder: "введите...",
+                                text: $fullName,
+                                accessibilityIdentifier: "editClient.fullNameField"
                             )
-                        )
-                    }
-                    .buttonStyle(.bordered)
-                }
+                            editClientInput(
+                                label: "Адрес",
+                                placeholder: "введите...",
+                                text: $address,
+                                accessibilityIdentifier: "editClient.addressField"
+                            )
+                            editClientInput(
+                                label: "Паспортные данные",
+                                placeholder: "введите...",
+                                text: $passportData,
+                                accessibilityIdentifier: "editClient.passportField"
+                            )
 
-                if let validationError {
-                    Section {
-                        Text(validationError)
-                            .foregroundStyle(AppDesign.danger)
+                            editSectionTitle("Телефоны")
+                                .padding(.top, 6)
+
+                            ForEach(Array(phones.indices), id: \.self) { index in
+                                editClientInput(
+                                    label: "Подпись",
+                                    placeholder: "введите...",
+                                    text: $phones[index].label,
+                                    accessibilityIdentifier: index == 0
+                                        ? "editClient.phoneLabel1Field"
+                                        : "editClient.phoneLabelField.\(index)",
+                                    valueWeight: .bold
+                                )
+                                editClientInput(
+                                    label: "Телефон",
+                                    placeholder: "+7 …",
+                                    text: $phones[index].number,
+                                    accessibilityIdentifier: index == 0
+                                        ? "editClient.phoneNumber1Field"
+                                        : "editClient.phoneNumberField.\(index)",
+                                    keyboardType: .phonePad
+                                )
+                            }
+
+                            editDashedActionButton(
+                                title: "+ Добавить телефон",
+                                accessibilityIdentifier: "editClient.addPhoneButton"
+                            ) {
+                                phones.append(
+                                    EditClientProfilePhone(
+                                        id: UUID().uuidString,
+                                        label: "",
+                                        number: ""
+                                    )
+                                )
+                            }
+
+                            if isCommentVisible {
+                                editClientInput(
+                                    label: "Комментарий",
+                                    placeholder: "введите...",
+                                    text: $comment,
+                                    accessibilityIdentifier: "editClient.commentField"
+                                )
+                            }
+
+                            editDashedActionButton(
+                                title: "+ Добавить комментарий",
+                                accessibilityIdentifier: "editClient.addCommentButton"
+                            ) {
+                                isCommentVisible = true
+                            }
+
+                            editClientErrorBlock
+                        }
+                        .frame(width: fieldWidth, alignment: .leading)
+                        .padding(.top, 16)
+                        .padding(.bottom, 24)
                     }
+                    .scrollDismissesKeyboard(.interactively)
+                    .padding(.horizontal, horizontalPadding)
                 }
             }
-            .navigationTitle("Редактировать клиента")
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Отмена") {
-                        onCancel()
+        }
+    }
+
+    private func editClientTopBar(horizontalPadding: CGFloat) -> some View {
+        HStack {
+            Button {
+                onCancel()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(ebonyClay)
+                    .frame(width: 47, height: 47)
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(ebonyClay, lineWidth: 1)
                     }
-                    .disabled(isSaving)
+            }
+            .disabled(isSaving)
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("editClient.cancelButton")
+
+            Spacer()
+
+            Text("Редактировать")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundStyle(ebonyClay)
+                .lineLimit(1)
+
+            Spacer()
+
+            Button {
+                submit()
+            } label: {
+                Group {
+                    if isSaving {
+                        ProgressView()
+                            .tint(Color.white)
+                    } else {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(Color.white)
+                    }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(isSaving ? "Сохраняем..." : "Сохранить") {
-                        submit()
-                    }
-                    .disabled(isSaving)
+                .frame(width: 47, height: 47)
+                .background(ebonyClay)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(ebonyClay, lineWidth: 1)
                 }
             }
+            .disabled(isSaving)
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("editClient.submitButton")
+        }
+        .padding(.horizontal, horizontalPadding)
+        .frame(height: 62)
+    }
+
+    private func editSectionTitle(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 11, weight: .bold))
+            .tracking(0.88)
+            .textCase(.uppercase)
+            .foregroundStyle(paleSky)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityIdentifier("editClient.section.\(title)")
+    }
+
+    private func editClientInput(
+        label: String,
+        placeholder: String,
+        text: Binding<String>,
+        accessibilityIdentifier: String,
+        valueWeight: Font.Weight = .regular,
+        keyboardType: UIKeyboardType = .default
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.system(size: 11, weight: .regular))
+                .tracking(0.66)
+                .textCase(.uppercase)
+                .foregroundStyle(paleSky)
+
+            TextField("", text: text, prompt: Text(placeholder).foregroundColor(ghost))
+                .font(.system(size: 13, weight: valueWeight))
+                .foregroundStyle(ebonyClay)
+                .keyboardType(keyboardType)
+                .textInputAutocapitalization(label == "ФИО" ? .words : .sentences)
+                .autocorrectionDisabled()
+                .accessibilityIdentifier(accessibilityIdentifier)
+        }
+        .padding(.horizontal, 19)
+        .frame(height: 58)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 12.84, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12.84, style: .continuous)
+                .stroke(ebonyClay, lineWidth: 1)
+        }
+    }
+
+    private func editDashedActionButton(
+        title: String,
+        accessibilityIdentifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 14, weight: .bold))
+                .tracking(0.28)
+                .foregroundStyle(ebonyClay)
+                .frame(maxWidth: .infinity)
+                .frame(height: 52)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(grayChateau, style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                }
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(accessibilityIdentifier)
+    }
+
+    @ViewBuilder
+    private var editClientErrorBlock: some View {
+        if let validationError {
+            Text(validationError)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(AppDesign.danger)
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .accessibilityIdentifier("editClient.validationError")
         }
     }
 
@@ -4255,6 +5332,33 @@ private struct RentalHistoryCard: View {
         periodStartDraft = rental.periodStart
         periodEndDraft = rental.periodEnd ?? ""
         rentalValidationError = nil
+    }
+}
+
+private struct PlaceholderBikeAvatar: View {
+    let cornerRadius: CGFloat
+
+    var body: some View {
+        GeometryReader { proxy in
+            let size = proxy.size
+            ZStack {
+                Color(red: 227 / 255, green: 230 / 255, blue: 235 / 255)
+
+                Path { path in
+                    path.move(to: CGPoint(x: 0, y: 0))
+                    path.addLine(to: CGPoint(x: size.width, y: size.height))
+                    path.move(to: CGPoint(x: size.width, y: 0))
+                    path.addLine(to: CGPoint(x: 0, y: size.height))
+                }
+                .stroke(Color(red: 156 / 255, green: 166 / 255, blue: 179 / 255).opacity(0.45), lineWidth: 1)
+
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(
+                        Color(red: 156 / 255, green: 166 / 255, blue: 179 / 255),
+                        style: StrokeStyle(lineWidth: 1, dash: [4, 4])
+                    )
+            }
+        }
     }
 }
 

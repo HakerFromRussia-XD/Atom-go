@@ -112,7 +112,7 @@ Response 200:
     "bike_model": "Aventon Level 2",
     "bike_avatar_url": "",
     "weekly_rate_rub": 2600,
-    "pipeline_status": "mine",
+    "pipeline_status": "in_stock",
     "current_client_rental_id": null,
     "client_id": null,
     "full_name": null,
@@ -134,7 +134,7 @@ Response 200:
   "bike_model": "Ninebot E-Bike Pro",
   "bike_avatar_url": "https://example.com/bikes/ninebot-pro.png",
   "weekly_rate_rub": 3500,
-  "pipeline_status": "mine",
+  "pipeline_status": "in_stock",
   "current_client_rental": null,
   "next_login": "client1",
   "next_password_is_set": false,
@@ -144,7 +144,7 @@ Response 200:
 ```
 
 Notes:
-- В `mine` статистика и журнал текущей аренды отвязаны от карточки `Аренды`.
+- В `in_stock` статистика и журнал текущей аренды отвязаны от карточки `Аренды`. Пользовательская подпись статуса - "У меня".
 - Для активных статусов `current_client_rental`, `metrics` и `journal_entries` заполнены.
 
 ## 5) POST /api/v1/admin/rentals/{rentalId}/client-rentals

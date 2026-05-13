@@ -59,20 +59,20 @@ API должен поддерживать модель из `docs/14_rental_life
   - validation: `bike_id` не должен быть уже привязан к другой неудаленной `Аренде`.
 
 - `GET /admin/rentals/{rentalId}`
-  - response: карточка `Аренды`, текущая `клиентская аренда` если есть, черновик доступа для следующего цикла если статус `mine`.
+  - response: карточка `Аренды`, текущая `клиентская аренда` если есть, черновик доступа для следующего цикла если статус `in_stock`.
 
 - `POST /admin/rentals/{rentalId}/pipeline-status`
-  - request: `{ pipeline_status: "long_term" | "soon_return" | "mine" }`
-  - action: сменить статус. Переход в `mine` закрывает текущую `клиентскую аренду` сегодняшней датой.
+  - request: `{ pipeline_status: "long_term" | "soon_return" | "in_stock" }`
+  - action: сменить статус. Переход в `in_stock` закрывает текущую `клиентскую аренду` сегодняшней датой.
 
 - `POST /admin/rentals/{rentalId}/finish`
-  - action: закрыть текущую `клиентскую аренду` и перевести `Аренду` в `mine`.
+  - action: закрыть текущую `клиентскую аренду` и перевести `Аренду` в `in_stock`.
 
 - `POST /admin/rentals/{rentalId}/client-rentals`
   - request: `{ client_id, login, password, period_start }`
   - action: создать новую `клиентскую аренду` внутри существующей `Аренды` и вернуть `Аренду` в `long_term`.
   - validation:
-    - `Аренда` должна быть в статусе `mine`;
+    - `Аренда` должна быть в статусе `in_stock`;
     - клиент должен быть свободен;
     - логин должен быть уникален;
     - пароль должен быть сложным и не должен повторять ранее созданные пароли.
@@ -86,6 +86,29 @@ API должен поддерживать модель из `docs/14_rental_life
   - request: `{ amount_rub, sign, comment }`
   - where `sign` in `plus|minus`
   - response: новый баланс и суммарная корректировка `клиентской аренды`.
+
+## Admin: carried debt operations
+
+См. `docs/14_rental_lifecycle.md` §7. Перенесённый долг хранится на `ClientAccount.carriedDebtRub` и отдаётся в `GET /admin/clients` / `GET /admin/clients/{id}` как `carried_debt_rub`.
+
+- `POST /admin/clients/{clientId}/carried-debt`
+  - request: `{ amount_rub, kind, comment? }`
+  - `amount_rub` — положительное целое в рублях.
+  - `kind` — `writeoff` (админ списывает часть долга без оплаты) или `payment` (админ принимает наличный/безналичный платёж вне YooKassa в счёт долга).
+  - правила:
+    - `writeoff`: `amount_rub` должен быть ≤ `carried_debt_rub`, иначе `400 amount_rub exceeds carried_debt_rub`.
+    - `payment`: до `carried_debt_rub` идёт в перенесённый долг (ledger PAYMENT, `rentalId=null`). Излишек автоматически идёт в активную `client_rental` клиента (PAYMENT с её `rentalId`). Если активной нет — `400 amount_rub exceeds carried_debt_rub and no active rental to apply excess`.
+  - response:
+    ```json
+    {
+      "client_id": "...",
+      "carried_debt_rub": 0,
+      "applied_to_carried_rub": 1000,
+      "applied_to_active_rental_rub": 500,
+      "active_rental_id": "client-rental-..."
+    }
+    ```
+  - audit: каждая мутация порождает `LedgerEntry` (writeoff → ADJUSTMENT direction=-1; payment → PAYMENT direction=-1).
 
 ## Client
 

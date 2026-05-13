@@ -3,6 +3,7 @@ package com.atomgo.backend.infra
 import com.atomgo.backend.domain.AppUser
 import com.atomgo.backend.domain.AdminTaxMode
 import com.atomgo.backend.domain.BikeAccount
+import com.atomgo.backend.domain.ClientRentalRecord
 import com.atomgo.backend.domain.ClientAccount
 import com.atomgo.backend.domain.LedgerEntry
 import com.atomgo.backend.domain.LedgerType
@@ -18,6 +19,7 @@ class InMemoryStore(
     val clients: MutableList<ClientAccount>,
     val bikes: MutableList<BikeAccount>,
     val rentals: MutableList<RentalRecord>,
+    val clientRentals: MutableList<ClientRentalRecord>,
     val ledger: MutableList<LedgerEntry>,
     val payments: MutableList<PaymentRecord>,
     val sessions: MutableMap<String, UserSession>,
@@ -218,11 +220,33 @@ class InMemoryStore(
                 )
             )
 
+            val clientRentals = rentals
+                .filter { it.clientId.isNotBlank() }
+                .map { rental ->
+                    ClientRentalRecord(
+                        id = "client-rental-${rental.id}",
+                        rentalId = rental.id,
+                        clientId = rental.clientId,
+                        bikeId = rental.bikeId,
+                        clientLogin = rental.clientLogin.orEmpty(),
+                        clientPassword = rental.clientPassword.orEmpty(),
+                        startDate = rental.startDate,
+                        endDate = rental.endDate,
+                        videoUrl = rental.videoUrl,
+                        contractUrl = rental.contractUrl,
+                        comment = rental.comment,
+                        adminId = rental.adminId,
+                        taxMode = rental.taxMode
+                    )
+                }
+                .toMutableList()
+
             return InMemoryStore(
                 users = users,
                 clients = clients,
                 bikes = bikes,
                 rentals = rentals,
+                clientRentals = clientRentals,
                 ledger = ledger,
                 payments = mutableListOf(),
                 sessions = mutableMapOf(),

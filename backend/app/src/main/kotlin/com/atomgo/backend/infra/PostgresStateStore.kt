@@ -5,6 +5,7 @@ import com.atomgo.backend.domain.AdminTaxMode
 import com.atomgo.backend.domain.BikeAccount
 import com.atomgo.backend.domain.ClientAccount
 import com.atomgo.backend.domain.ClientPhone
+import com.atomgo.backend.domain.ClientRentalRecord
 import com.atomgo.backend.domain.FiscalizationStatus
 import com.atomgo.backend.domain.LedgerEntry
 import com.atomgo.backend.domain.LedgerType
@@ -90,6 +91,7 @@ class PostgresStateStore private constructor(
                 """.trimIndent()
             )
             statement.execute("ALTER TABLE atomgo_clients ADD COLUMN IF NOT EXISTS admin_id TEXT")
+            statement.execute("ALTER TABLE atomgo_clients ADD COLUMN IF NOT EXISTS carried_debt_rub INT NOT NULL DEFAULT 0")
             statement.execute(
                 """
                 CREATE TABLE IF NOT EXISTS atomgo_client_phones (
@@ -136,11 +138,46 @@ class PostgresStateStore private constructor(
                 )
                 """.trimIndent()
             )
+            statement.execute("ALTER TABLE atomgo_rentals ALTER COLUMN client_id DROP NOT NULL")
+            statement.execute(
+                """
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1
+                        FROM pg_constraint
+                        WHERE conname = 'atomgo_rentals_client_id_fkey'
+                          AND conrelid = 'atomgo_rentals'::regclass
+                    ) THEN
+                        ALTER TABLE atomgo_rentals DROP CONSTRAINT atomgo_rentals_client_id_fkey;
+                    END IF;
+                END $$;
+                """.trimIndent()
+            )
             statement.execute("ALTER TABLE atomgo_rentals ADD COLUMN IF NOT EXISTS admin_id TEXT")
             statement.execute("ALTER TABLE atomgo_rentals ADD COLUMN IF NOT EXISTS tax_mode TEXT NOT NULL DEFAULT 'SELF_EMPLOYED'")
             statement.execute("ALTER TABLE atomgo_rentals ADD COLUMN IF NOT EXISTS pipeline_status TEXT NOT NULL DEFAULT 'LONG_TERM'")
             statement.execute("ALTER TABLE atomgo_rentals ADD COLUMN IF NOT EXISTS client_login TEXT")
             statement.execute("ALTER TABLE atomgo_rentals ADD COLUMN IF NOT EXISTS client_password TEXT")
+            statement.execute(
+                """
+                CREATE TABLE IF NOT EXISTS atomgo_client_rentals (
+                    id TEXT PRIMARY KEY,
+                    rental_id TEXT NOT NULL,
+                    client_id TEXT NOT NULL REFERENCES atomgo_clients(id) ON DELETE CASCADE,
+                    bike_id TEXT NOT NULL REFERENCES atomgo_bikes(id),
+                    client_login TEXT NOT NULL,
+                    client_password TEXT NOT NULL,
+                    start_date DATE NOT NULL,
+                    end_date DATE,
+                    video_url TEXT,
+                    contract_url TEXT,
+                    comment TEXT,
+                    admin_id TEXT,
+                    tax_mode TEXT NOT NULL DEFAULT 'SELF_EMPLOYED'
+                )
+                """.trimIndent()
+            )
             statement.execute(
                 """
                 CREATE TABLE IF NOT EXISTS atomgo_ledger_entries (
@@ -295,6 +332,7 @@ class PostgresStateStore private constructor(
                 c.full_name,
                 c.address,
                 c.passport_data,
+                c.carried_debt_rub,
                 COALESCE(
                     jsonb_agg(
                         jsonb_build_object('label', p.label, 'number', p.number)
@@ -304,7 +342,7 @@ class PostgresStateStore private constructor(
                 ) AS phones
             FROM atomgo_clients c
             LEFT JOIN atomgo_client_phones p ON p.client_id = c.id
-            GROUP BY c.id, c.full_name, c.address, c.passport_data
+            GROUP BY c.id, c.full_name, c.address, c.passport_data, c.carried_debt_rub
             """.trimIndent(),
             """
             CREATE OR REPLACE VIEW bikes_view AS
@@ -404,7 +442,7 @@ class PostgresStateStore private constructor(
         val clients = linkedMapOf<String, ClientAccount>()
         connection.prepareStatement(
             """
-	            SELECT id, full_name, address, passport_data, admin_id
+	            SELECT id, full_name, address, passport_data, admin_id, carried_debt_rub
             FROM atomgo_clients
             ORDER BY id
             """.trimIndent()
@@ -417,7 +455,8 @@ class PostgresStateStore private constructor(
 	                        address = rs.getString("address"),
 	                        passportData = rs.getString("passport_data"),
 	                        phones = mutableListOf(),
-	                        adminId = rs.getString("admin_id")
+	                        adminId = rs.getString("admin_id"),
+	                        carriedDebtRub = rs.getInt("carried_debt_rub")
                     )
                     clients[client.id] = client
                 }
@@ -489,7 +528,7 @@ class PostgresStateStore private constructor(
                 while (rs.next()) {
                     rentals += RentalRecord(
                         id = rs.getString("id"),
-                        clientId = rs.getString("client_id"),
+                        clientId = rs.getString("client_id") ?: "",
                         bikeId = rs.getString("bike_id"),
                         clientLogin = rs.getString("client_login"),
                         clientPassword = rs.getString("client_password"),
@@ -501,6 +540,36 @@ class PostgresStateStore private constructor(
                         adminId = rs.getString("admin_id"),
                         taxMode = enumValueOf<AdminTaxMode>(rs.getString("tax_mode")),
                         pipelineStatus = enumValueOf<RentalPipelineStatus>(rs.getString("pipeline_status"))
+                    )
+                }
+            }
+        }
+
+        val clientRentals = mutableListOf<ClientRentalRecord>()
+        connection.prepareStatement(
+            """
+            SELECT id, rental_id, client_id, bike_id, client_login, client_password, start_date, end_date,
+                   video_url, contract_url, comment, admin_id, tax_mode
+            FROM atomgo_client_rentals
+            ORDER BY start_date DESC, id
+            """.trimIndent()
+        ).use { statement ->
+            statement.executeQuery().use { rs ->
+                while (rs.next()) {
+                    clientRentals += ClientRentalRecord(
+                        id = rs.getString("id"),
+                        rentalId = rs.getString("rental_id"),
+                        clientId = rs.getString("client_id"),
+                        bikeId = rs.getString("bike_id"),
+                        clientLogin = rs.getString("client_login"),
+                        clientPassword = rs.getString("client_password"),
+                        startDate = rs.getDate("start_date").toLocalDate(),
+                        endDate = rs.getDate("end_date")?.toLocalDate(),
+                        videoUrl = rs.getString("video_url"),
+                        contractUrl = rs.getString("contract_url"),
+                        comment = rs.getString("comment"),
+                        adminId = rs.getString("admin_id"),
+                        taxMode = enumValueOf<AdminTaxMode>(rs.getString("tax_mode"))
                     )
                 }
             }
@@ -614,6 +683,7 @@ class PostgresStateStore private constructor(
             clients = clients.values.toMutableList(),
             bikes = bikes,
             rentals = rentals,
+            clientRentals = clientRentals,
             ledger = ledger,
             payments = payments,
             sessions = sessions,
@@ -626,8 +696,8 @@ class PostgresStateStore private constructor(
 
         connection.prepareStatement(
             """
-            INSERT INTO atomgo_clients (id, full_name, address, passport_data, admin_id)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO atomgo_clients (id, full_name, address, passport_data, admin_id, carried_debt_rub)
+            VALUES (?, ?, ?, ?, ?, ?)
             """.trimIndent()
         ).use { statement ->
             state.clients.forEach { client ->
@@ -636,6 +706,7 @@ class PostgresStateStore private constructor(
                 statement.setString(3, client.address)
                 statement.setString(4, client.passportData)
                 statement.setString(5, client.adminId)
+                statement.setInt(6, client.carriedDebtRub)
                 statement.addBatch()
             }
             statement.executeBatch()
@@ -712,7 +783,7 @@ class PostgresStateStore private constructor(
         ).use { statement ->
             state.rentals.forEach { rental ->
                 statement.setString(1, rental.id)
-                statement.setString(2, rental.clientId)
+                statement.setString(2, rental.clientId.ifBlank { null })
                 statement.setString(3, rental.bikeId)
                 statement.setString(4, rental.clientLogin)
                 statement.setString(5, rental.clientPassword)
@@ -724,6 +795,45 @@ class PostgresStateStore private constructor(
                 statement.setString(11, rental.adminId)
                 statement.setString(12, rental.taxMode.name)
                 statement.setString(13, rental.pipelineStatus.name)
+                statement.addBatch()
+            }
+            statement.executeBatch()
+        }
+
+        connection.prepareStatement(
+            """
+            INSERT INTO atomgo_client_rentals (
+                id,
+                rental_id,
+                client_id,
+                bike_id,
+                client_login,
+                client_password,
+                start_date,
+                end_date,
+                video_url,
+                contract_url,
+                comment,
+                admin_id,
+                tax_mode
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """.trimIndent()
+        ).use { statement ->
+            state.clientRentals.forEach { rental ->
+                statement.setString(1, rental.id)
+                statement.setString(2, rental.rentalId)
+                statement.setString(3, rental.clientId)
+                statement.setString(4, rental.bikeId)
+                statement.setString(5, rental.clientLogin)
+                statement.setString(6, rental.clientPassword)
+                statement.setObject(7, rental.startDate)
+                statement.setObject(8, rental.endDate)
+                statement.setString(9, rental.videoUrl)
+                statement.setString(10, rental.contractUrl)
+                statement.setString(11, rental.comment)
+                statement.setString(12, rental.adminId)
+                statement.setString(13, rental.taxMode.name)
                 statement.addBatch()
             }
             statement.executeBatch()
@@ -847,6 +957,7 @@ class PostgresStateStore private constructor(
     private fun clearStructuredState(connection: Connection) {
         connection.createStatement().use { statement ->
             statement.executeUpdate("DELETE FROM atomgo_client_phones")
+            statement.executeUpdate("DELETE FROM atomgo_client_rentals")
             statement.executeUpdate("DELETE FROM atomgo_rentals")
             statement.executeUpdate("DELETE FROM atomgo_ledger_entries")
             statement.executeUpdate("DELETE FROM atomgo_payments")
@@ -978,7 +1089,8 @@ private object InMemoryStoreJsonMapper {
         val bikeModel: String? = null,
         val bikeAvatarUrl: String? = null,
         val weeklyRateRub: Int? = null,
-        val adminId: String? = null
+        val adminId: String? = null,
+        val carriedDebtRub: Int = 0
     )
 
     @Serializable
@@ -1011,6 +1123,23 @@ private object InMemoryStoreJsonMapper {
         val adminId: String? = null,
         val taxMode: String = AdminTaxMode.SELF_EMPLOYED.name,
         val pipelineStatus: String = RentalPipelineStatus.LONG_TERM.name
+    )
+
+    @Serializable
+    private data class PersistedClientRental(
+        val id: String,
+        val rentalId: String,
+        val clientId: String,
+        val bikeId: String,
+        val clientLogin: String,
+        val clientPassword: String,
+        val startDate: String,
+        val endDate: String? = null,
+        val videoUrl: String? = null,
+        val contractUrl: String? = null,
+        val comment: String? = null,
+        val adminId: String? = null,
+        val taxMode: String = AdminTaxMode.SELF_EMPLOYED.name
     )
 
     @Serializable
@@ -1055,6 +1184,7 @@ private object InMemoryStoreJsonMapper {
         val clients: List<PersistedClient>,
         val bikes: List<PersistedBike> = emptyList(),
         val rentals: List<PersistedRental>,
+        val clientRentals: List<PersistedClientRental> = emptyList(),
         val ledger: List<PersistedLedgerEntry>,
         val payments: List<PersistedPayment>,
         val sessions: Map<String, PersistedSession>,
@@ -1082,7 +1212,8 @@ private object InMemoryStoreJsonMapper {
 	                    phones = it.phones.map { phone ->
 	                        PersistedClientPhone(label = phone.label, number = phone.number)
 	                    },
-	                    adminId = it.adminId
+	                    adminId = it.adminId,
+	                    carriedDebtRub = it.carriedDebtRub
 	                )
             },
             bikes = store.bikes.map {
@@ -1101,6 +1232,24 @@ private object InMemoryStoreJsonMapper {
             rentals = store.rentals.map {
                 PersistedRental(
                     id = it.id,
+                    clientId = it.clientId,
+                    bikeId = it.bikeId,
+                    clientLogin = it.clientLogin,
+                    clientPassword = it.clientPassword,
+                    startDate = it.startDate.toString(),
+                    endDate = it.endDate?.toString(),
+                    videoUrl = it.videoUrl,
+                    contractUrl = it.contractUrl,
+                    comment = it.comment,
+                    adminId = it.adminId,
+                    taxMode = it.taxMode.name,
+                    pipelineStatus = it.pipelineStatus.name
+                )
+            },
+            clientRentals = store.clientRentals.map {
+                PersistedClientRental(
+                    id = it.id,
+                    rentalId = it.rentalId,
                     clientId = it.clientId,
                     bikeId = it.bikeId,
                     clientLogin = it.clientLogin,
@@ -1248,11 +1397,29 @@ private object InMemoryStoreJsonMapper {
 	                    phones = it.phones.map { phone ->
 	                        ClientPhone(label = phone.label, number = phone.number)
 	                    }.toMutableList(),
-	                    adminId = it.adminId
+	                    adminId = it.adminId,
+	                    carriedDebtRub = it.carriedDebtRub
 	                )
             }.toMutableList(),
             bikes = bikesById.values.toMutableList(),
             rentals = rentals,
+            clientRentals = persisted.clientRentals.map {
+                ClientRentalRecord(
+                    id = it.id,
+                    rentalId = it.rentalId,
+                    clientId = it.clientId,
+                    bikeId = it.bikeId,
+                    clientLogin = it.clientLogin,
+                    clientPassword = it.clientPassword,
+                    startDate = LocalDate.parse(it.startDate),
+                    endDate = it.endDate?.let(LocalDate::parse),
+                    videoUrl = it.videoUrl,
+                    contractUrl = it.contractUrl,
+                    comment = it.comment,
+                    adminId = it.adminId,
+                    taxMode = enumValueOf<AdminTaxMode>(it.taxMode)
+                )
+            }.toMutableList(),
             ledger = persisted.ledger.map {
                 LedgerEntry(
                     id = it.id,

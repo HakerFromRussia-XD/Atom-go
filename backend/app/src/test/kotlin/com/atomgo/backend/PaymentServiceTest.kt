@@ -28,7 +28,7 @@ class PaymentServiceTest {
         val payment = service.createPayment("client-001", PaymentType.WEEK, now = LocalDate.now())
 
         assertEquals(PaymentStatus.PENDING, payment.status)
-        assertEquals("rental-001", payment.rentalId)
+        assertEquals("client-rental-rental-001", payment.rentalId)
         assertTrue(payment.confirmationUrl.contains(payment.id))
         assertNotNull(payment.providerPaymentId)
         assertEquals(AdminTaxMode.SELF_EMPLOYED, payment.taxMode)
@@ -110,9 +110,9 @@ class PaymentServiceTest {
         assertNotNull(firstReceipt)
         assertEquals("13romaroma13@gmail.com", firstReceipt.customerEmail)
 
-        store.rentals[0] = store.rentals[0].copy(endDate = LocalDate.now().minusDays(1))
-        store.rentals += store.rentals[0].copy(
-            id = "rental-ip-new",
+        store.clientRentals[0] = store.clientRentals[0].copy(endDate = LocalDate.now().minusDays(1))
+        store.clientRentals += store.clientRentals[0].copy(
+            id = "client-rental-ip-new",
             startDate = LocalDate.now(),
             endDate = null,
             taxMode = AdminTaxMode.INDIVIDUAL_ENTREPRENEUR

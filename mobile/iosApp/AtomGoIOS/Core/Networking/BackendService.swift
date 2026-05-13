@@ -151,6 +151,34 @@ private struct NativeStartClientRentalInExistingResponse: Decodable {
     }
 }
 
+private struct NativeCarriedDebtOperationRequest: Encodable {
+    let amountRub: Int
+    let kind: String
+    let comment: String?
+
+    enum CodingKeys: String, CodingKey {
+        case amountRub = "amount_rub"
+        case kind
+        case comment
+    }
+}
+
+private struct NativeCarriedDebtOperationResponse: Decodable {
+    let clientId: String
+    let carriedDebtRub: Int
+    let appliedToCarriedRub: Int
+    let appliedToActiveRentalRub: Int
+    let activeRentalId: String?
+
+    enum CodingKeys: String, CodingKey {
+        case clientId = "client_id"
+        case carriedDebtRub = "carried_debt_rub"
+        case appliedToCarriedRub = "applied_to_carried_rub"
+        case appliedToActiveRentalRub = "applied_to_active_rental_rub"
+        case activeRentalId = "active_rental_id"
+    }
+}
+
 protocol BackendServicing {
     func isServerReachable() async -> Bool
     func login(login: String, password: String) async throws -> AuthSession
@@ -210,6 +238,13 @@ protocol BackendServicing {
         sign: DebtAdjustmentSign,
         comment: String?
     ) async throws -> DebtAdjustmentResult
+    func applyCarriedDebtOperation(
+        accessToken: String,
+        clientId: String,
+        amountRub: Int,
+        kind: CarriedDebtOperationKind,
+        comment: String?
+    ) async throws -> CarriedDebtOperationResult
     func updateAdminRentalComment(
         accessToken: String,
         rentalId: String,
@@ -502,7 +537,8 @@ final class BackendService: BackendServicing {
             rentalIsActive: client.rentalIsActive,
             debtRub: Int(client.debtRub),
             profitRub: Int(client.profitRub),
-            totalAdjustmentRub: Int(client.totalAdjustmentRub)
+            totalAdjustmentRub: Int(client.totalAdjustmentRub),
+            carriedDebtRub: Int(client.carriedDebtRub)
         )
     }
 
@@ -653,7 +689,11 @@ final class BackendService: BackendServicing {
             bikeModel: response.bikeModel,
             videoUrl: response.videoUrl,
             contractUrl: response.contractUrl,
-            comment: response.comment
+            comment: response.comment,
+            weeklyRateRub: Int(response.weeklyRateRub),
+            totalPaidRub: Int(response.totalPaidRub),
+            debtRub: Int(response.debtRub),
+            totalAdjustmentRub: Int(response.totalAdjustmentRub)
         )
     }
 
@@ -683,7 +723,11 @@ final class BackendService: BackendServicing {
             bikeModel: response.bikeModel,
             videoUrl: response.videoUrl,
             contractUrl: response.contractUrl,
-            comment: response.comment
+            comment: response.comment,
+            weeklyRateRub: Int(response.weeklyRateRub),
+            totalPaidRub: Int(response.totalPaidRub),
+            debtRub: Int(response.debtRub),
+            totalAdjustmentRub: Int(response.totalAdjustmentRub)
         )
     }
 
@@ -805,6 +849,32 @@ final class BackendService: BackendServicing {
             clientId: response.clientId,
             debtRub: Int(response.debtRub),
             totalAdjustmentRub: Int(response.totalAdjustmentRub)
+        )
+    }
+
+    func applyCarriedDebtOperation(
+        accessToken: String,
+        clientId: String,
+        amountRub: Int,
+        kind: CarriedDebtOperationKind,
+        comment: String?
+    ) async throws -> CarriedDebtOperationResult {
+        let response: NativeCarriedDebtOperationResponse = try await sendNativeRequest(
+            path: "/admin/clients/\(clientId)/carried-debt",
+            method: "POST",
+            accessToken: accessToken,
+            body: NativeCarriedDebtOperationRequest(
+                amountRub: amountRub,
+                kind: kind.apiValue,
+                comment: comment
+            )
+        )
+        return CarriedDebtOperationResult(
+            clientId: response.clientId,
+            carriedDebtRub: response.carriedDebtRub,
+            appliedToCarriedRub: response.appliedToCarriedRub,
+            appliedToActiveRentalRub: response.appliedToActiveRentalRub,
+            activeRentalId: response.activeRentalId
         )
     }
 
@@ -1016,7 +1086,11 @@ final class BackendService: BackendServicing {
                 bikeModel: $0.bikeModel,
                 videoUrl: $0.videoUrl,
                 contractUrl: $0.contractUrl,
-                comment: $0.comment
+                comment: $0.comment,
+                weeklyRateRub: Int($0.weeklyRateRub),
+                totalPaidRub: Int($0.totalPaidRub),
+                debtRub: Int($0.debtRub),
+                totalAdjustmentRub: Int($0.totalAdjustmentRub)
             )
         }
 
@@ -1034,7 +1108,8 @@ final class BackendService: BackendServicing {
             debtRub: Int(details.debtRub),
             totalAdjustmentRub: Int(details.totalAdjustmentRub),
             phones: phones,
-            rentals: rentals
+            rentals: rentals,
+            carriedDebtRub: Int(details.carriedDebtRub)
         )
     }
 
@@ -1289,6 +1364,24 @@ final class LazyBackendService: BackendServicing {
                 clientId: clientId,
                 amountRub: amountRub,
                 sign: sign,
+                comment: comment
+            )
+        }
+    }
+
+    func applyCarriedDebtOperation(
+        accessToken: String,
+        clientId: String,
+        amountRub: Int,
+        kind: CarriedDebtOperationKind,
+        comment: String?
+    ) async throws -> CarriedDebtOperationResult {
+        try await withFallback { service in
+            try await service.applyCarriedDebtOperation(
+                accessToken: accessToken,
+                clientId: clientId,
+                amountRub: amountRub,
+                kind: kind,
                 comment: comment
             )
         }
