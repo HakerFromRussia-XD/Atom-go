@@ -158,9 +158,22 @@ final class AdminHomeViewModel: ObservableObject {
     }
 
     func updateBike(payload: UpdateBikePayload, onSuccess: (() -> Void)? = nil) {
-        isOperationInProgress = true
         operationErrorMessage = nil
         operationSuccessMessage = nil
+        let previousBike = bikes.first(where: { $0.bikeId == payload.bikeId })
+        let optimisticBike = AdminBikeResponse(
+            bikeId: payload.bikeId,
+            photoUrl: payload.photoUrl,
+            bikeModel: payload.bikeModel,
+            weeklyRateRub: payload.weeklyRateRub,
+            frameSerialNumber: payload.frameSerialNumber,
+            motorSerialNumber: payload.motorSerialNumber,
+            batterySerialNumber1: payload.batterySerialNumber1,
+            batterySerialNumber2: payload.batterySerialNumber2,
+            bikeIsInRental: previousBike?.bikeIsInRental ?? false
+        )
+        upsertBike(optimisticBike)
+        onSuccess?()
 
         Task {
             do {
@@ -169,14 +182,14 @@ final class AdminHomeViewModel: ObservableObject {
                     payload: payload
                 )
                 operationSuccessMessage = "Велосипед обновлен: \(bike.bikeModel)"
-                await refreshAfterMutation(scope: .bikes, openDetailsFor: nil)
-                await MainActor.run {
-                    onSuccess?()
-                }
+                upsertBike(bike)
             } catch {
+                if let previousBike,
+                   bikes.first(where: { $0.bikeId == payload.bikeId }) == optimisticBike {
+                    upsertBike(previousBike)
+                }
                 operationErrorMessage = error.localizedDescription
             }
-            isOperationInProgress = false
         }
     }
 

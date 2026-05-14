@@ -409,7 +409,7 @@ struct CreateRentalPayload {
     var comment: String?
 }
 
-struct AdminBikeResponse: Equatable, Identifiable {
+struct AdminBikeResponse: Decodable, Equatable, Identifiable {
     let bikeId: String
     let photoUrl: String?
     let bikeModel: String
@@ -423,6 +423,18 @@ struct AdminBikeResponse: Equatable, Identifiable {
     let bikeIsInRental: Bool
 
     var id: String { bikeId }
+
+    enum CodingKeys: String, CodingKey {
+        case bikeId = "bike_id"
+        case photoUrl = "photo_url"
+        case bikeModel = "bike_model"
+        case weeklyRateRub = "weekly_rate_rub"
+        case frameSerialNumber = "frame_serial_number"
+        case motorSerialNumber = "motor_serial_number"
+        case batterySerialNumber1 = "battery_serial_number_1"
+        case batterySerialNumber2 = "battery_serial_number_2"
+        case bikeIsInRental = "bike_is_in_rental"
+    }
 
     init(
         bikeId: String,
@@ -444,6 +456,19 @@ struct AdminBikeResponse: Equatable, Identifiable {
         self.batterySerialNumber1 = batterySerialNumber1
         self.batterySerialNumber2 = batterySerialNumber2
         self.bikeIsInRental = bikeIsInRental
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        bikeId = try container.decode(String.self, forKey: .bikeId)
+        photoUrl = try container.decodeIfPresent(String.self, forKey: .photoUrl)
+        bikeModel = try container.decode(String.self, forKey: .bikeModel)
+        weeklyRateRub = try container.decode(Int.self, forKey: .weeklyRateRub)
+        frameSerialNumber = try container.decode(String.self, forKey: .frameSerialNumber)
+        motorSerialNumber = try container.decode(String.self, forKey: .motorSerialNumber)
+        batterySerialNumber1 = try container.decode(String.self, forKey: .batterySerialNumber1)
+        batterySerialNumber2 = try container.decodeIfPresent(String.self, forKey: .batterySerialNumber2)
+        bikeIsInRental = try container.decodeIfPresent(Bool.self, forKey: .bikeIsInRental) ?? false
     }
 }
 

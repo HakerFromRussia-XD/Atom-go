@@ -95,6 +95,46 @@ private struct NativeUpdateReceiptEmailResponse: Decodable {
 
 private struct NativeEmptyRequest: Encodable {}
 
+private struct NativeAdminBikeRequest: Encodable {
+    let photoUrl: String?
+    let bikeModel: String
+    let weeklyRateRub: Int
+    let frameSerialNumber: String
+    let motorSerialNumber: String
+    let batterySerialNumber1: String
+    let batterySerialNumber2: String?
+
+    enum CodingKeys: String, CodingKey {
+        case photoUrl = "photo_url"
+        case bikeModel = "bike_model"
+        case weeklyRateRub = "weekly_rate_rub"
+        case frameSerialNumber = "frame_serial_number"
+        case motorSerialNumber = "motor_serial_number"
+        case batterySerialNumber1 = "battery_serial_number_1"
+        case batterySerialNumber2 = "battery_serial_number_2"
+    }
+
+    init(payload: CreateBikePayload) {
+        photoUrl = payload.photoUrl
+        bikeModel = payload.bikeModel
+        weeklyRateRub = payload.weeklyRateRub
+        frameSerialNumber = payload.frameSerialNumber
+        motorSerialNumber = payload.motorSerialNumber
+        batterySerialNumber1 = payload.batterySerialNumber1
+        batterySerialNumber2 = payload.batterySerialNumber2
+    }
+
+    init(payload: UpdateBikePayload) {
+        photoUrl = payload.photoUrl
+        bikeModel = payload.bikeModel
+        weeklyRateRub = payload.weeklyRateRub
+        frameSerialNumber = payload.frameSerialNumber
+        motorSerialNumber = payload.motorSerialNumber
+        batterySerialNumber1 = payload.batterySerialNumber1
+        batterySerialNumber2 = payload.batterySerialNumber2
+    }
+}
+
 private struct NativeUpdateRentalPipelineStatusRequest: Encodable {
     let pipelineStatus: String
 
@@ -323,7 +363,9 @@ private enum BackendErrorMessageParser {
         "bike serial numbers are already used": "Серийные номера уже используются в другом велосипеде.",
         "serial numbers must be unique inside bike": "Серийные номера в карточке велосипеда должны быть уникальными.",
         "invalid request body": "Некорректный формат данных. Проверьте заполнение полей.",
-        "internal server error": "Внутренняя ошибка сервера. Попробуйте ещё раз.",
+        // "internal server error" — этот маппинг убран. Backend теперь возвращает
+        // конкретное сообщение `internal server error: <Class> — <details>`, и для
+        // диагностики мы показываем его как есть через case 500..599 ниже.
         "unauthorized": "Сессия недействительна. Войдите снова.",
         "client not found": "Клиент не найден.",
         "rental not found": "Аренда не найдена.",
@@ -373,7 +415,10 @@ private enum BackendErrorMessageParser {
             case 409:
                 return "Конфликт данных: \(normalizedBackendMessage)"
             case 500 ... 599:
-                return "Ошибка сервера (\(code)). Попробуйте ещё раз."
+                // Backend теперь добавляет в message короткий className+description
+                // (см. Application.kt StatusPages). Показываем его — это критично
+                // для диагностики, generic «попробуйте ещё раз» бесполезен.
+                return "Ошибка сервера (\(code)): \(normalizedBackendMessage)"
             default:
                 return "Ошибка backend (\(code)): \(normalizedBackendMessage)"
             }
@@ -544,23 +589,12 @@ final class BackendService: BackendServicing {
     }
 
     func fetchAdminBikes(accessToken: String) async throws -> [AdminBikeResponse] {
-        let bikes: [shared.AdminBikeResponse] = try await awaitResult { completion in
-            self.apiClient.fetchAdminBikes(accessToken: accessToken, completionHandler: completion)
-        }
-
-        return bikes.map {
-            AdminBikeResponse(
-                bikeId: $0.bikeId,
-                photoUrl: $0.photoUrl,
-                bikeModel: $0.bikeModel,
-                weeklyRateRub: Int($0.weeklyRateRub),
-                frameSerialNumber: $0.frameSerialNumber,
-                motorSerialNumber: $0.motorSerialNumber,
-                batterySerialNumber1: $0.batterySerialNumber1,
-                batterySerialNumber2: $0.batterySerialNumber2,
-                bikeIsInRental: $0.bikeIsInRental
-            )
-        }
+        try await sendNativeRequest(
+            path: "/admin/bikes",
+            method: "GET",
+            accessToken: accessToken,
+            body: Optional<NativeEmptyRequest>.none
+        )
     }
 
     func fetchAdminRentalDetails(accessToken: String, rentalId: String) async throws -> AdminRentalDetailsResponse {
@@ -596,60 +630,20 @@ final class BackendService: BackendServicing {
     }
 
     func createAdminBike(accessToken: String, payload: CreateBikePayload) async throws -> AdminBikeResponse {
-        let request = shared.AdminCreateBikeRequest(
-            photoUrl: payload.photoUrl,
-            bikeModel: payload.bikeModel,
-            weeklyRateRub: Int32(payload.weeklyRateRub),
-            frameSerialNumber: payload.frameSerialNumber,
-            motorSerialNumber: payload.motorSerialNumber,
-            batterySerialNumber1: payload.batterySerialNumber1,
-            batterySerialNumber2: payload.batterySerialNumber2
-        )
-        let bike: shared.AdminBikeResponse = try await awaitResult { completion in
-            self.apiClient.createAdminBike(accessToken: accessToken, requestBody: request, completionHandler: completion)
-        }
-        return AdminBikeResponse(
-            bikeId: bike.bikeId,
-            photoUrl: bike.photoUrl,
-            bikeModel: bike.bikeModel,
-            weeklyRateRub: Int(bike.weeklyRateRub),
-            frameSerialNumber: bike.frameSerialNumber,
-            motorSerialNumber: bike.motorSerialNumber,
-            batterySerialNumber1: bike.batterySerialNumber1,
-            batterySerialNumber2: bike.batterySerialNumber2,
-            bikeIsInRental: bike.bikeIsInRental
+        try await sendNativeRequest(
+            path: "/admin/bikes",
+            method: "POST",
+            accessToken: accessToken,
+            body: NativeAdminBikeRequest(payload: payload)
         )
     }
 
     func updateAdminBike(accessToken: String, payload: UpdateBikePayload) async throws -> AdminBikeResponse {
-        let request = shared.AdminUpdateBikeRequest(
-            photoUrl: payload.photoUrl,
-            bikeModel: payload.bikeModel,
-            weeklyRateRub: Int32(payload.weeklyRateRub),
-            frameSerialNumber: payload.frameSerialNumber,
-            motorSerialNumber: payload.motorSerialNumber,
-            batterySerialNumber1: payload.batterySerialNumber1,
-            batterySerialNumber2: payload.batterySerialNumber2
-        )
-        let bike: shared.AdminBikeResponse = try await awaitResult { completion in
-            self.apiClient.updateAdminBike(
-                accessToken: accessToken,
-                bikeId: payload.bikeId,
-                requestBody: request,
-                completionHandler: completion
-            )
-        }
-
-        return AdminBikeResponse(
-            bikeId: bike.bikeId,
-            photoUrl: bike.photoUrl,
-            bikeModel: bike.bikeModel,
-            weeklyRateRub: Int(bike.weeklyRateRub),
-            frameSerialNumber: bike.frameSerialNumber,
-            motorSerialNumber: bike.motorSerialNumber,
-            batterySerialNumber1: bike.batterySerialNumber1,
-            batterySerialNumber2: bike.batterySerialNumber2,
-            bikeIsInRental: bike.bikeIsInRental
+        try await sendNativeRequest(
+            path: "/admin/bikes/\(payload.bikeId)",
+            method: "POST",
+            accessToken: accessToken,
+            body: NativeAdminBikeRequest(payload: payload)
         )
     }
 

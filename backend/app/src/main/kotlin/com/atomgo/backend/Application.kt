@@ -1942,9 +1942,14 @@ fun Application.module() {
                 }
                 else -> {
                     call.application.environment.log.error("Unhandled backend exception", cause)
+                    // В response отдаём короткое имя класса + сообщение —
+                    // помогает быстро диагностировать причину 500 без доступа к
+                    // backend-логам. Stack trace НЕ отдаём (мог бы утечь PII / пути).
+                    val cls = cause::class.simpleName ?: "Throwable"
+                    val msg = cause.message?.take(200) ?: "(no message)"
                     call.respond(
                         HttpStatusCode.InternalServerError,
-                        ApiErrorResponse(message = "internal server error")
+                        ApiErrorResponse(message = "internal server error: $cls — $msg")
                     )
                 }
             }

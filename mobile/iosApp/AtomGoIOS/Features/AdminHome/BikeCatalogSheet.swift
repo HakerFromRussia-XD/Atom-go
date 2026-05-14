@@ -43,9 +43,30 @@ struct BikeCatalogSheet: View {
         let activeCount: Int
         let totalDebtRub: Int
         let borderColor: Color
+
+        static let idle = BikeCatalogRuntimeSnapshot(
+            hasActiveRental: false,
+            activeCount: 0,
+            totalDebtRub: 0,
+            borderColor: Color(red: 203 / 255, green: 48 / 255, blue: 224 / 255)
+        )
+    }
+
+    private struct BikeCatalogProjection {
+        let visibleBikes: [AdminBikeResponse]
+        let allCount: Int
+        let freeCount: Int
+        let rentedCount: Int
+        let snapshotsByBikeId: [String: BikeCatalogRuntimeSnapshot]
+
+        func snapshot(for bike: AdminBikeResponse) -> BikeCatalogRuntimeSnapshot {
+            snapshotsByBikeId[bike.bikeId] ?? .idle
+        }
     }
 
     var body: some View {
+        let projection = makeProjection()
+
         ZStack(alignment: .top) {
             athensGray.ignoresSafeArea()
 
@@ -76,13 +97,13 @@ struct BikeCatalogSheet: View {
                                 .accessibilityIdentifier("bikeCatalog.error")
                         }
 
-                        if visibleBikes.isEmpty {
+                        if projection.visibleBikes.isEmpty {
                             bikeEmptyState
                                 .padding(.top, 10)
                         } else {
                             LazyVStack(spacing: 10) {
-                                ForEach(visibleBikes) { bike in
-                                    bikeRow(bike)
+                                ForEach(projection.visibleBikes) { bike in
+                                    bikeRow(bike, runtime: projection.snapshot(for: bike))
                                 }
                             }
                             .padding(.top, 10)
@@ -120,7 +141,7 @@ struct BikeCatalogSheet: View {
             }
             .zIndex(2)
 
-            bikeChipRows
+            bikeChipRows(projection: projection)
                 .padding(.horizontal, horizontalInset)
                 .frame(height: chipsHeight, alignment: .topLeading)
                 .offset(y: chipsTop)
@@ -204,11 +225,11 @@ struct BikeCatalogSheet: View {
         }
     }
 
-    private var bikeChipRows: some View {
+    private func bikeChipRows(projection: BikeCatalogProjection) -> some View {
         HStack(spacing: 8) {
-            bikeFilterChip(.all, count: bikes.count)
-            bikeFilterChip(.free, count: bikes.filter { !snapshot(for: $0).hasActiveRental }.count)
-            bikeFilterChip(.rented, count: bikes.filter { snapshot(for: $0).hasActiveRental }.count)
+            bikeFilterChip(.all, count: projection.allCount)
+            bikeFilterChip(.free, count: projection.freeCount)
+            bikeFilterChip(.rented, count: projection.rentedCount)
         }
     }
 
@@ -281,30 +302,47 @@ struct BikeCatalogSheet: View {
         .accessibilityIdentifier("bikeCatalog.searchField")
     }
 
-    private var visibleBikes: [AdminBikeResponse] {
-        let normalizedQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let searched = bikes.filter { bike in
-            guard !normalizedQuery.isEmpty else { return true }
-            return bike.bikeModel.lowercased().contains(normalizedQuery)
-                || bike.frameSerialNumber.lowercased().contains(normalizedQuery)
-                || bike.motorSerialNumber.lowercased().contains(normalizedQuery)
-                || bike.batterySerialNumber1.lowercased().contains(normalizedQuery)
-                || (bike.batterySerialNumber2?.lowercased().contains(normalizedQuery) ?? false)
+    private func makeProjection() -> BikeCatalogProjection {
+        let activeRentalsByBikeModel = Dictionary(
+            grouping: rentals.filter(\.rentalIsActive),
+            by: { normalizedSearchText($0.bikeModel) }
+        )
+        var snapshotsByBikeId: [String: BikeCatalogRuntimeSnapshot] = [:]
+        snapshotsByBikeId.reserveCapacity(bikes.count)
+
+        for bike in bikes {
+            let activeRentals = activeRentalsByBikeModel[normalizedSearchText(bike.bikeModel)] ?? []
+            snapshotsByBikeId[bike.bikeId] = runtimeSnapshot(activeRentals: activeRentals)
         }
 
+        let normalizedQuery = normalizedSearchText(searchText)
+        let searched = bikes.filter { bike in
+            normalizedQuery.isEmpty || bikeMatchesSearch(bike, query: normalizedQuery)
+        }
         let filtered: [AdminBikeResponse]
         switch selectedFilter {
         case .all:
             filtered = searched
         case .free:
-            filtered = searched.filter { !snapshot(for: $0).hasActiveRental }
+            filtered = searched.filter { !(snapshotsByBikeId[$0.bikeId]?.hasActiveRental ?? false) }
         case .rented:
-            filtered = searched.filter { snapshot(for: $0).hasActiveRental }
+            filtered = searched.filter { snapshotsByBikeId[$0.bikeId]?.hasActiveRental ?? false }
         }
 
-        return filtered.sorted {
+        let visibleBikes = filtered.sorted {
             $0.bikeModel.localizedCaseInsensitiveCompare($1.bikeModel) == .orderedAscending
         }
+        let rentedCount = snapshotsByBikeId.values.reduce(0) { partial, snapshot in
+            partial + (snapshot.hasActiveRental ? 1 : 0)
+        }
+
+        return BikeCatalogProjection(
+            visibleBikes: visibleBikes,
+            allCount: bikes.count,
+            freeCount: max(0, bikes.count - rentedCount),
+            rentedCount: rentedCount,
+            snapshotsByBikeId: snapshotsByBikeId
+        )
     }
 
     private func bikeFilterChip(_ filter: BikeCatalogFilter, count: Int) -> some View {
@@ -399,8 +437,7 @@ struct BikeCatalogSheet: View {
         .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
     }
 
-    private func bikeRow(_ bike: AdminBikeResponse) -> some View {
-        let runtime = snapshot(for: bike)
+    private func bikeRow(_ bike: AdminBikeResponse, runtime: BikeCatalogRuntimeSnapshot) -> some View {
         let hasDebt = runtime.totalDebtRub > 0
 
         return Button {
@@ -497,13 +534,7 @@ struct BikeCatalogSheet: View {
         .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
     }
 
-    private func snapshot(for bike: AdminBikeResponse) -> BikeCatalogRuntimeSnapshot {
-        let matchedRentals = rentals.filter { summary in
-            summary.bikeModel.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            == bike.bikeModel.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        }
-
-        let activeRentals = matchedRentals.filter { $0.rentalIsActive }
+    private func runtimeSnapshot(activeRentals: [AdminClientSummaryResponse]) -> BikeCatalogRuntimeSnapshot {
         let hasActiveRental = !activeRentals.isEmpty
         let totalDebt = activeRentals.reduce(0) { partial, item in
             partial + max(0, item.debtRub)
@@ -524,6 +555,18 @@ struct BikeCatalogSheet: View {
             totalDebtRub: totalDebt,
             borderColor: borderColor
         )
+    }
+
+    private func bikeMatchesSearch(_ bike: AdminBikeResponse, query: String) -> Bool {
+        normalizedSearchText(bike.bikeModel).contains(query)
+            || normalizedSearchText(bike.frameSerialNumber).contains(query)
+            || normalizedSearchText(bike.motorSerialNumber).contains(query)
+            || normalizedSearchText(bike.batterySerialNumber1).contains(query)
+            || normalizedSearchText(bike.batterySerialNumber2 ?? "").contains(query)
+    }
+
+    private func normalizedSearchText(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
     private func formattedCompactRub(_ amount: Int) -> String {
