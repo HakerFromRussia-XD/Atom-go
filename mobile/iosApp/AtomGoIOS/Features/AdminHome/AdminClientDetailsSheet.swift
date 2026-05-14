@@ -30,6 +30,8 @@ struct AdminClientDetailsSheet: View {
     @State private var isProfileEditorPresented = false
     @State private var isCreateRentalPresented = false
     @State private var isDeleteClientConfirmationPresented = false
+    @State private var toastMessage: String?
+    @State private var toastDismissTask: Task<Void, Never>?
 
     var body: some View {
         ZStack {
@@ -57,16 +59,17 @@ struct AdminClientDetailsSheet: View {
             } else if let details {
                 VStack(spacing: 0) {
                     clientDetailsTopBar(details)
+                        .padding(.top, 8)
+                        .padding(.horizontal, 8)
 
                     ScrollView(showsIndicators: false) {
                         VStack(alignment: .leading, spacing: 20) {
                             clientStatusCard(details)
                             profileBlock(details)
                             rentalHistoryBlock(details)
-                            operationMessages
                         }
-                        .padding(.horizontal, 23)
-                        .padding(.top, 14)
+                        .padding(.horizontal, 8)
+                        .padding(.top, 8)
                         .padding(.bottom, 126)
                     }
                 }
@@ -123,6 +126,13 @@ struct AdminClientDetailsSheet: View {
                 Color.clear
             }
         }
+        .onChange(of: operationErrorMessage) { newValue in
+            presentToast(newValue)
+        }
+        .onChange(of: operationSuccessMessage) { newValue in
+            presentToast(newValue)
+        }
+        .appToast(message: $toastMessage, bottomPadding: 96)
     }
 
     private func clientDetailsTopBar(_ details: AdminClientDetailsResponse) -> some View {
@@ -148,8 +158,7 @@ struct AdminClientDetailsSheet: View {
                 .opacity(details.rentals.isEmpty ? 1 : 0.45)
             }
         }
-        .padding(.horizontal, 23)
-        .frame(height: 86)
+        .frame(height: 62)
     }
 
     private func detailsTopButton(
@@ -447,17 +456,15 @@ struct AdminClientDetailsSheet: View {
             .foregroundStyle(AppDesign.subtleText)
     }
 
-    @ViewBuilder
-    private var operationMessages: some View {
-        if let operationErrorMessage {
-            Text(operationErrorMessage)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(AppDesign.danger)
-        }
-        if let operationSuccessMessage {
-            Text(operationSuccessMessage)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(AppDesign.success)
+    private func presentToast(_ message: String?) {
+        guard let message = message?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !message.isEmpty else { return }
+        toastDismissTask?.cancel()
+        toastMessage = message
+        toastDismissTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            guard !Task.isCancelled else { return }
+            toastMessage = nil
         }
     }
 
@@ -742,4 +749,3 @@ struct AdminClientDetailsSheet: View {
         openURL(url)
     }
 }
-

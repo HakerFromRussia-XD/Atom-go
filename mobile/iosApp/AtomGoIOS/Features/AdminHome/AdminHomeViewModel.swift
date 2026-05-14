@@ -373,7 +373,7 @@ final class AdminHomeViewModel: ObservableObject {
         }
     }
 
-    func finishRental(clientId: String, rentalId: String) {
+    func finishRental(clientId: String, rentalId: String, onSuccess: (() -> Void)? = nil) {
         isOperationInProgress = true
         operationErrorMessage = nil
         operationSuccessMessage = nil
@@ -387,6 +387,12 @@ final class AdminHomeViewModel: ObservableObject {
                 operationSuccessMessage = "Аренда завершена"
                 // Finish: client.rentalIsActive флипнулся (catalog), rents меняется.
                 await refreshAfterMutation(scope: .rentalMutation, openDetailsFor: nil)
+                // onSuccess зовётся ТОЛЬКО после того как backend отработал finish
+                // и мы освежили списки. Без этого call-сайт зовёт openRentalDetails
+                // параллельно с finish и получает старые details (race condition).
+                await MainActor.run {
+                    onSuccess?()
+                }
             } catch {
                 operationErrorMessage = error.localizedDescription
             }
@@ -592,6 +598,11 @@ final class AdminHomeViewModel: ObservableObject {
         let detailsClientId: String? = (normalizedClientId?.isEmpty == false && selectedClientDetails != nil)
             ? normalizedClientId
             : nil
+        // Если открыт экран деталей аренды — тоже его перезаливаем. Без этого
+        // selectedRentalDetails оставался устаревшим (login/password/статус
+        // прежней client_rental), и при последующем «Создать новую!» payload
+        // мог уйти с уже неактуальными данными.
+        let rentalDetailsId: String? = selectedRentalDetails?.rentalId
         let accessToken = session.accessToken
         let api = apiService
 
@@ -613,6 +624,15 @@ final class AdminHomeViewModel: ObservableObject {
                         } catch {
                             // Details — не критичны для refresh, ошибку проглатываем.
                             return .details(nil)
+                        }
+                    }
+                }
+                if let rentalId = rentalDetailsId {
+                    group.addTask {
+                        do {
+                            return .rentalDetails(try await api.fetchAdminRentalDetails(accessToken: accessToken, rentalId: rentalId))
+                        } catch {
+                            return .rentalDetails(nil)
                         }
                     }
                 }
@@ -638,6 +658,7 @@ final class AdminHomeViewModel: ObservableObject {
         case catalog([AdminClientSummaryResponse])
         case bikes([AdminBikeResponse])
         case details(AdminClientDetailsResponse?)
+        case rentalDetails(AdminRentalDetailsResponse?)
     }
 
     private func apply(_ partial: PartialRefreshResult) {
@@ -651,6 +672,10 @@ final class AdminHomeViewModel: ObservableObject {
         case .details(let value):
             if let value {
                 selectedClientDetails = value
+            }
+        case .rentalDetails(let value):
+            if let value {
+                selectedRentalDetails = value
             }
         }
     }

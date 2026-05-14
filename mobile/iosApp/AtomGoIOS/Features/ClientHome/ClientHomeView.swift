@@ -24,6 +24,8 @@ struct ClientHomeView: View {
     @State private var isReceiptEmailDialogPresented = false
     @State private var pendingPaymentType: ClientPaymentType?
     @State private var receiptEmail = ""
+    @State private var toastMessage: String?
+    @State private var toastDismissTask: Task<Void, Never>?
 
     private let baseWidth: CGFloat = 414
     private let baseHeight: CGFloat = 896
@@ -82,6 +84,12 @@ struct ClientHomeView: View {
                 }
             }
         }
+        .onChange(of: viewModel.paymentErrorMessage) { newValue in
+            presentToast(newValue)
+        }
+        .onChange(of: viewModel.paymentStatusMessage) { newValue in
+            presentToast(newValue)
+        }
         .sheet(
             isPresented: $isSafariPresented,
             onDismiss: {
@@ -113,6 +121,7 @@ struct ClientHomeView: View {
         } message: {
             Text("Укажите email, куда ЮKassa отправит чек.")
         }
+        .appToast(message: $toastMessage, bottomPadding: 86)
     }
 
     private func loadingView(scale: CGFloat, safeTop: CGFloat) -> some View {
@@ -199,22 +208,6 @@ struct ClientHomeView: View {
                                 .foregroundStyle(ClientColors.subtleText)
                         }
                         .padding(.top, 14 * scale)
-                    }
-
-                    if let paymentErrorMessage = viewModel.paymentErrorMessage {
-                        Text(paymentErrorMessage)
-                            .font(.system(size: 12 * scale, weight: .medium))
-                            .foregroundStyle(ClientColors.debt)
-                            .padding(.top, 14 * scale)
-                            .accessibilityIdentifier("client.paymentErrorMessage")
-                    }
-
-                    if let paymentStatusMessage = viewModel.paymentStatusMessage {
-                        Text(paymentStatusMessage)
-                            .font(.system(size: 12 * scale, weight: .medium))
-                            .foregroundStyle(ClientColors.success)
-                            .padding(.top, 12 * scale)
-                            .accessibilityIdentifier("client.paymentStatusMessage")
                     }
 
                     if let payment = viewModel.paymentResult {
@@ -313,6 +306,18 @@ struct ClientHomeView: View {
             }
         }
         .padding(.top, 10 * scale)
+    }
+
+    private func presentToast(_ message: String?) {
+        guard let message = message?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !message.isEmpty else { return }
+        toastDismissTask?.cancel()
+        toastMessage = message
+        toastDismissTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            guard !Task.isCancelled else { return }
+            toastMessage = nil
+        }
     }
 
     private func bikeCard(dashboard: ClientDashboardResponse, scale: CGFloat) -> some View {

@@ -123,6 +123,26 @@ struct AdminRentalDetailsScreen: View {
             didInitializeCredentialDrafts = true
             startValidationMessage = nil
         }
+        // Lifecycle перешёл в IN_STOCK (через `Завершить` или delete активной
+        // client_rental) — credentials НАДО СБРОСИТЬ, иначе при «Создать новую!»
+        // payload пойдёт с предыдущими login/password.
+        //
+        // ВАЖНО: реагируем ТОЛЬКО когда смотрим саму lifecycle-аренду, а не
+        // её закрытую client_rental из истории. Backend для закрытой
+        // client_rental возвращает rentalPipelineStatus родительского
+        // lifecycle (может быть "in_stock" если велик сейчас не на руках),
+        // и тогда сброс editable* вытер бы исторические credentials в UI.
+        // Признак «это закрытая client_rental» — непустой completedAt.
+        .onChange(of: (details?.rentalPipelineStatus ?? "")) { newStatus in
+            let isInStockNow = newStatus == "in_stock" || newStatus == "mine"
+            let isViewingClosedClientRental = !(details?.completedAt?.isEmpty ?? true)
+            if isInStockNow && !isViewingClosedClientRental {
+                selectedStartClientId = nil
+                editableRentalLogin = ""
+                editableRentalPassword = ""
+                startValidationMessage = nil
+            }
+        }
         .onAppear {
             guard !didInitializeCredentialDrafts else { return }
             editableRentalLogin = normalizedCredential(details?.clientLogin)
@@ -139,21 +159,7 @@ struct AdminRentalDetailsScreen: View {
         .onChange(of: editableRentalPassword) { _ in
             startValidationMessage = nil
         }
-        .overlay(alignment: .bottom) {
-            if let copyToastMessage, !copyToastMessage.isEmpty {
-                Text(copyToastMessage)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Color.black)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(Color.white.opacity(0.98))
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .shadow(color: Color.black.opacity(0.16), radius: 10, x: 0, y: 4)
-                    .padding(.bottom, 86)
-                    .transition(.opacity.combined(with: .move(edge: .bottom)))
-            }
-        }
-        .animation(.easeInOut(duration: 0.18), value: copyToastMessage)
+        .appToast(message: $copyToastMessage, bottomPadding: 86)
     }
 
     private var topBar: some View {
@@ -379,7 +385,14 @@ struct AdminRentalDetailsScreen: View {
                 credentialField(
                     title: "ЛОГИН",
                     text: $editableRentalLogin,
-                    isEditable: !runningRentalIsActive,
+                    // Редактируется ТОЛЬКО в lifecycle-аренде в статусе IN_STOCK
+                    // (черновик credentials для следующей client_rental).
+                    // В активной аренде и в закрытой client_rental поля
+                    // read-only — показывают серверный login/password.
+                    // Раньше тут было `!runningRentalIsActive`, что давало
+                    // editable также для закрытой client_rental и сбрасывало
+                    // её серверные credentials в UI до прочерков.
+                    isEditable: isInStockState,
                     readOnlyText: displayPolicy.readOnlyCredentialText(
                         serverValue: details?.clientLogin ?? fallbackSummary?.clientLogin,
                         draftValue: editableRentalLogin
@@ -389,7 +402,7 @@ struct AdminRentalDetailsScreen: View {
                 credentialField(
                     title: "ПАРОЛЬ",
                     text: $editableRentalPassword,
-                    isEditable: !runningRentalIsActive,
+                    isEditable: isInStockState,
                     readOnlyText: displayPolicy.readOnlyCredentialText(
                         serverValue: details?.clientPassword,
                         draftValue: editableRentalPassword
@@ -999,4 +1012,3 @@ struct AdminRentalDetailsScreen: View {
         return formatter
     }()
 }
-

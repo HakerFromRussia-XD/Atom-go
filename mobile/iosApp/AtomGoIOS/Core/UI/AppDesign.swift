@@ -19,3 +19,33 @@ enum AppDesign {
         Font.custom("UrbanistRoman-Bold", size: size)
     }
 }
+
+struct AppToastModifier: ViewModifier {
+    @Binding var message: String?
+    var bottomPadding: CGFloat = 86
+
+    func body(content: Content) -> some View {
+        content
+            .overlay(alignment: .bottom) {
+                if let message, !message.isEmpty {
+                    Text(message)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Color.black)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(Color.white.opacity(0.98))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .shadow(color: Color.black.opacity(0.16), radius: 10, x: 0, y: 4)
+                        .padding(.bottom, bottomPadding)
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
+            }
+            .animation(.easeInOut(duration: 0.18), value: message)
+    }
+}
+
+extension View {
+    func appToast(message: Binding<String?>, bottomPadding: CGFloat = 86) -> some View {
+        modifier(AppToastModifier(message: message, bottomPadding: bottomPadding))
+    }
+}

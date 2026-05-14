@@ -2156,9 +2156,12 @@ fun Application.module() {
                     return@get
                 }
 
+                // Журнал клиента — СТРОГО его текущей client_rental
+                // (docs/01_scope_freeze.md §2). carriedDebt-операции и legacy-entries
+                // без rentalId — это история клиента, не показываются здесь.
                 val entries = store.ledger
                     .asSequence()
-                    .filter { entry -> entry.rentalId == rentalId || (entry.clientId == session.clientId && entry.rentalId == null) }
+                    .filter { entry -> entry.rentalId == rentalId }
                     .sortedByDescending { it.createdAt }
                     .map { entry ->
                         ApiClientLedgerEntryResponse(
@@ -2316,12 +2319,15 @@ fun Application.module() {
                     val journal = if (targetClientRental == null || lifecycleRental?.pipelineStatus == RentalPipelineStatus.IN_STOCK) {
                         emptyList()
                     } else {
+                        // Журнал — СТРОГО этой client_rental (docs/01_scope_freeze.md §2,
+                        // docs/14_rental_lifecycle.md §1: «история платежей принадлежит
+                        // клиентской аренде»). Без второго условия (по clientId &
+                        // rentalId == null) журнал новой аренды содержал бы carriedDebt
+                        // операции прошлых аренд того же клиента — это и приводило
+                        // к багу «в новой аренде журнал старой».
                         store.ledger
                             .asSequence()
-                            .filter { entry ->
-                                entry.rentalId == targetClientRental.id ||
-                                    (entry.clientId == targetClientRental.clientId && entry.rentalId == null)
-                            }
+                            .filter { entry -> entry.rentalId == targetClientRental.id }
                             .sortedByDescending { it.createdAt }
                             .map { entry ->
                                 ApiAdminRentalJournalEntryResponse(

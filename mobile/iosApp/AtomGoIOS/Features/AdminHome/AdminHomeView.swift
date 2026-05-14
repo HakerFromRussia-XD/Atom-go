@@ -248,6 +248,8 @@ struct AdminHomeView: View {
     @State private var areFiltersInteractive = true
     @State private var initialCardsTopY: CGFloat?
     @State private var didHandleStartupDeepLink = false
+    @State private var toastMessage: String?
+    @State private var toastDismissTask: Task<Void, Never>?
 
     var body: some View {
         NavigationStack {
@@ -304,6 +306,12 @@ struct AdminHomeView: View {
         }
         .onAppear {
             openStartupRentalIfNeeded()
+        }
+        .onChange(of: viewModel.operationErrorMessage) { newValue in
+            presentToast(newValue)
+        }
+        .onChange(of: viewModel.operationSuccessMessage) { newValue in
+            presentToast(newValue)
         }
         .fullScreenCover(isPresented: $isCreateRentalSheetPresented) {
             CreateRentalSheet(
@@ -440,8 +448,14 @@ struct AdminHomeView: View {
                     )
                 },
                 onFinishRental: { clientId, rentalId in
-                    viewModel.finishRental(clientId: clientId, rentalId: rentalId)
-                    viewModel.openRentalDetails(rentalId: rentalId)
+                    // openRentalDetails ОБЯЗАТЕЛЬНО после завершения finish,
+                    // иначе GET летит параллельно POST'у и возвращает старые
+                    // данные (lifecycle ещё long_term, активная client_rental
+                    // не закрыта). Это превращалось в «данные старой» при
+                    // последующем «Создать новую!».
+                    viewModel.finishRental(clientId: clientId, rentalId: rentalId) {
+                        viewModel.openRentalDetails(rentalId: rentalId)
+                    }
                 },
                 onStartRental: { payload in
                     viewModel.startClientRentalInExisting(
@@ -508,6 +522,7 @@ struct AdminHomeView: View {
                 viewModel.load()
             }
         }
+        .appToast(message: $toastMessage, bottomPadding: 96)
     }
 
     private func openStartupRentalIfNeeded() {
@@ -603,22 +618,6 @@ struct AdminHomeView: View {
                         .allowsHitTesting(false)
 
                     VStack(alignment: .leading, spacing: 15) {
-                        if let errorText = viewModel.operationErrorMessage {
-                            messageBanner(
-                                title: "Ошибка операции",
-                                text: errorText,
-                                color: AppDesign.danger
-                            )
-                        }
-
-                        if let successText = viewModel.operationSuccessMessage {
-                            messageBanner(
-                                title: "Успешно",
-                                text: successText,
-                                color: AppDesign.success
-                            )
-                        }
-
                         let visibleClients = filteredClients(clients)
 
                         if visibleClients.isEmpty {
@@ -1274,18 +1273,15 @@ struct AdminHomeView: View {
             .foregroundStyle(AppDesign.iconSoft)
     }
 
-    private func messageBanner(title: String, text: String, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.caption.weight(.bold))
-                .foregroundStyle(color)
-            Text(text)
-                .font(.subheadline)
-                .foregroundStyle(AppDesign.titleText)
+    private func presentToast(_ message: String?) {
+        guard let message = message?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !message.isEmpty else { return }
+        toastDismissTask?.cancel()
+        toastMessage = message
+        toastDismissTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            guard !Task.isCancelled else { return }
+            toastMessage = nil
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(AppDesign.cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
