@@ -288,7 +288,9 @@ data class AdminUpdateRentalRequest(
 data class AdminDeleteRentalResponse(
     @SerialName("rental_id")
     val rentalId: String,
-    val deleted: Boolean
+    val deleted: Boolean,
+    @SerialName("delete_kind")
+    val deleteKind: String
 )
 
 @Serializable

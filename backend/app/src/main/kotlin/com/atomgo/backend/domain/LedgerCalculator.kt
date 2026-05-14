@@ -25,9 +25,17 @@ object LedgerCalculator {
 
     private fun LedgerEntry.belongsTo(clientId: String, rentalId: String?): Boolean {
         if (this.clientId != clientId) return false
-        // Legacy records were created before rental_id existed. Keep them visible for the
-        // active rental until we run a dedicated historical migration.
-        return rentalId == null || this.rentalId == rentalId || this.rentalId == null
+        // Раньше fallback `this.rentalId == null` включал legacy-entries без
+        // rentalId в долг любой аренды этого клиента. Но carriedDebt-операции
+        // (admin списание/приём оплаты перенесённого долга) тоже создают entries
+        // с rentalId == null, и они смешивались с расчётом активной аренды:
+        // долг конкретной client_rental в /admin/rentals/{id} получался меньше,
+        // чем в /admin/clients/{id}.rentals[].debtRub (где фильтрация
+        // groupBy исключала null-rentalId entries). Теперь строго: entry
+        // принадлежит конкретной client_rental ТОЛЬКО если её rentalId совпадает.
+        // legacy-данные мигрируются через ensureClientRentalModel
+        // (rentalId перепривязывается на новый ClientRentalRecord.id).
+        return rentalId == null || this.rentalId == rentalId
     }
 
     fun totalPaidRub(entries: List<LedgerEntry>, clientId: String, rentalId: String? = null): Int {

@@ -191,6 +191,85 @@ private struct NativeStartClientRentalInExistingResponse: Decodable {
     }
 }
 
+/// Native DTO для GET /admin/clients/{id} — раньше шёл через KMP-bridge с
+/// собственным таймаутом 5 секунд (от Ktor-клиента в shared module), который
+/// я не мог поправить из Swift. На клиентах с большой историей аренд
+/// (Иван Петров с десятками closed client_rental) сериализация через
+/// KMP-bridge не укладывалась в этот таймаут. Прямой URLSession-путь
+/// использует мой 12-секундный timeout и значительно быстрее.
+private struct NativeAdminClientPhone: Decodable {
+    let label: String
+    let number: String
+}
+
+private struct NativeAdminRentalHistoryItem: Decodable {
+    let rentalId: String
+    let bikeId: String
+    let bikeAvatarUrl: String
+    let periodStart: String
+    let periodEnd: String?
+    let bikeModel: String
+    let videoUrl: String?
+    let contractUrl: String?
+    let comment: String?
+    let weeklyRateRub: Int
+    let totalPaidRub: Int
+    let debtRub: Int
+    let totalAdjustmentRub: Int
+
+    enum CodingKeys: String, CodingKey {
+        case rentalId = "rental_id"
+        case bikeId = "bike_id"
+        case bikeAvatarUrl = "bike_avatar_url"
+        case periodStart = "period_start"
+        case periodEnd = "period_end"
+        case bikeModel = "bike_model"
+        case videoUrl = "video_url"
+        case contractUrl = "contract_url"
+        case comment
+        case weeklyRateRub = "weekly_rate_rub"
+        case totalPaidRub = "total_paid_rub"
+        case debtRub = "debt_rub"
+        case totalAdjustmentRub = "total_adjustment_rub"
+    }
+}
+
+private struct NativeAdminClientDetailsResponse: Decodable {
+    let clientId: String
+    let fullName: String
+    let address: String
+    let passportData: String
+    let weeklyRateRub: Int
+    let bikeModel: String
+    let bikeAvatarUrl: String
+    let rentalStart: String
+    let paidUntil: String
+    let totalPaidRub: Int
+    let debtRub: Int
+    let totalAdjustmentRub: Int
+    let phones: [NativeAdminClientPhone]
+    let rentals: [NativeAdminRentalHistoryItem]
+    let carriedDebtRub: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case clientId = "client_id"
+        case fullName = "full_name"
+        case address
+        case passportData = "passport_data"
+        case weeklyRateRub = "weekly_rate_rub"
+        case bikeModel = "bike_model"
+        case bikeAvatarUrl = "bike_avatar_url"
+        case rentalStart = "rental_start"
+        case paidUntil = "paid_until"
+        case totalPaidRub = "total_paid_rub"
+        case debtRub = "debt_rub"
+        case totalAdjustmentRub = "total_adjustment_rub"
+        case phones
+        case rentals
+        case carriedDebtRub = "carried_debt_rub"
+    }
+}
+
 private struct NativeCarriedDebtOperationRequest: Encodable {
     let amountRub: Int
     let kind: String
@@ -456,8 +535,12 @@ final class BackendService: BackendServicing {
         self.baseUrl = baseUrl
         self.apiClient = AtomGoApiClient(baseUrl: baseUrl)
         let configuration = URLSessionConfiguration.ephemeral
-        configuration.timeoutIntervalForRequest = 5
-        configuration.timeoutIntervalForResource = 8
+        // 5 секунд было слишком близко к краю — даже после оптимизаций backend
+        // на холодном Postgres-сохранении или JIT-разогреве JVM мог не уложиться.
+        // 12 секунд — комфортный запас для admin flow; для health-check сохранена
+        // более жёсткая `quickHealthCheckTimeout = 0.6`.
+        configuration.timeoutIntervalForRequest = 12
+        configuration.timeoutIntervalForResource = 15
         self.urlSession = URLSession(configuration: configuration)
         self.jsonEncoder = JSONEncoder()
         self.jsonDecoder = JSONDecoder()
@@ -607,10 +690,61 @@ final class BackendService: BackendServicing {
     }
 
     func fetchAdminClientDetails(accessToken: String, clientId: String) async throws -> AdminClientDetailsResponse {
-        let details: shared.AdminClientDetailsResponse = try await awaitResult { completion in
-            self.apiClient.fetchAdminClientDetails(accessToken: accessToken, clientId: clientId, completionHandler: completion)
+        // Раньше шло через KMP-bridge с 5-секундным таймаутом и тяжёлой
+        // kotlinx-serialization. Для клиентов с большой историей (8+ аренд)
+        // не успевало. Native URLSession-путь использует мой 12-секундный
+        // timeout и быстрее парсит ответ через Codable.
+        let native: NativeAdminClientDetailsResponse = try await sendNativeRequest(
+            path: "/admin/clients/\(clientId)",
+            method: "GET",
+            accessToken: accessToken,
+            body: Optional<NativeEmptyRequest>.none
+        )
+        return mapNativeAdminClientDetails(native)
+    }
+
+    private func mapNativeAdminClientDetails(_ native: NativeAdminClientDetailsResponse) -> AdminClientDetailsResponse {
+        let phones = native.phones.enumerated().map { index, phone in
+            AdminClientPhone(
+                id: "\(native.clientId)-phone-\(index)",
+                label: phone.label,
+                number: phone.number
+            )
         }
-        return mapAdminClientDetails(details)
+        let rentals = native.rentals.map { rental in
+            AdminRentalHistoryItem(
+                id: rental.rentalId,
+                bikeId: rental.bikeId,
+                bikeAvatarUrl: rental.bikeAvatarUrl,
+                periodStart: rental.periodStart,
+                periodEnd: rental.periodEnd,
+                bikeModel: rental.bikeModel,
+                videoUrl: rental.videoUrl,
+                contractUrl: rental.contractUrl,
+                comment: rental.comment,
+                weeklyRateRub: rental.weeklyRateRub,
+                totalPaidRub: rental.totalPaidRub,
+                debtRub: rental.debtRub,
+                totalAdjustmentRub: rental.totalAdjustmentRub
+            )
+        }
+        return AdminClientDetailsResponse(
+            clientId: native.clientId,
+            fullName: native.fullName,
+            address: native.address,
+            passportData: native.passportData,
+            weeklyRateRub: native.weeklyRateRub,
+            bikeModel: native.bikeModel,
+            bikeAvatarUrl: native.bikeAvatarUrl,
+            rentalStart: native.rentalStart,
+            paidUntil: native.paidUntil,
+            totalPaidRub: native.totalPaidRub,
+            debtRub: native.debtRub,
+            totalAdjustmentRub: native.totalAdjustmentRub,
+            phones: phones,
+            rentals: rentals,
+            carriedDebtRub: native.carriedDebtRub ?? 0
+        )
     }
 
     func createAdminClient(accessToken: String, payload: CreateClientPayload) async throws -> AdminClientDetailsResponse {
@@ -742,7 +876,8 @@ final class BackendService: BackendServicing {
         }
         return DeleteRentalResult(
             rentalId: response.rentalId,
-            deleted: response.deleted
+            deleted: response.deleted,
+            deleteKind: response.deleteKind
         )
     }
 

@@ -52,6 +52,14 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import java.time.LocalDate
 import java.util.UUID
 
@@ -468,7 +476,9 @@ private data class ApiAdminStartClientRentalResponse(
 private data class ApiAdminDeleteRentalResponse(
     @SerialName("rental_id")
     val rentalId: String,
-    val deleted: Boolean
+    val deleted: Boolean,
+    @SerialName("delete_kind")
+    val deleteKind: String
 )
 
 @Serializable
@@ -675,6 +685,7 @@ private fun activeClientRentalForLifecycle(
         .asSequence()
         .filter { it.rentalId == rental.id }
         .filter { it.adminId == rental.adminId }
+        .filter { it.deletedAt == null }
         .filter { it.isActiveAt(asOf) }
         .sortedByDescending { it.startDate }
         .firstOrNull()
@@ -691,6 +702,7 @@ private fun resolveCurrentClientRental(
         .asSequence()
         .filter { it.clientId == clientId }
         .filter { adminId == null || it.adminId == adminId }
+        .filter { it.deletedAt == null }
         .sortedByDescending { it.startDate }
         .toList()
     if (clientRentals.isEmpty()) return null
@@ -823,24 +835,26 @@ private fun ensureClientRentalModel(store: InMemoryStore): Boolean {
         clientRental.copy(clientPasswordFingerprint = passwordFingerprint(clientRental.clientPassword))
     }
 
+    // Бэкфилл credentials для legacy-данных. ВАЖНО — fallback только из
+    // RentalRecord (исходная legacy-запись, где login/password жили до перехода
+    // на ClientRentalRecord). AppUser.login/password НЕ используются как
+    // fallback, потому что AppUser перезаписывается при каждом старте новой
+    // client_rental — старые historical client_rentals при этом потеряли бы
+    // свои оригинальные credentials, получив credentials последней аренды.
+    // Этот баг проявлялся как «у других клиентов закрытые аренды видны
+    // с логином/паролем, а у Ивана Петрова — прочерки», потому что Иван имел
+    // несколько последовательных аренд, и AppUser у него обновился.
     store.clientRentals.replaceAll { clientRental ->
         val needsLogin = clientRental.clientLogin.isBlank()
         val needsPassword = clientRental.clientPassword.isBlank()
         if (!needsLogin && !needsPassword) return@replaceAll clientRental
 
         val legacyRental = store.rentals.firstOrNull { it.id == clientRental.rentalId }
-        val fallbackUser = store.users.firstOrNull {
-            it.role == Role.CLIENT && it.clientId == clientRental.clientId
-        }
         val backfilledLogin = clientRental.clientLogin.ifBlank {
-            legacyRental?.clientLogin?.takeIf { it.isNotBlank() }
-                ?: fallbackUser?.login?.takeIf { it.isNotBlank() }
-                ?: ""
+            legacyRental?.clientLogin?.takeIf { it.isNotBlank() } ?: ""
         }
         val backfilledPassword = clientRental.clientPassword.ifBlank {
-            legacyRental?.clientPassword?.takeIf { it.isNotBlank() }
-                ?: fallbackUser?.password?.takeIf { it.isNotBlank() }
-                ?: ""
+            legacyRental?.clientPassword?.takeIf { it.isNotBlank() } ?: ""
         }
         if (backfilledLogin == clientRental.clientLogin && backfilledPassword == clientRental.clientPassword) {
             clientRental
@@ -969,6 +983,27 @@ private fun ledgerSignedAmountForUi(entry: LedgerEntry): Int = when (entry.type)
     LedgerType.PAYMENT -> if (entry.direction == -1) entry.amountRub else -entry.amountRub
     LedgerType.CHARGE -> if (entry.direction == 1) -entry.amountRub else entry.amountRub
     LedgerType.ADJUSTMENT -> if (entry.direction == -1) -entry.amountRub else entry.amountRub
+}
+
+/**
+ * Защита от попадания тяжёлых data:base64 картинок в list-эндпоинты.
+ * Если бэкенд хранит фото велосипеда как `data:image/jpeg;base64,...` (а так
+ * делает текущий iOS upload), один URL может быть 2 МБ. Дублируясь в
+ * /admin/rents (по 1 на rental), /admin/clients (по 1 на клиента) и
+ * /admin/clients/{id}.rentals (по 1 на каждую history-item) — ответ раздувается
+ * до десятков МБ и iOS/KMP не успевают парсить в таймаут.
+ *
+ * Список-эндпоинты отдают пустую строку для таких URL — клиент использует
+ * placeholder. Полное фото доступно через /admin/bikes (там URL не сокращается).
+ *
+ * Cutoff 1024 символа — http(s) URLs практически всегда короче, base64-картинки
+ * почти всегда длиннее.
+ */
+private fun compactBikeAvatarUrl(url: String?): String {
+    if (url.isNullOrEmpty()) return ""
+    if (url.startsWith("data:")) return ""
+    if (url.length > 1024) return ""
+    return url
 }
 
 private fun bikeToApiResponse(bike: BikeAccount, isInRental: Boolean = false): ApiAdminBikeResponse {
@@ -1181,6 +1216,7 @@ private fun isPasswordFingerprintUnique(
     if (fingerprint.isBlank()) return true
     return store.clientRentals.none { record ->
         record.id != ignoreClientRentalId &&
+            record.deletedAt == null &&
             record.clientPasswordFingerprint == fingerprint
     }
 }
@@ -1739,9 +1775,19 @@ private fun buildAdminClientSummary(
     } else {
         null
     }
-    val debt = projection?.debtRub ?: 0
+    val debt = calculateClientTotalDebtRub(
+        client = client,
+        store = store,
+        asOf = now,
+        adminId = adminId
+    )
     val paid = LedgerCalculator.totalPaidRub(store.ledger, client.id, snapshot?.clientRentalId)
-    val profit = if (debt == 0) paid else 0
+    // Прибыль = всё, что клиент фактически оплатил по этой аренде. Раньше
+    // было `if (debt == 0) paid else 0` — это давало 0 для любой аренды
+    // с непогашенным долгом (например при возврате с перерасходом
+    // client заплатил 9000₽ и должен ещё 7000₽ — прибыль admin'a 9000₽, не 0).
+    // Долг и прибыль — независимые суммы, а не альтернативы.
+    val profit = paid
     val paidUntil = projection?.paidUntilDate
     val statusText = projection?.statusText ?: "Нет активной аренды"
     val snapshotClientRental = snapshot?.clientRentalId?.let { snapshotRentalId ->
@@ -1755,7 +1801,7 @@ private fun buildAdminClientSummary(
         clientLogin = credentials.login,
         fullName = client.fullName,
         bikeModel = snapshot?.bikeModel ?: "-",
-        bikeAvatarUrl = snapshot?.bikePhotoUrl ?: "",
+        bikeAvatarUrl = compactBikeAvatarUrl(snapshot?.bikePhotoUrl),
         statusText = statusText,
         paidUntil = paidUntil?.toString(),
         rentalPipelineStatus = snapshot?.pipelineStatus?.let(RentalPipelineStatus::toApi),
@@ -1765,6 +1811,56 @@ private fun buildAdminClientSummary(
         totalAdjustmentRub = LedgerCalculator.totalAdjustmentRub(store.ledger, client.id, snapshot?.clientRentalId),
         carriedDebtRub = client.carriedDebtRub
     )
+}
+
+/**
+ * Суммарный долг клиента по всем его client_rental (активным и закрытым),
+ * которые не soft-deleted.
+ *
+ * Важный инвариант для фильтра "Должники" на iOS:
+ * неактивный клиент с долгом по закрытой client_rental всё равно должен
+ * оставаться должником, даже если carriedDebt уже списан/обнулён.
+ */
+private fun calculateClientTotalDebtRub(
+    client: ClientAccount,
+    store: InMemoryStore,
+    asOf: LocalDate,
+    adminId: String? = null
+): Int {
+    val bikesById = store.bikes.associateBy { it.id }
+    val ledgerByClientRental = store.ledger.groupBy { it.rentalId ?: "" }
+
+    return store.clientRentals
+        .asSequence()
+        .filter { it.clientId == client.id }
+        .filter { adminId == null || it.adminId == adminId }
+        .filter { it.deletedAt == null }
+        .sumOf { rental ->
+            val weeklyRateRub = bikesById[rental.bikeId]?.weeklyRateRub ?: 0
+            if (weeklyRateRub <= 0) {
+                return@sumOf 0
+            }
+            val rentalLedger = ledgerByClientRental[rental.id] ?: emptyList()
+            if (rental.endDate != null) {
+                LedgerCalculator.finalDebtOnClosure(
+                    clientId = client.id,
+                    rentalStartDate = rental.startDate,
+                    rentalEndDate = rental.endDate,
+                    weeklyRateRub = weeklyRateRub,
+                    entries = rentalLedger,
+                    rentalId = rental.id
+                )
+            } else {
+                LedgerCalculator.debtRub(
+                    clientId = client.id,
+                    rentalStartDate = rental.startDate,
+                    weeklyRateRub = weeklyRateRub,
+                    entries = rentalLedger,
+                    asOf = asOf,
+                    rentalId = rental.id
+                )
+            }
+        }
 }
 
 private fun buildAdminRentSummaryFromRental(
@@ -1791,7 +1887,7 @@ private fun buildAdminRentSummaryFromRental(
         clientLogin = null,
         fullName = "",
         bikeModel = bike?.model ?: "",
-        bikeAvatarUrl = bike?.photoUrl ?: "",
+        bikeAvatarUrl = compactBikeAvatarUrl(bike?.photoUrl),
         statusText = "У меня",
         paidUntil = null,
         rentalPipelineStatus = rental.pipelineStatus.let(RentalPipelineStatus::toApi),
@@ -1827,17 +1923,32 @@ private fun buildAdminClientDetails(
     } else {
         null
     }
+    // Индексы для O(1) lookup'ов и однократной группировки ledger.
+    // Раньше для каждой из N клиентских аренд:
+    //   - линейный поиск bike по bikeId      — O(|bikes|)
+    //   - LedgerCalculator.totalPaidRub      — итерация по всему ledger
+    //   - LedgerCalculator.totalAdjustmentRub — ещё итерация
+    //   - LedgerCalculator.finalDebtOnClosure / debtRub — ещё итерация (вызывает totalPaidRub и totalAdjustmentRub)
+    // Итого ~5 проходов по ledger на аренду × N аренд. С 6 арендами и
+    // несколькими сотнями entries это ощутимо тормозило загрузку карточки.
+    // Сейчас группируем ledger по rentalId один раз; bikes — в Map.
+    val bikesById: Map<String, BikeAccount> = store.bikes.associateBy { it.id }
+    val ledgerByClientRental: Map<String, List<LedgerEntry>> =
+        store.ledger.groupBy { it.rentalId ?: "" }
+
     val rentals = store.clientRentals
         .asSequence()
         .filter { it.clientId == client.id }
         .filter { adminId == null || it.adminId == adminId }
+        .filter { it.deletedAt == null }  // не показываем soft-deleted client_rentals в истории
         .sortedByDescending { it.startDate }
         .map {
-            val bike = store.bikes.firstOrNull { bike -> bike.id == it.bikeId }
+            val bike = bikesById[it.bikeId]
             val weeklyRateRub = bike?.weeklyRateRub ?: 0
             val rentalAsOf = it.endDate ?: now
-            val rentalPaidRub = LedgerCalculator.totalPaidRub(store.ledger, client.id, it.id)
-            val rentalAdjustmentRub = LedgerCalculator.totalAdjustmentRub(store.ledger, client.id, it.id)
+            val rentalLedger = ledgerByClientRental[it.id] ?: emptyList()
+            val rentalPaidRub = LedgerCalculator.totalPaidRub(rentalLedger, client.id, it.id)
+            val rentalAdjustmentRub = LedgerCalculator.totalAdjustmentRub(rentalLedger, client.id, it.id)
             // Долг закрытой client_rental считается строго по дням
             // (docs/02_money_and_debt_rules.md §5, docs/14_rental_lifecycle.md §3) —
             // одинаково и при /finish (переход в in_stock), и при /delete.
@@ -1850,7 +1961,7 @@ private fun buildAdminClientDetails(
                         rentalStartDate = it.startDate,
                         rentalEndDate = it.endDate,
                         weeklyRateRub = weeklyRateRub,
-                        entries = store.ledger,
+                        entries = rentalLedger,
                         rentalId = it.id
                     )
                 } else {
@@ -1858,7 +1969,7 @@ private fun buildAdminClientDetails(
                         clientId = client.id,
                         rentalStartDate = it.startDate,
                         weeklyRateRub = weeklyRateRub,
-                        entries = store.ledger,
+                        entries = rentalLedger,
                         asOf = rentalAsOf,
                         rentalId = it.id
                     )
@@ -1866,10 +1977,16 @@ private fun buildAdminClientDetails(
             } else {
                 0
             }
+            // Картинку велосипеда (`bikeAvatarUrl`) НЕ дублируем как data:base64:
+            // фото у пользователя может храниться как `data:image/jpeg;base64,...`
+            // (несколько МБ), и при 8 арендах того же велосипеда ответ
+            // раздувался до 19+ МБ. compactBikeAvatarUrl пропускает только
+            // короткие http(s) URLs. iOS-сторона для data:base64 фоток
+            // отвалится на placeholder; полное фото подтянет из /admin/bikes.
             ApiAdminRentalHistoryItemResponse(
                 rentalId = it.id,
                 bikeId = it.bikeId,
-                bikeAvatarUrl = bike?.photoUrl ?: "",
+                bikeAvatarUrl = compactBikeAvatarUrl(bike?.photoUrl),
                 periodStart = it.startDate.toString(),
                 periodEnd = it.endDate?.toString(),
                 bikeModel = bike?.model ?: "-",
@@ -1897,7 +2014,7 @@ private fun buildAdminClientDetails(
         passportData = client.passportData,
         weeklyRateRub = snapshot?.weeklyRateRub ?: 0,
         bikeModel = snapshot?.bikeModel ?: "",
-        bikeAvatarUrl = snapshot?.bikePhotoUrl ?: "",
+        bikeAvatarUrl = compactBikeAvatarUrl(snapshot?.bikePhotoUrl),
         rentalStart = snapshot?.rentalStartDate?.toString() ?: "",
         paidUntil = paidUntil,
         totalPaidRub = totalPaid,
@@ -1960,8 +2077,71 @@ fun Application.module() {
     val stateStore = if (useInMemory) null else PostgresStateStore.fromEnvironment()
     val store = stateStore?.loadOrInitialize(InMemoryStore.seed()) ?: InMemoryStore.seed()
     val stateLock = Any()
-    val saveState: () -> Unit = {
-        stateStore?.save(store)
+
+    // Debounced async save: на каждую мутацию запускаем фоновый сейв,
+    // отменяем предыдущий неуспевший. Postgres save (DELETE+INSERT всех таблиц
+    // + encode legacy JSON) — это десятки-сотни ms даже на быстром Postgres,
+    // и раньше мы блокировали HTTP-handler до его завершения. Если admin
+    // подряд делал мутацию + read другого ресурса, read мог получить
+    // request_timeout (5s на iOS), потому что handler-поток или JDBC-pool
+    // были заняты предыдущим save.
+    //
+    // Теперь: handler возвращает ответ клиенту сразу. Save идёт в IO-coroutine
+    // с задержкой 250ms — если за это время приходит ещё мутация, предыдущий
+    // job отменяется и save сдвигается. Это батчирует сразу несколько мутаций
+    // в один Postgres-trip.
+    //
+    // Trade-off: при крэше backend в окне 250ms можно потерять последнюю
+    // мутацию. Для MVP терпимо. На graceful shutdown добавлен flush ниже.
+    val saveScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    var pendingSaveJob: Job? = null
+    val saveLog = environment.log
+
+    // Снимок in-memory store для последующей записи в Postgres.
+    // ВАЖНО: snapshot должен сниматься ВНУТРИ stateLock (чтобы избежать CME при
+    // конкуррентной мутации), но сама запись в Postgres идёт ВНЕ stateLock —
+    // иначе любой read-endpoint, использующий stateLock, заблокируется на
+    // сотни ms (Postgres DELETE+INSERT всех таблиц). Именно это давало
+    // request_timeout на iOS при простом GET /admin/clients/{id}.
+    //
+    // toMutableList() / ConcurrentHashMap(map) делают shallow copy: списки
+    // и map становятся новыми контейнерами, но элементы — это immutable data
+    // class'ы с val-полями, так что shallow safe.
+    fun snapshotStore(): InMemoryStore = synchronized(stateLock) {
+        InMemoryStore(
+            users = store.users.toMutableList(),
+            clients = store.clients.toMutableList(),
+            bikes = store.bikes.toMutableList(),
+            rentals = store.rentals.toMutableList(),
+            clientRentals = store.clientRentals.toMutableList(),
+            ledger = store.ledger.toMutableList(),
+            payments = store.payments.toMutableList(),
+            sessions = java.util.concurrent.ConcurrentHashMap(store.sessions),
+            processedWebhookEvents = store.processedWebhookEvents.toMutableSet()
+        )
+    }
+
+    val saveState: () -> Unit = saveState@{
+        val nonNullStore = stateStore ?: return@saveState
+        pendingSaveJob?.cancel()
+        pendingSaveJob = saveScope.launch {
+            try {
+                delay(250)
+                // Snapshot быстро (миллисекунды), запись в Postgres — снаружи lock'а.
+                val snapshot = snapshotStore()
+                nonNullStore.save(snapshot)
+            } catch (_: CancellationException) {
+                // Новая мутация подвинула save — это OK, следующий job сохранит свежее состояние.
+            } catch (e: Throwable) {
+                saveLog.error("Failed to save backend state to Postgres", e)
+            }
+        }
+    }
+    val saveStateSync: () -> Unit = saveStateSync@{
+        // Синхронный flush — startup (после первичной нормализации) и shutdown.
+        val nonNullStore = stateStore ?: return@saveStateSync
+        val snapshot = snapshotStore()
+        nonNullStore.save(snapshot)
     }
     val normalizeStoreState: () -> Boolean = {
         val ownershipChanged = ensureDefaultAdminsAndOwnership(store)
@@ -1973,7 +2153,19 @@ fun Application.module() {
         saveState()
     }
     if (normalizeStoreState()) {
-        saveState()
+        saveStateSync()
+    }
+    // Финальный flush на shutdown — гарантирует что последний save не пропадёт.
+    environment.monitor.subscribe(io.ktor.server.application.ApplicationStopping) {
+        try {
+            pendingSaveJob?.let { runBlocking { it.join() } }
+        } catch (_: Throwable) { /* ignore */ }
+        try {
+            saveStateSync()
+        } catch (e: Throwable) {
+            saveLog.error("Failed to flush state on shutdown", e)
+        }
+        saveScope.cancel()
     }
     if (useInMemory) {
         println("AtomGo backend storage mode: IN-MEMORY (tests/dev override)")
@@ -2117,7 +2309,7 @@ fun Application.module() {
                     ApiClientDashboardResponse(
                         clientId = client.id,
                         bikeModel = snapshot?.bikeModel ?: "",
-                        bikeAvatarUrl = snapshot?.bikePhotoUrl ?: "",
+                        bikeAvatarUrl = compactBikeAvatarUrl(snapshot?.bikePhotoUrl),
                         rentalStart = snapshot?.rentalStartDate?.toString() ?: "",
                         paidUntil = paidUntil,
                         completedAt = snapshot?.rentalEndDate?.toString(),
@@ -2281,7 +2473,10 @@ fun Application.module() {
                     val targetClientRental = if (lifecycleRental != null) {
                         activeClientRentalForLifecycle(lifecycleRental, store, now)
                     } else {
-                        store.clientRentals.firstOrNull { it.id == rentalId && it.adminId == session.userId }
+                        // Удалённая client_rental — не открываем (она исчезла из истории
+                        // по запросу админа). Soft-delete сохраняет данные в БД,
+                        // но интерактивный просмотр заблокирован.
+                        store.clientRentals.firstOrNull { it.id == rentalId && it.adminId == session.userId && it.deletedAt == null }
                     }
                     val rental = lifecycleRental ?: targetClientRental?.let { lifecycleRentalForClientRental(it, store) }
                     val bikeId = targetClientRental?.bikeId ?: rental?.bikeId ?: return@synchronized null
@@ -2316,15 +2511,15 @@ fun Application.module() {
                         0
                     }
                     val credentials = targetClientRental?.let(::resolveClientRentalCredentials) ?: RentalCredentials()
-                    val journal = if (targetClientRental == null || lifecycleRental?.pipelineStatus == RentalPipelineStatus.IN_STOCK) {
+                    // Журнал client_rental не зависит от текущего статуса родительской
+                    // lifecycle-аренды. Раньше тут было ещё условие
+                    // `lifecycleRental?.pipelineStatus == IN_STOCK → empty` — оно
+                    // обнуляло историю при просмотре закрытой client_rental, чей
+                    // lifecycle уже стал «у меня». По спеке (docs/14_rental_lifecycle.md §1)
+                    // история платежей принадлежит client_rental и должна сохраняться.
+                    val journal = if (targetClientRental == null) {
                         emptyList()
                     } else {
-                        // Журнал — СТРОГО этой client_rental (docs/01_scope_freeze.md §2,
-                        // docs/14_rental_lifecycle.md §1: «история платежей принадлежит
-                        // клиентской аренде»). Без второго условия (по clientId &
-                        // rentalId == null) журнал новой аренды содержал бы carriedDebt
-                        // операции прошлых аренд того же клиента — это и приводило
-                        // к багу «в новой аренде журнал старой».
                         store.ledger
                             .asSequence()
                             .filter { entry -> entry.rentalId == targetClientRental.id }
@@ -3229,18 +3424,32 @@ fun Application.module() {
 
                 val today = LocalDate.now()
                 val updated = synchronized(stateLock) {
-                    val rentalIndex = store.rentals.indexOfFirst { it.id == rentalId && it.deletedAt == null }
-                    if (rentalIndex < 0) {
-                        null
-                    } else {
-                        val current = store.rentals[rentalIndex]
-                        if (current.adminId != session.userId) {
-                            return@synchronized null
+                    val rentalIndex = store.rentals.indexOfFirst {
+                        it.id == rentalId && it.adminId == session.userId && it.deletedAt == null
+                    }.takeIf { it >= 0 } ?: run {
+                        // Открытие деталей из истории клиента передает id client_rental.
+                        // Для UX кнопка "Завершить" должна работать идентично:
+                        // если client_rental активна, завершаем её lifecycle-аренду.
+                        val activeClientRental = store.clientRentals.firstOrNull {
+                            it.id == rentalId &&
+                                it.adminId == session.userId &&
+                                it.deletedAt == null &&
+                                it.isActiveAt(today)
                         }
-                        val next = transitionRentalToInStock(store, rentalIndex, today)
-                        persistState()
-                        next
+                        if (activeClientRental == null) {
+                            -1
+                        } else {
+                            store.rentals.indexOfFirst {
+                                it.id == activeClientRental.rentalId &&
+                                    it.adminId == session.userId &&
+                                    it.deletedAt == null
+                            }
+                        }
                     }
+                    if (rentalIndex < 0) return@synchronized null
+                    val next = transitionRentalToInStock(store, rentalIndex, today)
+                    persistState()
+                    next
                 }
 
                 if (updated == null) {
@@ -3302,24 +3511,62 @@ fun Application.module() {
                     return@post
                 }
 
-                val deleted = synchronized(stateLock) {
-                    // normalize выполнится в persistState() при успешном delete.
-
-                    val lifecycleIndex = findLifecycleRentalIndexForDeletion(
-                        store = store,
-                        adminId = session.userId,
-                        rentalId = rentalId
-                    )
-                    if (lifecycleIndex < 0) {
-                        false
-                    } else {
+                val deleteKind = synchronized(stateLock) {
+                    // Различаем два сценария:
+                    // 1. Если id — это lifecycle-аренда (карточка с главного экрана):
+                    //    soft-delete lifecycle + закрытие активной client_rental
+                    //    + перенос остаточного долга на клиента
+                    //    (см. docs/14_rental_lifecycle.md §7).
+                    // 2. Если id — это конкретная (обычно закрытая) client_rental
+                    //    из истории клиента: soft-delete только этой client_rental.
+                    //    lifecycle остаётся, остальные client_rentals не трогаем.
+                    //    Журнал и сама запись сохраняются на сервере как требует
+                    //    user (soft-delete).
+                    val lifecycleIndex = store.rentals.indexOfFirst {
+                        it.id == rentalId && it.adminId == session.userId && it.deletedAt == null
+                    }
+                    if (lifecycleIndex >= 0) {
                         deleteLifecycleRental(store, lifecycleIndex, LocalDate.now())
                         persistState()
-                        true
+                        "lifecycle_rental"
+                    } else {
+                        val crIndex = store.clientRentals.indexOfFirst {
+                            it.id == rentalId && it.adminId == session.userId && it.deletedAt == null
+                        }
+                        if (crIndex < 0) {
+                            null
+                        } else {
+                            val cr = store.clientRentals[crIndex]
+                            val today = LocalDate.now()
+                            val isActiveClientRental = cr.isActiveAt(today)
+                            val lifecycleIndexByClientRental = if (isActiveClientRental) {
+                                store.rentals.indexOfFirst {
+                                    it.id == cr.rentalId && it.adminId == session.userId && it.deletedAt == null
+                                }
+                            } else {
+                                -1
+                            }
+                            if (lifecycleIndexByClientRental >= 0) {
+                                // Active client_rental удаляется как lifecycle-сущность:
+                                // закрываем текущую клиентскую аренду и выводим велосипед
+                                // из эксплуатации единообразно с удалением из главной карточки.
+                                deleteLifecycleRental(store, lifecycleIndexByClientRental, today)
+                                persistState()
+                                "lifecycle_rental"
+                            } else {
+                                // Историческая (обычно закрытая) client_rental удаляется точечно.
+                                store.clientRentals[crIndex] = cr.copy(deletedAt = java.time.Instant.now())
+                                // Сессии этой client_rental — закрыть, чтобы клиент
+                                // не смог по старому логину открыть удалённую запись.
+                                store.sessions.entries.removeAll { it.value.rentalId == cr.id }
+                                persistState()
+                                "client_rental"
+                            }
+                        }
                     }
                 }
 
-                if (!deleted) {
+                if (deleteKind == null) {
                     call.respond(HttpStatusCode.NotFound, ApiErrorResponse(message = "Rental not found"))
                     return@post
                 }
@@ -3328,7 +3575,8 @@ fun Application.module() {
                     HttpStatusCode.OK,
                     ApiAdminDeleteRentalResponse(
                         rentalId = rentalId,
-                        deleted = true
+                        deleted = true,
+                        deleteKind = deleteKind
                     )
                 )
             }

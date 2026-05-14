@@ -2,6 +2,61 @@ import XCTest
 @testable import AtomGoIOS
 
 final class CreateClientFlowUnitTests: XCTestCase {
+    func testAdminClientSummaryIsDebtorForActiveDebtOrCarriedDebt() {
+        let activeDebt = AdminClientSummaryResponse(
+            clientId: "c-active",
+            rentalId: "r-active",
+            clientLogin: "active",
+            fullName: "Active Debtor",
+            bikeModel: "Bike A",
+            bikeAvatarUrl: "",
+            statusText: "Активна",
+            paidUntil: nil,
+            rentalPipelineStatus: "long_term",
+            rentalIsActive: true,
+            debtRub: 1200,
+            profitRub: 0,
+            totalAdjustmentRub: 0,
+            carriedDebtRub: 0
+        )
+        let carriedDebt = AdminClientSummaryResponse(
+            clientId: "c-carried",
+            rentalId: nil,
+            clientLogin: nil,
+            fullName: "Carried Debtor",
+            bikeModel: "-",
+            bikeAvatarUrl: "",
+            statusText: "Нет активной аренды",
+            paidUntil: nil,
+            rentalPipelineStatus: nil,
+            rentalIsActive: false,
+            debtRub: 0,
+            profitRub: 0,
+            totalAdjustmentRub: 0,
+            carriedDebtRub: 900
+        )
+        let noDebt = AdminClientSummaryResponse(
+            clientId: "c-clear",
+            rentalId: nil,
+            clientLogin: nil,
+            fullName: "Clear Client",
+            bikeModel: "-",
+            bikeAvatarUrl: "",
+            statusText: "Нет активной аренды",
+            paidUntil: nil,
+            rentalPipelineStatus: nil,
+            rentalIsActive: false,
+            debtRub: 0,
+            profitRub: 0,
+            totalAdjustmentRub: 0,
+            carriedDebtRub: 0
+        )
+
+        XCTAssertTrue(activeDebt.isDebtor)
+        XCTAssertTrue(carriedDebt.isDebtor)
+        XCTAssertFalse(noDebt.isDebtor)
+    }
+
     func testAdminClientSummaryUsesRentalIdAsIdentityForInStockCards() {
         let first = AdminClientSummaryResponse(
             clientId: "",
@@ -476,7 +531,7 @@ final class CreateClientFlowUnitTests: XCTestCase {
         service.fetchClientsResult = .success([service.sampleSummary])
         service.fetchBikesResult = .success([service.sampleBike])
         service.fetchClientDetailsResult = .success(service.sampleDetails)
-        service.deleteRentalResult = .success(DeleteRentalResult(rentalId: "rental-100", deleted: true))
+        service.deleteRentalResult = .success(DeleteRentalResult(rentalId: "rental-100", deleted: true, deleteKind: "client_rental"))
         let viewModel = makeViewModel(service: service)
 
         viewModel.deleteRental(clientId: "client-001", rentalId: "rental-100")

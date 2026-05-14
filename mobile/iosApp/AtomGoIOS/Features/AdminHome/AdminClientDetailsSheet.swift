@@ -2,6 +2,14 @@ import SwiftUI
 import PhotosUI
 import UIKit
 
+private struct ClientRentalDetailsContext: Identifiable, Equatable {
+    let clientId: String
+    let rentalId: String
+    let completedAtFallback: String?
+
+    var id: String { "\(clientId)-\(rentalId)" }
+}
+
 struct AdminClientDetailsSheet: View {
     let details: AdminClientDetailsResponse?
     let isLoading: Bool
@@ -9,8 +17,12 @@ struct AdminClientDetailsSheet: View {
     let operationErrorMessage: String?
     let operationSuccessMessage: String?
     let isOperationInProgress: Bool
+    let selectedRentalDetails: AdminRentalDetailsResponse?
+    let isRentalDetailsLoading: Bool
+    let rentalDetailsErrorMessage: String?
     let clients: [AdminClientSummaryResponse]
     let bikes: [AdminBikeResponse]
+    let fallbackSummaryForRental: (_ clientId: String, _ rentalId: String) -> AdminClientSummaryResponse?
     let onClose: () -> Void
     let onRetry: () -> Void
     let onAdjustDebtTap: (AdminClientDetailsResponse) -> Void
@@ -25,11 +37,17 @@ struct AdminClientDetailsSheet: View {
     let onUpdateRental: (UpdateRentalPayload) -> Void
     let onDeleteRental: (String, String) -> Void
     let onOpenRental: (String, String, String?) -> Void
+    let onRequestOpenRentalDetails: (String) -> Void
+    let onRequestCloseRentalDetails: () -> Void
+    let onAdjustDebtFromRental: (_ clientId: String, _ clientName: String, _ currentDebtRub: Int) -> Void
+    let onFinishRental: (_ clientId: String, _ rentalId: String) -> Void
+    let onStartRental: (_ rentalId: String, _ payload: CreateRentalPayload) -> Void
 
     @Environment(\.openURL) private var openURL
     @State private var isProfileEditorPresented = false
     @State private var isCreateRentalPresented = false
     @State private var isDeleteClientConfirmationPresented = false
+    @State private var rentalDetailsContext: ClientRentalDetailsContext?
     @State private var toastMessage: String?
     @State private var toastDismissTask: Task<Void, Never>?
 
@@ -101,6 +119,41 @@ struct AdminClientDetailsSheet: View {
                         }
                     )
                     .presentationDetents([.large])
+                }
+                .fullScreenCover(item: $rentalDetailsContext, onDismiss: {
+                    onRequestCloseRentalDetails()
+                }) { context in
+                    AdminRentalDetailsScreen(
+                        details: selectedRentalDetails,
+                        fallbackSummary: fallbackSummaryForRental(context.clientId, context.rentalId),
+                        completedAtFallback: context.completedAtFallback,
+                        clients: clients,
+                        isLoading: isRentalDetailsLoading,
+                        errorMessage: rentalDetailsErrorMessage,
+                        isOperationInProgress: isOperationInProgress,
+                        onClose: {
+                            rentalDetailsContext = nil
+                        },
+                        onRetry: {
+                            onRequestOpenRentalDetails(context.rentalId)
+                        },
+                        onOpenClientCard: {
+                            rentalDetailsContext = nil
+                        },
+                        onAdjustDebt: { clientId, clientName, currentDebtRub in
+                            onAdjustDebtFromRental(clientId, clientName, currentDebtRub)
+                        },
+                        onFinishRental: { clientId, rentalId in
+                            onFinishRental(clientId, rentalId)
+                        },
+                        onStartRental: { payload in
+                            onStartRental(context.rentalId, payload)
+                        },
+                        onDeleteRental: { clientId, rentalId in
+                            onDeleteRental(clientId, rentalId)
+                            rentalDetailsContext = nil
+                        }
+                    )
                 }
                 .confirmationDialog(
                     "Удалить клиента?",
@@ -398,7 +451,13 @@ struct AdminClientDetailsSheet: View {
 
     private func rentalHistoryRow(details: AdminClientDetailsResponse, rental: AdminRentalHistoryItem) -> some View {
         Button {
+            rentalDetailsContext = ClientRentalDetailsContext(
+                clientId: details.clientId,
+                rentalId: rental.id,
+                completedAtFallback: rental.periodEnd
+            )
             onOpenRental(details.clientId, rental.id, rental.periodEnd)
+            onRequestOpenRentalDetails(rental.id)
         } label: {
             HStack(spacing: 12) {
                 historyAvatar(rental)

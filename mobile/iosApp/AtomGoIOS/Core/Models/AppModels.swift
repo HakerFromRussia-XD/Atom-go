@@ -210,6 +210,12 @@ struct AdminClientSummaryResponse: Decodable, Identifiable {
         totalAdjustmentRub = try container.decode(Int.self, forKey: .totalAdjustmentRub)
         carriedDebtRub = try container.decodeIfPresent(Int.self, forKey: .carriedDebtRub) ?? 0
     }
+
+    /// Клиент считается «должником», если есть долг по активной клиентской аренде
+    /// и/или перенесённый долг с закрытых клиентских аренд.
+    var isDebtor: Bool {
+        debtRub > 0 || carriedDebtRub > 0
+    }
 }
 
 /// Клиенты, доступные как «арендатор» при запуске новой аренды:
@@ -504,6 +510,7 @@ struct UpdateRentalPayload {
 struct DeleteRentalResult: Equatable {
     let rentalId: String
     let deleted: Bool
+    let deleteKind: String
 }
 
 struct DeleteClientResult: Decodable, Equatable {

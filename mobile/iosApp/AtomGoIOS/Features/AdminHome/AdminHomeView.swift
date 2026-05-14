@@ -337,8 +337,15 @@ struct AdminHomeView: View {
                 operationErrorMessage: viewModel.operationErrorMessage,
                 operationSuccessMessage: viewModel.operationSuccessMessage,
                 isOperationInProgress: viewModel.isOperationInProgress,
+                selectedRentalDetails: viewModel.selectedRentalDetails,
+                isRentalDetailsLoading: viewModel.isRentalDetailsLoading,
+                rentalDetailsErrorMessage: viewModel.rentalDetailsErrorMessage,
                 clients: viewModel.clientCatalog,
                 bikes: viewModel.bikes,
+                fallbackSummaryForRental: { clientId, rentalId in
+                    guard case let .loaded(clients) = viewModel.state else { return nil }
+                    return clients.first(where: { $0.clientId == clientId && $0.rentalId == rentalId })
+                },
                 onClose: {
                     isDetailsSheetPresented = false
                 },
@@ -403,15 +410,36 @@ struct AdminHomeView: View {
                 onDeleteRental: { clientId, rentalId in
                     viewModel.deleteRental(clientId: clientId, rentalId: rentalId)
                 },
-                onOpenRental: { clientId, rentalId, completedAt in
-                    isDetailsSheetPresented = false
-                    detailsClientId = nil
-                    rentalDetailsContext = RentalDetailsContext(
-                        clientId: clientId,
-                        rentalId: rentalId,
-                        completedAtFallback: completedAt
-                    )
+                onOpenRental: { _, _, _ in
+                },
+                onRequestOpenRentalDetails: { rentalId in
                     viewModel.openRentalDetails(rentalId: rentalId)
+                },
+                onRequestCloseRentalDetails: {
+                    viewModel.closeRentalDetails()
+                },
+                onAdjustDebtFromRental: { clientId, clientName, currentDebtRub in
+                    debtAdjustmentContext = DebtAdjustmentContext(
+                        clientId: clientId,
+                        clientName: clientName,
+                        currentDebtRub: currentDebtRub
+                    )
+                },
+                onFinishRental: { clientId, rentalId in
+                    viewModel.finishRental(clientId: clientId, rentalId: rentalId) {
+                        viewModel.openRentalDetails(rentalId: rentalId)
+                    }
+                },
+                onStartRental: { rentalId, payload in
+                    viewModel.startClientRentalInExisting(
+                        rentalId: rentalId,
+                        clientId: payload.clientId,
+                        login: payload.login,
+                        password: payload.password,
+                        periodStart: payload.periodStart
+                    ) {
+                        viewModel.openRentalDetails(rentalId: rentalId)
+                    }
                 }
             )
         }
@@ -719,7 +747,7 @@ struct AdminHomeView: View {
         case .soonReturn:
             return searched.filter { $0.rentalIsActive && $0.rentalPipelineStatus == "soon_return" }
         case .debtors:
-            return searched.filter { $0.debtRub > 0 }
+            return searched.filter(\.isDebtor)
         case .mine:
             return searched.filter { !$0.rentalIsActive }
         }
@@ -753,7 +781,7 @@ struct AdminHomeView: View {
             HStack(spacing: 8) {
                 filterChip(.all, title: "Все", count: clients.count, isDark: true)
                 filterChip(.soonReturn, title: "Скоро вернут", count: clients.filter { $0.rentalIsActive && $0.rentalPipelineStatus == "soon_return" }.count)
-                filterChip(.debtors, title: "Должники", count: clients.filter { $0.debtRub > 0 }.count)
+                filterChip(.debtors, title: "Должники", count: clients.filter(\.isDebtor).count)
             }
             filterChip(.mine, title: "У меня", count: clients.filter { !$0.rentalIsActive }.count)
         }

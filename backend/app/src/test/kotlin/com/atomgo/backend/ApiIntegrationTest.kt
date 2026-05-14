@@ -10,6 +10,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -1980,6 +1981,53 @@ class ApiIntegrationTest {
         )
     }
 
+    @Test
+    fun `admin clients summary should include debtor with closed rental even when carried debt is zero`() = testApplication {
+        application { module() }
+        val adminToken = loginAsAdmin()
+
+        val clientId = setupCarriedDebt(
+            adminToken = adminToken,
+            fullName = "Closed Debtor",
+            phone = "79009991009"
+        )
+
+        // Обнуляем только carriedDebt (операция по клиенту), но сама закрытая
+        // client_rental с долгом остаётся в истории и должна учитываться
+        // в /admin/clients как должник.
+        val writeoff = client.post("/api/v1/admin/clients/$clientId/carried-debt") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody("""{"amount_rub":1000,"kind":"writeoff","comment":"test writeoff"}""")
+        }
+        assertEquals(HttpStatusCode.OK, writeoff.status)
+
+        val details = client.get("/api/v1/admin/clients/$clientId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, details.status)
+        val detailsJson = json.parseToJsonElement(details.bodyAsText()).jsonObject
+        val closedRentalDebt = detailsJson["debt_rub"]?.jsonPrimitive?.content?.toInt() ?: 0
+        assertTrue(closedRentalDebt > 0, "Expected positive debt from closed client_rental history")
+        assertEquals(0, detailsJson["carried_debt_rub"]?.jsonPrimitive?.content?.toInt())
+
+        val clients = client.get("/api/v1/admin/clients") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, clients.status)
+        val row = json.parseToJsonElement(clients.bodyAsText()).jsonArray
+            .firstOrNull { it.jsonObject["client_id"]?.jsonPrimitive?.content == clientId }
+            ?.jsonObject ?: error("Client summary row not found")
+
+        assertEquals(false, row["rental_is_active"]?.jsonPrimitive?.booleanOrNull)
+        assertEquals(0, row["carried_debt_rub"]?.jsonPrimitive?.content?.toInt())
+        assertEquals(
+            closedRentalDebt,
+            row["debt_rub"]?.jsonPrimitive?.content?.toInt(),
+            "Closed-rental debt must be visible in /admin/clients summary"
+        )
+    }
+
     // ---------------------------------------------------------------------------
     // POST /admin/clients/{id}/carried-debt:
     //   admin-операции списания/приёма наличной оплаты по перенесённому долгу
@@ -2362,6 +2410,403 @@ class ApiIntegrationTest {
         )
         // У lifecycle в in_stock активной client_rental нет — поля client_login
         // и client_password могут быть null/empty (это сам lifecycle, не закрытая аренда).
+    }
+
+    /**
+     * Сценарий из реальной жалобы: клиент с несколькими последовательными
+     * клиентскими арендами на одном lifecycle (finish → start → finish → start).
+     * Каждая закрытая client_rental должна сохранять СВОИ оригинальные
+     * credentials, а не последние credentials AppUser (которые перезаписываются
+     * при каждом старте новой).
+     */
+    @Test
+    fun `closed client rentals must keep their own credentials after multiple cycles`() = testApplication {
+        application { module() }
+        val adminToken = loginAsAdmin()
+        val ivanId = createClientAndGetId(
+            adminToken,
+            fullName = "Иван Петров",
+            phone = "79009993001"
+        )
+        val bikeId = createBikeAndGetId(
+            adminToken,
+            frameSerial = "IVAN-MULTI-FRAME",
+            motorSerial = "IVAN-MULTI-MOTOR"
+        )
+        val start = LocalDate.now().minusDays(5).toString()
+
+        // Цикл 1.
+        val createA = client.post("/api/v1/admin/rentals") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "client_id":"$ivanId",
+                  "bike_id":"$bikeId",
+                  "login":"ivan.cycle.a",
+                  "password":"ivanPwdAaa",
+                  "period_start":"$start"
+                }
+                """.trimIndent()
+            )
+        }
+        assertEquals(HttpStatusCode.Created, createA.status)
+        val lifecycleId = json.parseToJsonElement(createA.bodyAsText())
+            .jsonObject["rental_id"]?.jsonPrimitive?.content ?: error("No rental_id A")
+
+        // Завершаем A.
+        val finishA = client.post("/api/v1/admin/rentals/$lifecycleId/finish") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, finishA.status)
+
+        // Цикл 2: новая client_rental в том же lifecycle, новые credentials.
+        val createB = client.post("/api/v1/admin/rentals/$lifecycleId/client-rentals") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "client_id":"$ivanId",
+                  "login":"ivan.cycle.b",
+                  "password":"ivanPwdBbb",
+                  "period_start":"${LocalDate.now()}"
+                }
+                """.trimIndent()
+            )
+        }
+        assertEquals(HttpStatusCode.OK, createB.status)
+
+        // Завершаем B.
+        val finishB = client.post("/api/v1/admin/rentals/$lifecycleId/finish") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, finishB.status)
+
+        // Цикл 3: ещё одна client_rental.
+        val createC = client.post("/api/v1/admin/rentals/$lifecycleId/client-rentals") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "client_id":"$ivanId",
+                  "login":"ivan.cycle.c",
+                  "password":"ivanPwdCcc",
+                  "period_start":"${LocalDate.now()}"
+                }
+                """.trimIndent()
+            )
+        }
+        assertEquals(HttpStatusCode.OK, createC.status)
+
+        // Запрашиваем карточку клиента → история всех 3 client_rental.
+        val clientDetails = client.get("/api/v1/admin/clients/$ivanId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, clientDetails.status)
+        val rentalsArr = json.parseToJsonElement(clientDetails.bodyAsText())
+            .jsonObject["rentals"]?.jsonArray ?: error("No rentals array")
+
+        // Должны быть 3 записи. Каждая открывается через GET /admin/rentals/{id}.
+        assertEquals(3, rentalsArr.size, "Expected 3 client_rentals in history")
+
+        val expectedCreds = mapOf(
+            "ivan.cycle.a" to "ivanPwdAaa",
+            "ivan.cycle.b" to "ivanPwdBbb",
+            "ivan.cycle.c" to "ivanPwdCcc"
+        )
+
+        for (rentalEl in rentalsArr) {
+            val crId = rentalEl.jsonObject["rental_id"]?.jsonPrimitive?.content ?: error("No rental_id")
+            val crDetails = client.get("/api/v1/admin/rentals/$crId") {
+                bearerAuth(adminToken)
+            }
+            assertEquals(HttpStatusCode.OK, crDetails.status)
+            val crBody = json.parseToJsonElement(crDetails.bodyAsText()).jsonObject
+            val gotLogin = crBody["client_login"]?.jsonPrimitive?.contentOrNull
+            val gotPassword = crBody["client_password"]?.jsonPrimitive?.contentOrNull
+            assertTrue(
+                gotLogin != null && expectedCreds.containsKey(gotLogin),
+                "client_rental $crId returned unexpected login: $gotLogin"
+            )
+            assertEquals(
+                expectedCreds[gotLogin],
+                gotPassword,
+                "client_rental with login=$gotLogin must keep its original password"
+            )
+        }
+    }
+
+    /**
+     * Soft-delete конкретной client_rental из истории клиента. Lifecycle и
+     * остальные client_rentals НЕ трогаются, запись в БД остаётся
+     * (с deletedAt != null), но в API карточки клиента её больше нет.
+     */
+    @Test
+    fun `deleting closed client rental should hide it from history but keep lifecycle alive`() = testApplication {
+        application { module() }
+        val adminToken = loginAsAdmin()
+        val clientId = createClientAndGetId(
+            adminToken,
+            fullName = "Soft Delete CR",
+            phone = "79009994001"
+        )
+        val bikeId = createBikeAndGetId(
+            adminToken,
+            frameSerial = "SOFTDEL-CR-FRAME",
+            motorSerial = "SOFTDEL-CR-MOTOR"
+        )
+        val start = LocalDate.now().minusDays(7).toString()
+
+        val createA = client.post("/api/v1/admin/rentals") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "client_id":"$clientId",
+                  "bike_id":"$bikeId",
+                  "login":"softdel.a",
+                  "password":"softdelPwdAaa",
+                  "period_start":"$start"
+                }
+                """.trimIndent()
+            )
+        }
+        assertEquals(HttpStatusCode.Created, createA.status)
+        val lifecycleId = json.parseToJsonElement(createA.bodyAsText())
+            .jsonObject["rental_id"]?.jsonPrimitive?.content ?: error("No rental_id")
+
+        // Завершаем A.
+        val finish = client.post("/api/v1/admin/rentals/$lifecycleId/finish") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, finish.status)
+
+        // Получаем id закрытой A.
+        val histBefore = client.get("/api/v1/admin/clients/$clientId") {
+            bearerAuth(adminToken)
+        }
+        val closedAId = json.parseToJsonElement(histBefore.bodyAsText())
+            .jsonObject["rentals"]?.jsonArray
+            ?.firstOrNull { it.jsonObject["bike_id"]?.jsonPrimitive?.content == bikeId }
+            ?.jsonObject?.get("rental_id")?.jsonPrimitive?.content
+            ?: error("Closed A id not found")
+
+        // Удаляем закрытую A через её client_rental id.
+        val deleteA = client.post("/api/v1/admin/rentals/$closedAId/delete") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, deleteA.status)
+
+        // History теперь без A.
+        val histAfter = client.get("/api/v1/admin/clients/$clientId") {
+            bearerAuth(adminToken)
+        }
+        val rentalsAfter = json.parseToJsonElement(histAfter.bodyAsText())
+            .jsonObject["rentals"]?.jsonArray ?: error("No rentals array")
+        assertTrue(
+            rentalsAfter.none { it.jsonObject["rental_id"]?.jsonPrimitive?.content == closedAId },
+            "Удалённая client_rental не должна показываться в истории"
+        )
+
+        // Lifecycle ЖИВ — она показывается в /admin/rents (статус in_stock).
+        val rents = client.get("/api/v1/admin/rents") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, rents.status)
+        assertTrue(
+            json.parseToJsonElement(rents.bodyAsText()).jsonArray.any { item ->
+                item.jsonObject["rental_id"]?.jsonPrimitive?.content == lifecycleId
+            },
+            "Lifecycle не должен быть удалён вместе с удалением client_rental"
+        )
+
+        // GET закрытой удалённой A теперь 404 — она спрятана.
+        val openDeletedA = client.get("/api/v1/admin/rentals/$closedAId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.NotFound, openDeletedA.status)
+    }
+
+    @Test
+    fun `deleting active client_rental id should remove lifecycle and keep clients free in catalog`() = testApplication {
+        application { module() }
+        val adminToken = loginAsAdmin()
+
+        val oldClientId = createClientAndGetId(
+            adminToken,
+            fullName = "Old Client",
+            phone = "79009995001"
+        )
+        val newClientId = createClientAndGetId(
+            adminToken,
+            fullName = "New Client",
+            phone = "79009995002"
+        )
+        val bikeId = createBikeAndGetId(
+            adminToken,
+            frameSerial = "DELETE-ACTIVE-CR-FRAME",
+            motorSerial = "DELETE-ACTIVE-CR-MOTOR"
+        )
+        val start = LocalDate.now().minusDays(10).toString()
+
+        val createOld = client.post("/api/v1/admin/rentals") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "client_id":"$oldClientId",
+                  "bike_id":"$bikeId",
+                  "login":"delete.active.old",
+                  "password":"deleteActiveOldPwd",
+                  "period_start":"$start"
+                }
+                """.trimIndent()
+            )
+        }
+        assertEquals(HttpStatusCode.Created, createOld.status)
+        val lifecycleId = json.parseToJsonElement(createOld.bodyAsText())
+            .jsonObject["rental_id"]?.jsonPrimitive?.content ?: error("No lifecycle rental id")
+
+        val finishOld = client.post("/api/v1/admin/rentals/$lifecycleId/finish") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, finishOld.status)
+
+        val startNew = client.post("/api/v1/admin/rentals/$lifecycleId/client-rentals") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "client_id":"$newClientId",
+                  "bike_id":"$bikeId",
+                  "login":"delete.active.new",
+                  "password":"deleteActiveNewPwd",
+                  "period_start":"${LocalDate.now()}",
+                  "comment":"rebind"
+                }
+                """.trimIndent()
+            )
+        }
+        assertEquals(HttpStatusCode.OK, startNew.status)
+
+        val newClientDetails = client.get("/api/v1/admin/clients/$newClientId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, newClientDetails.status)
+        val activeClientRentalId = json.parseToJsonElement(newClientDetails.bodyAsText())
+            .jsonObject["rentals"]?.jsonArray
+            ?.firstOrNull { it.jsonObject["period_end"]?.jsonPrimitive?.contentOrNull == null }
+            ?.jsonObject?.get("rental_id")?.jsonPrimitive?.content
+            ?: error("No active client_rental id for new client")
+
+        // Критичный сценарий: удаление по id активной client_rental.
+        val deleteByActiveClientRentalId = client.post("/api/v1/admin/rentals/$activeClientRentalId/delete") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, deleteByActiveClientRentalId.status)
+        val deleteKind = json.parseToJsonElement(deleteByActiveClientRentalId.bodyAsText())
+            .jsonObject["delete_kind"]?.jsonPrimitive?.content
+        assertEquals("lifecycle_rental", deleteKind)
+
+        // Lifecycle должна исчезнуть с главного списка аренд.
+        val rentsAfterDelete = client.get("/api/v1/admin/rents") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, rentsAfterDelete.status)
+        assertTrue(
+            json.parseToJsonElement(rentsAfterDelete.bodyAsText()).jsonArray.none { item ->
+                item.jsonObject["rental_id"]?.jsonPrimitive?.content == lifecycleId
+            },
+            "Lifecycle should be removed when deleting active client_rental id"
+        )
+
+        // Оба клиента должны быть неактивны и без привязки к байку/логину.
+        val clientsAfterDelete = client.get("/api/v1/admin/clients") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, clientsAfterDelete.status)
+        val clientsArray = json.parseToJsonElement(clientsAfterDelete.bodyAsText()).jsonArray
+
+        fun clientRow(clientId: String) = clientsArray.firstOrNull {
+            it.jsonObject["client_id"]?.jsonPrimitive?.content == clientId
+        }?.jsonObject ?: error("Client row not found: $clientId")
+
+        val oldRow = clientRow(oldClientId)
+        val newRow = clientRow(newClientId)
+
+        assertEquals(false, oldRow["rental_is_active"]?.jsonPrimitive?.booleanOrNull)
+        assertEquals(false, newRow["rental_is_active"]?.jsonPrimitive?.booleanOrNull)
+        assertEquals("-", oldRow["bike_model"]?.jsonPrimitive?.contentOrNull)
+        assertEquals("-", newRow["bike_model"]?.jsonPrimitive?.contentOrNull)
+        assertTrue(oldRow["client_login"]?.jsonPrimitive?.contentOrNull.isNullOrBlank())
+        assertTrue(newRow["client_login"]?.jsonPrimitive?.contentOrNull.isNullOrBlank())
+    }
+
+    @Test
+    fun `finishing by active client_rental id should complete lifecycle rental`() = testApplication {
+        application { module() }
+        val adminToken = loginAsAdmin()
+        val clientId = createClientAndGetId(
+            adminToken,
+            fullName = "Finish By CR Client",
+            phone = "79009996001"
+        )
+        val bikeId = createBikeAndGetId(
+            adminToken,
+            frameSerial = "FINISH-BY-CR-FRAME",
+            motorSerial = "FINISH-BY-CR-MOTOR"
+        )
+
+        val createRental = client.post("/api/v1/admin/rentals") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "client_id":"$clientId",
+                  "bike_id":"$bikeId",
+                  "login":"finish.by.cr",
+                  "password":"finishByCrPwd",
+                  "period_start":"${LocalDate.now()}"
+                }
+                """.trimIndent()
+            )
+        }
+        assertEquals(HttpStatusCode.Created, createRental.status)
+        val lifecycleId = json.parseToJsonElement(createRental.bodyAsText())
+            .jsonObject["rental_id"]?.jsonPrimitive?.content ?: error("No lifecycle rental id")
+
+        val clientDetailsBeforeFinish = client.get("/api/v1/admin/clients/$clientId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, clientDetailsBeforeFinish.status)
+        val activeClientRentalId = json.parseToJsonElement(clientDetailsBeforeFinish.bodyAsText())
+            .jsonObject["rentals"]?.jsonArray
+            ?.firstOrNull { it.jsonObject["period_end"]?.jsonPrimitive?.contentOrNull == null }
+            ?.jsonObject?.get("rental_id")?.jsonPrimitive?.content
+            ?: error("No active client rental id")
+
+        val finishByClientRentalId = client.post("/api/v1/admin/rentals/$activeClientRentalId/finish") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, finishByClientRentalId.status)
+        val finishRentalId = json.parseToJsonElement(finishByClientRentalId.bodyAsText())
+            .jsonObject["rental_id"]?.jsonPrimitive?.content
+        assertEquals(lifecycleId, finishRentalId)
+
+        val lifecycleDetailsAfterFinish = client.get("/api/v1/admin/rentals/$lifecycleId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, lifecycleDetailsAfterFinish.status)
+        val lifecycleJson = json.parseToJsonElement(lifecycleDetailsAfterFinish.bodyAsText()).jsonObject
+        assertEquals("in_stock", lifecycleJson["rental_pipeline_status"]?.jsonPrimitive?.content)
+        assertEquals(false, lifecycleJson["rental_is_active"]?.jsonPrimitive?.booleanOrNull)
     }
 
     private suspend fun io.ktor.server.testing.ApplicationTestBuilder.paySingleWeek(

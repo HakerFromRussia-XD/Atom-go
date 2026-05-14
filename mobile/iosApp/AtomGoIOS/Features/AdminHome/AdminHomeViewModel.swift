@@ -327,7 +327,11 @@ final class AdminHomeViewModel: ObservableObject {
                     rentalId: rentalId
                 )
                 if result.deleted {
-                    operationSuccessMessage = "Велосипед выведен из эксплуатации"
+                    if result.deleteKind == "client_rental" {
+                        operationSuccessMessage = "Клиентская аренда удалена"
+                    } else {
+                        operationSuccessMessage = "Велосипед выведен из эксплуатации"
+                    }
                 } else {
                     operationSuccessMessage = "Удаление завершено"
                 }

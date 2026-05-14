@@ -173,7 +173,7 @@ struct ClientCatalogSheet: View {
         case .all:
             return searched
         case .debtors:
-            return searched.filter { $0.debtRub > 0 }
+            return searched.filter(\.isDebtor)
         case .active:
             return searched.filter { $0.rentalIsActive }
         }
@@ -182,7 +182,7 @@ struct ClientCatalogSheet: View {
     private func clientChipRows(clients: [AdminClientSummaryResponse]) -> some View {
         HStack(spacing: 8) {
             clientFilterChip(.all, count: clients.count)
-            clientFilterChip(.debtors, count: clients.filter { $0.debtRub > 0 }.count)
+            clientFilterChip(.debtors, count: clients.filter(\.isDebtor).count)
             clientFilterChip(.active, count: clients.filter { $0.rentalIsActive }.count)
         }
     }
@@ -376,4 +376,3 @@ struct ClientCatalogSheet: View {
         .accessibilityIdentifier("clientCatalog.open.\(client.fullName)")
     }
 }
-

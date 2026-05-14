@@ -142,7 +142,14 @@ data class ClientRentalRecord(
      * Заполняется при создании ClientRentalRecord и при бэкфилле в
      * `ensureClientRentalModel`.
      */
-    val clientPasswordFingerprint: String = ""
+    val clientPasswordFingerprint: String = "",
+    /**
+     * Soft-delete метка для самой клиентской аренды (отдельно от lifecycle).
+     * Удалённая через trash-кнопку closed client_rental исчезает из истории
+     * аренд клиента, но запись + ledger остаются в БД.
+     * lifecycle при этом НЕ удаляется. См. docs/14_rental_lifecycle.md §7.
+     */
+    val deletedAt: Instant? = null
 )
 
 data class BikeAccount(

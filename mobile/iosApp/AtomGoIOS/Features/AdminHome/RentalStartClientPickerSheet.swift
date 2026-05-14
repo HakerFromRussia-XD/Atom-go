@@ -58,7 +58,7 @@ struct RentalStartClientPickerSheet: View {
         case .all:
             return searched
         case .debtors:
-            return searched.filter { $0.debtRub > 0 }
+            return searched.filter(\.isDebtor)
         case .active:
             return []
         }
@@ -98,7 +98,7 @@ struct RentalStartClientPickerSheet: View {
 
             HStack(spacing: 8) {
                 filterChip(.all, count: baseClients.count)
-                filterChip(.debtors, count: baseClients.filter { $0.debtRub > 0 }.count)
+                filterChip(.debtors, count: baseClients.filter(\.isDebtor).count)
                 filterChip(.active, count: 0)
             }
             .padding(.horizontal, horizontalInset)
@@ -254,4 +254,3 @@ struct RentalStartClientPickerSheet: View {
         .accessibilityValue(isSelected ? "selected" : "normal")
     }
 }
-

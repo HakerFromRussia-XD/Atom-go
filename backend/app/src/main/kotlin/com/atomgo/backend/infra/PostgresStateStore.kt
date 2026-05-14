@@ -182,6 +182,7 @@ class PostgresStateStore private constructor(
                 """.trimIndent()
             )
             statement.execute("ALTER TABLE atomgo_client_rentals ADD COLUMN IF NOT EXISTS client_password_fingerprint TEXT NOT NULL DEFAULT ''")
+            statement.execute("ALTER TABLE atomgo_client_rentals ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ")
             statement.execute(
                 """
                 CREATE TABLE IF NOT EXISTS atomgo_ledger_entries (
@@ -557,7 +558,7 @@ class PostgresStateStore private constructor(
         connection.prepareStatement(
             """
             SELECT id, rental_id, client_id, bike_id, client_login, client_password, start_date, end_date,
-                   video_url, contract_url, comment, admin_id, tax_mode, client_password_fingerprint
+                   video_url, contract_url, comment, admin_id, tax_mode, client_password_fingerprint, deleted_at
             FROM atomgo_client_rentals
             ORDER BY start_date DESC, id
             """.trimIndent()
@@ -578,7 +579,8 @@ class PostgresStateStore private constructor(
                         comment = rs.getString("comment"),
                         adminId = rs.getString("admin_id"),
                         taxMode = enumValueOf<AdminTaxMode>(rs.getString("tax_mode")),
-                        clientPasswordFingerprint = rs.getString("client_password_fingerprint") ?: ""
+                        clientPasswordFingerprint = rs.getString("client_password_fingerprint") ?: "",
+                        deletedAt = rs.getTimestamp("deleted_at")?.toInstant()
                     )
                 }
             }
@@ -830,9 +832,10 @@ class PostgresStateStore private constructor(
                 comment,
                 admin_id,
                 tax_mode,
-                client_password_fingerprint
+                client_password_fingerprint,
+                deleted_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent()
         ).use { statement ->
             state.clientRentals.forEach { rental ->
@@ -850,6 +853,7 @@ class PostgresStateStore private constructor(
                 statement.setString(12, rental.adminId)
                 statement.setString(13, rental.taxMode.name)
                 statement.setString(14, rental.clientPasswordFingerprint)
+                statement.setTimestamp(15, rental.deletedAt?.let { java.sql.Timestamp.from(it) })
                 statement.addBatch()
             }
             statement.executeBatch()
@@ -1159,7 +1163,8 @@ private object InMemoryStoreJsonMapper {
         val comment: String? = null,
         val adminId: String? = null,
         val taxMode: String = AdminTaxMode.SELF_EMPLOYED.name,
-        val clientPasswordFingerprint: String = ""
+        val clientPasswordFingerprint: String = "",
+        val deletedAt: String? = null
     )
 
     @Serializable
@@ -1284,7 +1289,8 @@ private object InMemoryStoreJsonMapper {
                     comment = it.comment,
                     adminId = it.adminId,
                     taxMode = it.taxMode.name,
-                    clientPasswordFingerprint = it.clientPasswordFingerprint
+                    clientPasswordFingerprint = it.clientPasswordFingerprint,
+                    deletedAt = it.deletedAt?.toString()
                 )
             },
             ledger = store.ledger.map {
@@ -1445,7 +1451,8 @@ private object InMemoryStoreJsonMapper {
                     comment = it.comment,
                     adminId = it.adminId,
                     taxMode = enumValueOf<AdminTaxMode>(it.taxMode),
-                    clientPasswordFingerprint = it.clientPasswordFingerprint
+                    clientPasswordFingerprint = it.clientPasswordFingerprint,
+                    deletedAt = it.deletedAt?.let(java.time.Instant::parse)
                 )
             }.toMutableList(),
             ledger = persisted.ledger.map {
