@@ -20,6 +20,8 @@ struct EditBikeSheet: View {
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var selectedPhotoPreview: Image?
     @State private var overridePhotoDataUrl: String?
+    @State private var toastMessage: String?
+    @State private var toastDismissTask: Task<Void, Never>?
 
     private let ebonyClay = Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255)
     private let paleSky = Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255)
@@ -64,19 +66,6 @@ struct EditBikeSheet: View {
 
                     ScrollView(showsIndicators: false) {
                         VStack(alignment: .leading, spacing: 14) {
-                            if let validationError {
-                                createBikeErrorCard(
-                                    validationError,
-                                    accessibilityIdentifier: "editBike.validationError"
-                                )
-                            }
-                            if let apiErrorMessage, !apiErrorMessage.isEmpty {
-                                createBikeErrorCard(
-                                    apiErrorMessage,
-                                    accessibilityIdentifier: "editBike.apiError"
-                                )
-                            }
-
                             photoPickerCard(width: fieldWidth)
 
                             createBikeSectionTitle("Обязательные")
@@ -137,6 +126,13 @@ struct EditBikeSheet: View {
         .onChange(of: selectedPhotoItem) { newItem in
             Task { await loadPhoto(item: newItem) }
         }
+        .onChange(of: validationError) { newValue in
+            presentToast(newValue)
+        }
+        .onChange(of: apiErrorMessage) { newValue in
+            presentToast(newValue)
+        }
+        .appToast(message: $toastMessage, bottomPadding: 96)
     }
 
     private var topBar: some View {
@@ -326,17 +322,6 @@ struct EditBikeSheet: View {
         .clipShape(RoundedRectangle(cornerRadius: 12.84, style: .continuous))
     }
 
-    private func createBikeErrorCard(_ text: String, accessibilityIdentifier: String) -> some View {
-        Text(text)
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(AppDesign.danger)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(14)
-            .background(Color.white)
-            .clipShape(RoundedRectangle(cornerRadius: 12.84, style: .continuous))
-            .accessibilityIdentifier(accessibilityIdentifier)
-    }
-
     private func submit() {
         validationError = nil
 
@@ -410,5 +395,15 @@ struct EditBikeSheet: View {
             }
         }
     }
-}
 
+    private func presentToast(_ message: String?) {
+        guard let message = message?.trimmingCharacters(in: .whitespacesAndNewlines), !message.isEmpty else { return }
+        toastDismissTask?.cancel()
+        toastMessage = message
+        toastDismissTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            guard !Task.isCancelled else { return }
+            toastMessage = nil
+        }
+    }
+}

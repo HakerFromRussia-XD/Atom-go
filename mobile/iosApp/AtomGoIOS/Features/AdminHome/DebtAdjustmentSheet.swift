@@ -12,6 +12,8 @@ struct DebtAdjustmentSheet: View {
     @State private var amountRub = ""
     @State private var comment = ""
     @State private var validationError: String?
+    @State private var toastMessage: String?
+    @State private var toastDismissTask: Task<Void, Never>?
 
     var body: some View {
         NavigationStack {
@@ -33,13 +35,6 @@ struct DebtAdjustmentSheet: View {
                         .keyboardType(.numberPad)
                     TextField("Комментарий (необязательно)", text: $comment)
                 }
-
-                if let validationError {
-                    Section {
-                        Text(validationError)
-                            .foregroundStyle(AppDesign.danger)
-                    }
-                }
             }
             .navigationTitle("Корректировка")
             .toolbar {
@@ -57,6 +52,10 @@ struct DebtAdjustmentSheet: View {
                 }
             }
         }
+        .onChange(of: validationError) { newValue in
+            presentToast(newValue)
+        }
+        .appToast(message: $toastMessage, bottomPadding: 96)
     }
 
     private func submit() {
@@ -67,6 +66,17 @@ struct DebtAdjustmentSheet: View {
         }
 
         onApply(amount, sign, comment.trimmedToOptional)
+    }
+
+    private func presentToast(_ message: String?) {
+        guard let message = message?.trimmingCharacters(in: .whitespacesAndNewlines), !message.isEmpty else { return }
+        toastDismissTask?.cancel()
+        toastMessage = message
+        toastDismissTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            guard !Task.isCancelled else { return }
+            toastMessage = nil
+        }
     }
 }
 

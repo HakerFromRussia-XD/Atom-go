@@ -22,6 +22,8 @@ struct CreateRentalSheet: View {
     @State private var validationError: String?
     @State private var isClientPickerPresented = false
     @State private var isBikePickerPresented = false
+    @State private var toastMessage: String?
+    @State private var toastDismissTask: Task<Void, Never>?
 
     init(
         clients: [AdminClientSummaryResponse],
@@ -62,17 +64,6 @@ struct CreateRentalSheet: View {
 
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 14) {
-                        if let validationError {
-                            Text(validationError)
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(AppDesign.danger)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(14)
-                                .background(Color.white)
-                                .clipShape(RoundedRectangle(cornerRadius: 12.84, style: .continuous))
-                                .accessibilityIdentifier("createRental.validationError")
-                        }
-
                         sectionTitle("КЛИЕНТ И ВЕЛОСИПЕД")
 
                         selectionField(
@@ -182,6 +173,10 @@ struct CreateRentalSheet: View {
                 onConfirm: { isBikePickerPresented = false }
             )
         }
+        .onChange(of: validationError) { newValue in
+            presentToast(newValue)
+        }
+        .appToast(message: $toastMessage, bottomPadding: 96)
     }
 
     private var availableClientsForStart: [AdminClientSummaryResponse] {
@@ -423,6 +418,7 @@ struct CreateRentalSheet: View {
         }
         validationError = nil
         UIPasteboard.general.string = "Логин: \(normalizedLogin)\nПароль: \(normalizedPassword)"
+        presentToast("скопированно")
     }
 
     private func submit() {
@@ -487,5 +483,15 @@ struct CreateRentalSheet: View {
         let formatter = DateFormatter.apiDate
         return formatter.date(from: value) != nil
     }
-}
 
+    private func presentToast(_ message: String?) {
+        guard let message = message?.trimmingCharacters(in: .whitespacesAndNewlines), !message.isEmpty else { return }
+        toastDismissTask?.cancel()
+        toastMessage = message
+        toastDismissTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            guard !Task.isCancelled else { return }
+            toastMessage = nil
+        }
+    }
+}

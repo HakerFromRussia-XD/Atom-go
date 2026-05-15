@@ -26,6 +26,8 @@ struct RentalHistoryCard: View {
     @State private var periodStartDraft: String
     @State private var periodEndDraft: String
     @State private var rentalValidationError: String?
+    @State private var toastMessage: String?
+    @State private var toastDismissTask: Task<Void, Never>?
 
     init(
         clientId: String,
@@ -217,13 +219,6 @@ struct RentalHistoryCard: View {
                         .autocorrectionDisabled()
                         .accessibilityIdentifier("rentalCard.periodEndField")
 
-                    if let rentalValidationError {
-                        Text(rentalValidationError)
-                            .font(.caption)
-                            .foregroundStyle(AppDesign.danger)
-                            .accessibilityIdentifier("rentalCard.validationError")
-                    }
-
                     HStack(spacing: 10) {
                         Button("Сохранить") {
                             submitRentalUpdate()
@@ -261,6 +256,10 @@ struct RentalHistoryCard: View {
                 selectedBikeId = bikes.first?.bikeId ?? ""
             }
         }
+        .onChange(of: rentalValidationError) { newValue in
+            presentToast(newValue)
+        }
+        .appToast(message: $toastMessage, bottomPadding: 96)
     }
 
     @ViewBuilder
@@ -359,5 +358,15 @@ struct RentalHistoryCard: View {
         periodEndDraft = rental.periodEnd ?? ""
         rentalValidationError = nil
     }
-}
 
+    private func presentToast(_ message: String?) {
+        guard let message = message?.trimmingCharacters(in: .whitespacesAndNewlines), !message.isEmpty else { return }
+        toastDismissTask?.cancel()
+        toastMessage = message
+        toastDismissTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            guard !Task.isCancelled else { return }
+            toastMessage = nil
+        }
+    }
+}

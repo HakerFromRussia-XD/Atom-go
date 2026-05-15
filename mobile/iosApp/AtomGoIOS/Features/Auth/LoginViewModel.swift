@@ -15,8 +15,8 @@ final class LoginViewModel: ObservableObject {
     private static let defaultLogin = "admin"
     private static let defaultPassword = "admin123"
     
-    private static let defaultClientSelfEmployedLogin = "tmpclientx"
-    private static let defaultClientPassword = "tmp123"
+    private static let defaultClientSelfEmployedLogin = "1"
+    private static let defaultClientPassword = "2"
     
     private static let defaultClientIpLogin = "ip.ui.54fz"
     private static let defaultClientIpPassword = "client123"

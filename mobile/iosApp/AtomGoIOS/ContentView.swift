@@ -4,6 +4,8 @@ struct ContentView: View {
     @ObservedObject var viewModel: LoginViewModel
     @StateObject private var keyboardState = KeyboardState()
     @State private var isPasswordVisible = false
+    @State private var toastMessage: String?
+    @State private var toastDismissTask: Task<Void, Never>?
     @FocusState private var focusedField: LoginInputField?
     private let showQuickFillButtons = true
 
@@ -121,18 +123,40 @@ struct ContentView: View {
                 .accessibilityIdentifier("login.submitButton")
                 .offset(x: 35 * xScale, y: 687 * yScale)
 
-                if viewModel.statusText != LoginViewModel.waitingStatusText {
-                    Text(viewModel.statusText)
-                        .font(AppDesign.poppinsMedium(size: 12 * textScale))
-                        .foregroundStyle(statusColor)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(width: 343 * xScale, alignment: .leading)
-                        .accessibilityIdentifier("login.statusText")
-                        .offset(x: 35 * xScale, y: 760 * yScale)
-                }
+                Text(viewModel.statusText)
+                    .font(.caption2)
+                    .foregroundStyle(.clear)
+                    .frame(width: 1, height: 1)
+                    .accessibilityIdentifier("login.statusText")
+                    .accessibilityValue(viewModel.statusText)
             }
             .offset(y: -keyboardLift)
             .animation(.easeOut(duration: 0.2), value: keyboardTop)
+            .onChange(of: viewModel.statusText) { newValue in
+                presentLoginToastIfNeeded(newValue)
+            }
+            .appToast(message: $toastMessage, bottomPadding: 86)
+        }
+    }
+
+    private func presentLoginToastIfNeeded(_ statusText: String) {
+        let normalized = statusText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty, normalized != LoginViewModel.waitingStatusText else {
+            return
+        }
+        let message: String
+        if let statusPrefixRange = normalized.range(of: "Статус: ") {
+            message = String(normalized[statusPrefixRange.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            message = normalized
+        }
+        guard !message.isEmpty else { return }
+        toastDismissTask?.cancel()
+        toastMessage = message
+        toastDismissTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            guard !Task.isCancelled else { return }
+            toastMessage = nil
         }
     }
 
@@ -292,19 +316,6 @@ private enum LoginInputField: Hashable {
 
 #Preview {
     ContentView(viewModel: LoginViewModel(apiService: BackendService()))
-}
-
-private extension ContentView {
-    var statusColor: Color {
-        switch viewModel.statusKind {
-        case .error:
-            return AppDesign.danger
-        case .success:
-            return AppDesign.success
-        case .info, .idle:
-            return .primary
-        }
-    }
 }
 
 private final class KeyboardState: ObservableObject {

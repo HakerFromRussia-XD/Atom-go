@@ -27,6 +27,8 @@ struct EditClientProfileSheet: View {
     @State private var isCommentVisible = false
     @State private var comment = ""
     @State private var validationError: String?
+    @State private var toastMessage: String?
+    @State private var toastDismissTask: Task<Void, Never>?
 
     init(
         details: AdminClientDetailsResponse,
@@ -133,7 +135,6 @@ struct EditClientProfileSheet: View {
                                 isCommentVisible = true
                             }
 
-                            editClientErrorBlock
                         }
                         .frame(width: fieldWidth, alignment: .leading)
                         .padding(.top, 16)
@@ -144,6 +145,10 @@ struct EditClientProfileSheet: View {
                 }
             }
         }
+        .onChange(of: validationError) { newValue in
+            presentToast(newValue)
+        }
+        .appToast(message: $toastMessage, bottomPadding: 96)
     }
 
     private func editClientTopBar(horizontalPadding: CGFloat) -> some View {
@@ -271,20 +276,6 @@ struct EditClientProfileSheet: View {
         .accessibilityIdentifier(accessibilityIdentifier)
     }
 
-    @ViewBuilder
-    private var editClientErrorBlock: some View {
-        if let validationError {
-            Text(validationError)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(AppDesign.danger)
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.white)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .accessibilityIdentifier("editClient.validationError")
-        }
-    }
-
     private func submit() {
         validationError = nil
 
@@ -315,5 +306,15 @@ struct EditClientProfileSheet: View {
         )
         onSave(payload)
     }
-}
 
+    private func presentToast(_ message: String?) {
+        guard let message = message?.trimmingCharacters(in: .whitespacesAndNewlines), !message.isEmpty else { return }
+        toastDismissTask?.cancel()
+        toastMessage = message
+        toastDismissTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            guard !Task.isCancelled else { return }
+            toastMessage = nil
+        }
+    }
+}

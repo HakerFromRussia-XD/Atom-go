@@ -26,6 +26,7 @@ struct AdminRentalDetailsScreen: View {
     @State private var didInitializeCredentialDrafts = false
     @State private var startValidationMessage: String?
     @State private var copyToastMessage: String?
+    @State private var toastDismissTask: Task<Void, Never>?
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -158,6 +159,9 @@ struct AdminRentalDetailsScreen: View {
         }
         .onChange(of: editableRentalPassword) { _ in
             startValidationMessage = nil
+        }
+        .onChange(of: startValidationMessage) { newValue in
+            presentToast(newValue)
         }
         .appToast(message: $copyToastMessage, bottomPadding: 86)
     }
@@ -517,13 +521,6 @@ struct AdminRentalDetailsScreen: View {
 
     private var bottomActions: some View {
         VStack(alignment: .leading, spacing: 6) {
-            if let startValidationMessage, !startValidationMessage.isEmpty {
-                Text(startValidationMessage)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255))
-                    .padding(.horizontal, 4)
-            }
-
             HStack(spacing: 8) {
                 Button {
                     guard let clientId else { return }
@@ -933,14 +930,22 @@ struct AdminRentalDetailsScreen: View {
 
         UIPasteboard.general.string = "Логин: \(login)\nПароль: \(password)"
         startValidationMessage = nil
-        copyToastMessage = "скопированно"
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-            copyToastMessage = nil
-        }
+        presentToast("скопированно")
     }
 
     private func normalizedCredential(_ value: String?) -> String {
         value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    private func presentToast(_ message: String?) {
+        guard let message = message?.trimmingCharacters(in: .whitespacesAndNewlines), !message.isEmpty else { return }
+        toastDismissTask?.cancel()
+        copyToastMessage = message
+        toastDismissTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            guard !Task.isCancelled else { return }
+            copyToastMessage = nil
+        }
     }
 
     private var journalRows: [AdminRentalJournalEntry] {

@@ -23,6 +23,8 @@ struct CreateClientSheet: View {
     @State private var isCommentVisible = false
     @State private var comment = ""
     @State private var validationError: String?
+    @State private var toastMessage: String?
+    @State private var toastDismissTask: Task<Void, Never>?
 
     var body: some View {
         GeometryReader { proxy in
@@ -105,7 +107,6 @@ struct CreateClientSheet: View {
                                 isCommentVisible = true
                             }
 
-                            createClientErrorBlock
                         }
                         .frame(width: fieldWidth, alignment: .leading)
                         .padding(.top, 16)
@@ -116,6 +117,13 @@ struct CreateClientSheet: View {
                 }
             }
         }
+        .onChange(of: validationError) { newValue in
+            presentToast(newValue)
+        }
+        .onChange(of: apiErrorMessage) { newValue in
+            presentToast(newValue)
+        }
+        .appToast(message: $toastMessage, bottomPadding: 96)
     }
 
     private func submit() {
@@ -260,30 +268,15 @@ struct CreateClientSheet: View {
         .accessibilityIdentifier(accessibilityIdentifier)
     }
 
-    @ViewBuilder
-    private var createClientErrorBlock: some View {
-        if validationError != nil || (apiErrorMessage?.isEmpty == false) {
-            VStack(alignment: .leading, spacing: 8) {
-                if let validationError {
-                    Text(validationError)
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(AppDesign.danger)
-                        .accessibilityIdentifier("createClient.validationError")
-                }
-
-                if let apiErrorMessage, !apiErrorMessage.isEmpty {
-                    Text(apiErrorMessage)
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(AppDesign.danger)
-                        .accessibilityIdentifier("createClient.apiError")
-                }
-            }
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.white)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    private func presentToast(_ message: String?) {
+        guard let message = message?.trimmingCharacters(in: .whitespacesAndNewlines), !message.isEmpty else { return }
+        toastDismissTask?.cancel()
+        toastMessage = message
+        toastDismissTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            guard !Task.isCancelled else { return }
+            toastMessage = nil
         }
     }
 
 }
-

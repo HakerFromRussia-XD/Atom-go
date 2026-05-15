@@ -16,6 +16,8 @@ struct ClientCatalogSheet: View {
     @State private var selectedFilter: ClientCatalogFilter = .all
     @State private var initialCardsTopY: CGFloat?
     @State private var areFiltersInteractive = true
+    @State private var toastMessage: String?
+    @State private var toastDismissTask: Task<Void, Never>?
 
     private let athensGray = Color(red: 247 / 255, green: 248 / 255, blue: 250 / 255)
     private let horizontalInset: CGFloat = 8
@@ -51,18 +53,6 @@ struct ClientCatalogSheet: View {
                         .allowsHitTesting(false)
 
                     VStack(alignment: .leading, spacing: 0) {
-                        if let apiErrorMessage, !apiErrorMessage.isEmpty {
-                            Text(apiErrorMessage)
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(AppDesign.danger)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(16)
-                                .background(Color.white)
-                                .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-                                .padding(.top, 14)
-                                .accessibilityIdentifier("clientCatalog.error")
-                        }
-
                         if visibleClients.isEmpty {
                             emptyState
                                 .padding(.top, 14)
@@ -158,6 +148,10 @@ struct ClientCatalogSheet: View {
                 }
             )
         }
+        .onChange(of: apiErrorMessage) { newValue in
+            presentToast(newValue)
+        }
+        .appToast(message: $toastMessage, bottomPadding: 96)
     }
 
     private var visibleClients: [AdminClientSummaryResponse] {
@@ -374,5 +368,16 @@ struct ClientCatalogSheet: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("clientCatalog.open.\(client.fullName)")
+    }
+
+    private func presentToast(_ message: String?) {
+        guard let message = message?.trimmingCharacters(in: .whitespacesAndNewlines), !message.isEmpty else { return }
+        toastDismissTask?.cancel()
+        toastMessage = message
+        toastDismissTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            guard !Task.isCancelled else { return }
+            toastMessage = nil
+        }
     }
 }

@@ -20,6 +20,8 @@ struct BikeCatalogSheet: View {
     @State private var selectedFilter: BikeCatalogFilter = .all
     @State private var initialCardsTopY: CGFloat?
     @State private var areFiltersInteractive = true
+    @State private var toastMessage: String?
+    @State private var toastDismissTask: Task<Void, Never>?
 
     private let athensGray = Color(red: 247 / 255, green: 248 / 255, blue: 250 / 255)
     private let blackHaze = Color(red: 250 / 255, green: 251 / 255, blue: 251 / 255)
@@ -85,18 +87,6 @@ struct BikeCatalogSheet: View {
                         .allowsHitTesting(false)
 
                     VStack(alignment: .leading, spacing: 0) {
-                        if let apiErrorMessage, !apiErrorMessage.isEmpty {
-                            Text(apiErrorMessage)
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(AppDesign.danger)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(14)
-                                .background(Color.white)
-                                .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-                                .padding(.top, 10)
-                                .accessibilityIdentifier("bikeCatalog.error")
-                        }
-
                         if projection.visibleBikes.isEmpty {
                             bikeEmptyState
                                 .padding(.top, 10)
@@ -223,6 +213,10 @@ struct BikeCatalogSheet: View {
         } message: {
             Text("Велосипед без истории аренд будет удален из каталога.")
         }
+        .onChange(of: apiErrorMessage) { newValue in
+            presentToast(newValue)
+        }
+        .appToast(message: $toastMessage, bottomPadding: 96)
     }
 
     private func bikeChipRows(projection: BikeCatalogProjection) -> some View {
@@ -501,6 +495,17 @@ struct BikeCatalogSheet: View {
         }
         .disabled(isSaving)
         .accessibilityIdentifier("bikeCatalog.edit.\(bike.bikeModel)")
+    }
+
+    private func presentToast(_ message: String?) {
+        guard let message = message?.trimmingCharacters(in: .whitespacesAndNewlines), !message.isEmpty else { return }
+        toastDismissTask?.cancel()
+        toastMessage = message
+        toastDismissTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            guard !Task.isCancelled else { return }
+            toastMessage = nil
+        }
     }
 
     private func bikeThumb(bike: AdminBikeResponse, borderColor: Color) -> some View {
