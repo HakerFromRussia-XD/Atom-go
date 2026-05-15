@@ -193,9 +193,9 @@ struct AdminRentalDetailsScreen: View {
     private var topBar: some View {
         HStack {
             iconButton(
-                systemName: "chevron.left",
+                assetName: "back",
+                assetSize: 14,
                 borderColor: Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255),
-                iconColor: Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255),
                 action: onClose
             )
 
@@ -255,6 +255,7 @@ struct AdminRentalDetailsScreen: View {
 
     private func iconButton(
         assetName: String,
+        assetSize: CGFloat = 16,
         borderColor: Color,
         action: @escaping () -> Void
     ) -> some View {
@@ -270,7 +271,7 @@ struct AdminRentalDetailsScreen: View {
                         .renderingMode(.original)
                         .resizable()
                         .scaledToFit()
-                        .frame(width: 20, height: 20)
+                        .frame(width: assetSize, height: assetSize)
                 )
                 .frame(width: 47, height: 47)
         }
@@ -313,11 +314,15 @@ struct AdminRentalDetailsScreen: View {
                 VStack(spacing: 6) {
                     rentalLinkButton(
                         assetName: "youtube_link",
+                        iconWidth: 21,
+                        iconHeight: 16,
                         url: rentalVideoUrl,
                         accessibilityIdentifier: "rentalDetails.videoButton"
                     )
                     rentalLinkButton(
                         assetName: "dogovor_link",
+                        iconWidth: 14,
+                        iconHeight: 18,
                         url: rentalContractUrl,
                         accessibilityIdentifier: "rentalDetails.contractButton"
                     )
@@ -927,6 +932,8 @@ struct AdminRentalDetailsScreen: View {
 
     private func rentalLinkButton(
         assetName: String,
+        iconWidth: CGFloat,
+        iconHeight: CGFloat,
         url: URL?,
         accessibilityIdentifier: String
     ) -> some View {
@@ -941,6 +948,9 @@ struct AdminRentalDetailsScreen: View {
                         .opacity(hasUrl ? 1 : 0.25))
                 Image(assetName)
                     .renderingMode(.original)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: iconWidth, height: iconHeight)
                     .opacity(hasUrl ? 1 : 0.35)
             }
             .frame(width: 47, height: 47)

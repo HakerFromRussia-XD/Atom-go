@@ -264,9 +264,11 @@ struct ClientHomeView: View {
                                 .stroke(ClientColors.mainText, lineWidth: 1)
                         )
 
-                    Image(systemName: "rectangle.portrait.and.arrow.right")
-                        .font(.system(size: 16 * scale, weight: .medium))
-                        .foregroundStyle(ClientColors.mainText)
+                    Image("exit")
+                        .renderingMode(.original)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 16 * scale, height: 16 * scale)
                 }
                 .frame(width: 47 * scale, height: 47 * scale)
             }
@@ -292,9 +294,11 @@ struct ClientHomeView: View {
                                     .stroke(ClientColors.mainText, lineWidth: 1)
                             )
 
-                        Image(systemName: "square.and.pencil")
-                            .font(.system(size: 16 * scale, weight: .medium))
-                            .foregroundStyle(ClientColors.mainText)
+                        Image("refaktoring")
+                            .renderingMode(.original)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 16 * scale, height: 16 * scale)
                     }
                     .frame(width: 47 * scale, height: 47 * scale)
                 }

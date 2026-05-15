@@ -32,6 +32,7 @@
 			7A7CD243D4383880B31466ED /* BackendReachabilityPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E8130A756790E47154B7493 /* BackendReachabilityPolicy.swift */; };
 		8A04768463F13609EC51AE7D /* ClientHomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46CAAFE892071E531ECD6B41 /* ClientHomeViewModel.swift */; };
 		9B33C85F7DD3AD0DC22BC7A9 /* AppDesign.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67DD284CB85AC16F87BA0F13 /* AppDesign.swift */; };
+		AC11BB22CC33DD44EE55FF66 /* AtomGoInputField.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC77BB88CC99DD00EE11FF22 /* AtomGoInputField.swift */; };
 		A01BE496BEF06FA4CA205127 /* ClientHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E2AE583E4DEB4F7AC777CC5 /* ClientHomeView.swift */; };
 		A4D883E98FA3D8D41487CA8C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FCBDF83548DFF94997E4BEF3 /* Assets.xcassets */; };
 		A8D8E4A179DF4D32920C34A1 /* Poppins-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A8D8E4A279DF4D32920C34A1 /* Poppins-Medium.ttf */; };
@@ -71,6 +72,7 @@
 		31F93C8EF3C90D4012005AAE /* AppModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModels.swift; sourceTree = "<group>"; };
 		46CAAFE892071E531ECD6B41 /* ClientHomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientHomeViewModel.swift; sourceTree = "<group>"; };
 		67DD284CB85AC16F87BA0F13 /* AppDesign.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDesign.swift; sourceTree = "<group>"; };
+		AC77BB88CC99DD00EE11FF22 /* AtomGoInputField.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AtomGoInputField.swift; sourceTree = "<group>"; };
 		716A3D61E1FEFEF87A3F63DF /* CreateClientUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateClientUITests.swift; sourceTree = "<group>"; };
 		74660CFC406DEDBAEEF45C6B /* AtomGoIOSTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = AtomGoIOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		79D264019B2B70A0B9CC22C2 /* AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
@@ -127,6 +129,7 @@
 			isa = PBXGroup;
 			children = (
 				67DD284CB85AC16F87BA0F13 /* AppDesign.swift */,
+				AC77BB88CC99DD00EE11FF22 /* AtomGoInputField.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -435,6 +438,7 @@
 					C56D708A15DC07027D86F9C8 /* RentalStartBikePickerSheet.swift in Sources */,
 					B53A888734BB1EFD0441C5BC /* RentalStartClientPickerSheet.swift in Sources */,
 					9B33C85F7DD3AD0DC22BC7A9 /* AppDesign.swift in Sources */,
+					AC11BB22CC33DD44EE55FF66 /* AtomGoInputField.swift in Sources */,
 					AF45D347D006E922A45BC4A7 /* AppModels.swift in Sources */,
 					FD4CEB41FCE99FEEAFD15476 /* AppRootView.swift in Sources */,
 				B7D05449E1D1732C82744DB6 /* AppViewModel.swift in Sources */,

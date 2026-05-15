@@ -852,7 +852,7 @@ struct AdminHomeView: View {
     private var topBar: some View {
         HStack {
             topIconButton(
-                systemName: "rectangle.portrait.and.arrow.right",
+                assetName: "exit",
                 accessibilityIdentifier: "admin.logoutButton",
                 action: onLogout
             )
@@ -886,6 +886,31 @@ struct AdminHomeView: View {
                     Image(systemName: systemName)
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(AppDesign.accent)
+                )
+                .frame(width: 47, height: 47)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(accessibilityIdentifier)
+    }
+
+    private func topIconButton(
+        assetName: String,
+        accessibilityIdentifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(AppDesign.accent, lineWidth: 1)
+                )
+                .overlay(
+                    Image(assetName)
+                        .renderingMode(.original)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 16, height: 16)
                 )
                 .frame(width: 47, height: 47)
         }

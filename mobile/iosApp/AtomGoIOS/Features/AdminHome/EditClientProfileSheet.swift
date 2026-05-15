@@ -159,9 +159,11 @@ struct EditClientProfileSheet: View {
             Button {
                 onCancel()
             } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(ebonyClay)
+                Image("back")
+                    .renderingMode(.original)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 14, height: 14)
                     .frame(width: 47, height: 47)
                     .background(Color.white)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -230,30 +232,15 @@ struct EditClientProfileSheet: View {
         valueWeight: Font.Weight = .regular,
         keyboardType: UIKeyboardType = .default
     ) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(label)
-                .font(.system(size: 11, weight: .regular))
-                .tracking(0.66)
-                .textCase(.uppercase)
-                .foregroundStyle(paleSky)
-
-            TextField("", text: text, prompt: Text(placeholder).foregroundColor(ghost))
-                .font(.system(size: 13, weight: valueWeight))
-                .foregroundStyle(ebonyClay)
-                .keyboardType(keyboardType)
-                .textInputAutocapitalization(label == "ФИО" ? .words : .sentences)
-                .autocorrectionDisabled()
-                .accessibilityIdentifier(accessibilityIdentifier)
-        }
-        .padding(.horizontal, 19)
-        .frame(height: 58)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 12.84, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12.84, style: .continuous)
-                .stroke(ebonyClay, lineWidth: 1)
-        }
+        AtomGoInputField(
+            label: label,
+            placeholder: placeholder,
+            text: text,
+            keyboardType: keyboardType,
+            textInputAutocapitalization: label == "ФИО" ? .words : .sentences,
+            accessibilityIdentifier: accessibilityIdentifier,
+            valueWeight: valueWeight
+        )
     }
 
     private func editDashedActionButton(

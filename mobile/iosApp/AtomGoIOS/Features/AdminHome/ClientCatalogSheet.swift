@@ -204,11 +204,20 @@ struct ClientCatalogSheet: View {
 
     private var clientTopBar: some View {
         HStack {
-            headerIconButton(
-                systemName: showsCloseButton ? "xmark" : "rectangle.portrait.and.arrow.right",
-                accessibilityIdentifier: showsCloseButton ? "clientCatalog.closeButton" : "clientCatalog.logoutButton",
-                action: onCancel
-            )
+            if showsCloseButton {
+                headerIconButton(
+                    systemName: "xmark",
+                    accessibilityIdentifier: "clientCatalog.closeButton",
+                    action: onCancel
+                )
+            } else {
+                headerIconButton(
+                    assetName: "exit",
+                    assetSize: 16,
+                    accessibilityIdentifier: "clientCatalog.logoutButton",
+                    action: onCancel
+                )
+            }
 
             Spacer()
 
@@ -302,6 +311,32 @@ struct ClientCatalogSheet: View {
                     Image(systemName: systemName)
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(AppDesign.accent)
+                )
+                .frame(width: 47, height: 47)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(accessibilityIdentifier)
+    }
+
+    private func headerIconButton(
+        assetName: String,
+        assetSize: CGFloat,
+        accessibilityIdentifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(AppDesign.accent, lineWidth: 1)
+                )
+                .overlay(
+                    Image(assetName)
+                        .renderingMode(.original)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: assetSize, height: assetSize)
                 )
                 .frame(width: 47, height: 47)
         }

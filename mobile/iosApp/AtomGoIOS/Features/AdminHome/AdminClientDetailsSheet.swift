@@ -194,7 +194,7 @@ struct AdminClientDetailsSheet: View {
 
     private func clientDetailsTopBar(_ details: AdminClientDetailsResponse) -> some View {
         HStack(spacing: 8) {
-            detailsTopButton(systemName: "chevron.left", color: AppDesign.accent, action: onClose)
+            detailsTopButton(assetName: "back", assetSize: 14, color: AppDesign.accent, action: onClose)
 
             Spacer()
 
@@ -240,6 +240,7 @@ struct AdminClientDetailsSheet: View {
 
     private func detailsTopButton(
         assetName: String,
+        assetSize: CGFloat = 16,
         color: Color,
         action: @escaping () -> Void
     ) -> some View {
@@ -248,7 +249,7 @@ struct AdminClientDetailsSheet: View {
                 .renderingMode(.original)
                 .resizable()
                 .scaledToFit()
-                .frame(width: 20, height: 20)
+                .frame(width: assetSize, height: assetSize)
                 .frame(width: 47, height: 47)
                 .background(Color.white)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))

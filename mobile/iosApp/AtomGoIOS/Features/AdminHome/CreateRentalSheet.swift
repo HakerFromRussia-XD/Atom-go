@@ -259,7 +259,8 @@ struct CreateRentalSheet: View {
     private var topBar: some View {
         HStack(spacing: 0) {
             topBarButton(
-                imageName: "chevron.left",
+                assetName: "back",
+                assetSize: 14,
                 isDark: false,
                 accessibilityIdentifier: "createRental.cancelButton",
                 action: onCancel
@@ -303,6 +304,33 @@ struct CreateRentalSheet: View {
                     Image(systemName: imageName)
                         .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(isDark ? Color.white : AppDesign.accent)
+                )
+                .frame(width: 47, height: 47)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(accessibilityIdentifier)
+    }
+
+    private func topBarButton(
+        assetName: String,
+        assetSize: CGFloat,
+        isDark: Bool,
+        accessibilityIdentifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(isDark ? AppDesign.accent : Color.white)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(AppDesign.accent, lineWidth: 1)
+                )
+                .overlay(
+                    Image(assetName)
+                        .renderingMode(.original)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: assetSize, height: assetSize)
                 )
                 .frame(width: 47, height: 47)
         }
@@ -413,40 +441,15 @@ struct CreateRentalSheet: View {
         id: String,
         isDashed: Bool = false
     ) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.system(size: 11, weight: .regular))
-                .tracking(0.66)
-                .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
-                .lineLimit(1)
-            TextField(
-                "",
-                text: text,
-                prompt: Text(placeholder)
-                    .foregroundColor(Color(red: 201 / 255, green: 204 / 255, blue: 210 / 255))
-            )
-            .font(.system(size: 13, weight: .regular))
-            .foregroundStyle(AppDesign.titleText)
-            .autocorrectionDisabled()
-            .textInputAutocapitalization(.never)
-            .accessibilityIdentifier(id)
-        }
-        .padding(.horizontal, 19)
-        .frame(height: 58)
-        .background(Color.white)
-        .overlay {
-            if isDashed {
-                RoundedRectangle(cornerRadius: 12.84, style: .continuous)
-                    .stroke(
-                        Color(red: 152 / 255, green: 161 / 255, blue: 173 / 255),
-                        style: StrokeStyle(lineWidth: 1, dash: [3, 2.5])
-                    )
-            } else {
-                RoundedRectangle(cornerRadius: 12.84, style: .continuous)
-                    .stroke(AppDesign.accent, lineWidth: 1)
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 12.84, style: .continuous))
+        AtomGoInputField(
+            label: title,
+            placeholder: placeholder,
+            text: text,
+            isDashed: isDashed,
+            textInputAutocapitalization: .never,
+            accessibilityIdentifier: id,
+            accentBorder: true
+        )
     }
 
     private func generateCredentials() {

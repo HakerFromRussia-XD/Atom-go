@@ -28,7 +28,7 @@ struct EditBikeSheet: View {
     private let ghost = Color(red: 201 / 255, green: 204 / 255, blue: 210 / 255)
     private let grayChateau = Color(red: 152 / 255, green: 161 / 255, blue: 173 / 255)
     private let athensGray = Color(red: 247 / 255, green: 248 / 255, blue: 250 / 255)
-    private let horizontalPadding: CGFloat = 23
+    private let horizontalPadding: CGFloat = 8
 
     init(
         bike: AdminBikeResponse,
@@ -138,9 +138,9 @@ struct EditBikeSheet: View {
     private var topBar: some View {
         HStack(spacing: 0) {
             createBikeTopButton(
-                imageName: "chevron.left",
+                assetName: "back",
+                assetSize: 14,
                 isDark: false,
-                showsProgress: false,
                 accessibilityIdentifier: "editBike.cancelButton",
                 action: onCancel
             )
@@ -193,6 +193,33 @@ struct EditBikeSheet: View {
                                 .foregroundStyle(isDark ? Color.white : ebonyClay)
                         }
                     }
+                )
+                .frame(width: 47, height: 47)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(accessibilityIdentifier)
+    }
+
+    private func createBikeTopButton(
+        assetName: String,
+        assetSize: CGFloat,
+        isDark: Bool,
+        accessibilityIdentifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(isDark ? ebonyClay : Color.white)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(ebonyClay, lineWidth: 1)
+                )
+                .overlay(
+                    Image(assetName)
+                        .renderingMode(.original)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: assetSize, height: assetSize)
                 )
                 .frame(width: 47, height: 47)
         }
@@ -286,40 +313,15 @@ struct EditBikeSheet: View {
         keyboardType: UIKeyboardType = .default,
         textInputAutocapitalization: TextInputAutocapitalization = .never
     ) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(label)
-                .font(.system(size: 11, weight: .regular))
-                .tracking(0.66)
-                .textCase(.uppercase)
-                .foregroundStyle(paleSky)
-                .lineLimit(1)
-
-            TextField(
-                "",
-                text: text,
-                prompt: Text(placeholder).foregroundColor(ghost)
-            )
-            .font(.system(size: 13, weight: .regular))
-            .foregroundStyle(ebonyClay)
-            .keyboardType(keyboardType)
-            .textInputAutocapitalization(textInputAutocapitalization)
-            .autocorrectionDisabled()
-            .accessibilityIdentifier(accessibilityIdentifier)
-        }
-        .padding(.horizontal, 19)
-        .frame(height: 58)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white)
-        .overlay {
-            if isDashed {
-                RoundedRectangle(cornerRadius: 12.84, style: .continuous)
-                    .stroke(grayChateau, style: StrokeStyle(lineWidth: 1, dash: [3, 2.5]))
-            } else {
-                RoundedRectangle(cornerRadius: 12.84, style: .continuous)
-                    .stroke(ebonyClay, lineWidth: 1)
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 12.84, style: .continuous))
+        AtomGoInputField(
+            label: label,
+            placeholder: placeholder,
+            text: text,
+            isDashed: isDashed,
+            keyboardType: keyboardType,
+            textInputAutocapitalization: textInputAutocapitalization,
+            accessibilityIdentifier: accessibilityIdentifier
+        )
     }
 
     private func submit() {
