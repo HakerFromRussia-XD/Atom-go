@@ -128,6 +128,7 @@ struct AdminClientDetailsSheet: View {
                         fallbackSummary: fallbackSummaryForRental(context.clientId, context.rentalId),
                         completedAtFallback: context.completedAtFallback,
                         clients: clients,
+                        bikes: bikes,
                         isLoading: isRentalDetailsLoading,
                         errorMessage: rentalDetailsErrorMessage,
                         isOperationInProgress: isOperationInProgress,
@@ -148,6 +149,10 @@ struct AdminClientDetailsSheet: View {
                         },
                         onStartRental: { payload in
                             onStartRental(context.rentalId, payload)
+                        },
+                        onUpdateRental: { payload in
+                            onUpdateRental(payload)
+                            onRequestOpenRentalDetails(context.rentalId)
                         },
                         onDeleteRental: { clientId, rentalId in
                             onDeleteRental(clientId, rentalId)

@@ -2,13 +2,47 @@ import SwiftUI
 import PhotosUI
 import UIKit
 
+struct RentalEditorInitialValues {
+    let rentalId: String
+    let clientId: String
+    let bikeId: String
+    let login: String
+    let password: String
+    let periodStart: String
+    let periodEnd: String?
+    let videoUrl: String?
+    let contractUrl: String?
+    let comment: String?
+}
+
 struct CreateRentalSheet: View {
+    enum Mode {
+        case create
+        case edit(rentalId: String)
+
+        var title: String {
+            switch self {
+            case .create:
+                return "Новая аренда"
+            case .edit:
+                return "Редактировать аренду"
+            }
+        }
+
+        var isEdit: Bool {
+            if case .edit = self { return true }
+            return false
+        }
+    }
+
     let clients: [AdminClientSummaryResponse]
     let bikes: [AdminBikeResponse]
     let preselectedClientId: String?
     let isSaving: Bool
     let onCancel: () -> Void
-    let onCreate: (CreateRentalPayload) -> Void
+    let onCreate: ((CreateRentalPayload) -> Void)?
+    let onUpdate: ((UpdateRentalPayload) -> Void)?
+    let mode: Mode
 
     @State private var selectedClientId: String
     @State private var selectedBikeId: String
@@ -39,6 +73,8 @@ struct CreateRentalSheet: View {
         self.isSaving = isSaving
         self.onCancel = onCancel
         self.onCreate = onCreate
+        self.onUpdate = nil
+        self.mode = .create
         let initialClientId = preselectedClientId ?? ""
         let initialBikeId = ""
         let initialClientLogin = clients.first(where: { $0.clientId == initialClientId })?.clientLogin ?? ""
@@ -51,6 +87,33 @@ struct CreateRentalSheet: View {
         _videoUrl = State(initialValue: "")
         _contractUrl = State(initialValue: "")
         _comment = State(initialValue: "")
+    }
+
+    init(
+        clients: [AdminClientSummaryResponse],
+        bikes: [AdminBikeResponse],
+        initialValues: RentalEditorInitialValues,
+        isSaving: Bool,
+        onCancel: @escaping () -> Void,
+        onUpdate: @escaping (UpdateRentalPayload) -> Void
+    ) {
+        self.clients = clients
+        self.bikes = bikes
+        self.preselectedClientId = initialValues.clientId
+        self.isSaving = isSaving
+        self.onCancel = onCancel
+        self.onCreate = nil
+        self.onUpdate = onUpdate
+        self.mode = .edit(rentalId: initialValues.rentalId)
+        _selectedClientId = State(initialValue: initialValues.clientId)
+        _selectedBikeId = State(initialValue: initialValues.bikeId)
+        _login = State(initialValue: initialValues.login)
+        _password = State(initialValue: initialValues.password)
+        _periodStart = State(initialValue: initialValues.periodStart)
+        _periodEnd = State(initialValue: initialValues.periodEnd ?? "")
+        _videoUrl = State(initialValue: initialValues.videoUrl ?? "")
+        _contractUrl = State(initialValue: initialValues.contractUrl ?? "")
+        _comment = State(initialValue: initialValues.comment ?? "")
     }
 
     var body: some View {
@@ -146,6 +209,7 @@ struct CreateRentalSheet: View {
             }
         }
         .onChange(of: selectedClientId) { newClientId in
+            guard !mode.isEdit else { return }
             if let suggestedLogin = clients.first(where: { $0.clientId == newClientId })?.clientLogin,
                !suggestedLogin.isEmpty {
                 login = suggestedLogin
@@ -204,7 +268,7 @@ struct CreateRentalSheet: View {
 
             Spacer(minLength: 12)
 
-            Text("Новая аренда")
+            Text(mode.title)
                 .font(.system(size: 18, weight: .bold))
                 .foregroundStyle(AppDesign.titleText)
 
@@ -463,19 +527,32 @@ struct CreateRentalSheet: View {
             }
         }
 
-        onCreate(
-            CreateRentalPayload(
-                clientId: selectedClientId,
-                bikeId: selectedBikeId,
-                login: normalizedLogin,
-                password: normalizedPassword,
-                periodStart: normalizedStart,
-                periodEnd: normalizedEnd,
-                videoUrl: videoUrl.trimmedToOptional,
-                contractUrl: contractUrl.trimmedToOptional,
-                comment: comment.trimmedToOptional
+        switch mode {
+        case .create:
+            onCreate?(
+                CreateRentalPayload(
+                    clientId: selectedClientId,
+                    bikeId: selectedBikeId,
+                    login: normalizedLogin,
+                    password: normalizedPassword,
+                    periodStart: normalizedStart,
+                    periodEnd: normalizedEnd,
+                    videoUrl: videoUrl.trimmedToOptional,
+                    contractUrl: contractUrl.trimmedToOptional,
+                    comment: comment.trimmedToOptional
+                )
             )
-        )
+        case let .edit(rentalId):
+            onUpdate?(
+                UpdateRentalPayload(
+                    clientId: selectedClientId,
+                    rentalId: rentalId,
+                    bikeId: selectedBikeId,
+                    periodStart: normalizedStart,
+                    periodEnd: normalizedEnd
+                )
+            )
+        }
     }
 
     private func isValidApiDate(_ value: String) -> Bool {

@@ -7,6 +7,7 @@ struct AdminRentalDetailsScreen: View {
     let fallbackSummary: AdminClientSummaryResponse?
     let completedAtFallback: String?
     let clients: [AdminClientSummaryResponse]
+    let bikes: [AdminBikeResponse]
     let isLoading: Bool
     let errorMessage: String?
     let isOperationInProgress: Bool
@@ -16,9 +17,11 @@ struct AdminRentalDetailsScreen: View {
     let onAdjustDebt: (_ clientId: String, _ clientName: String, _ currentDebtRub: Int) -> Void
     let onFinishRental: (_ clientId: String, _ rentalId: String) -> Void
     let onStartRental: (CreateRentalPayload) -> Void
+    let onUpdateRental: (UpdateRentalPayload) -> Void
     let onDeleteRental: (_ clientId: String, _ rentalId: String) -> Void
 
     @State private var isDeleteDialogPresented = false
+    @State private var isEditRentalPresented = false
     @State private var selectedStartClientId: String?
     @State private var isClientPickerPresented = false
     @State private var editableRentalLogin = ""
@@ -110,9 +113,30 @@ struct AdminRentalDetailsScreen: View {
                 }
             )
         }
+        .fullScreenCover(isPresented: $isEditRentalPresented) {
+            if let initialValues = rentalEditorInitialValues {
+                CreateRentalSheet(
+                    clients: clients,
+                    bikes: bikes,
+                    initialValues: initialValues,
+                    isSaving: isOperationInProgress,
+                    onCancel: { isEditRentalPresented = false },
+                    onUpdate: { payload in
+                        onUpdateRental(payload)
+                        isEditRentalPresented = false
+                    }
+                )
+            } else {
+                EmptyView()
+                    .onAppear {
+                        isEditRentalPresented = false
+                    }
+            }
+        }
         .onChange(of: rentalId ?? "") { _ in
             selectedStartClientId = nil
             isClientPickerPresented = false
+            isEditRentalPresented = false
             editableRentalLogin = normalizedCredential(details?.clientLogin)
             editableRentalPassword = normalizedCredential(details?.clientPassword)
             didInitializeCredentialDrafts = true
@@ -183,12 +207,26 @@ struct AdminRentalDetailsScreen: View {
 
             Spacer()
 
-            iconButton(
-                systemName: "trash",
-                borderColor: Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255),
-                iconColor: Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255),
-                action: { isDeleteDialogPresented = true }
-            )
+            HStack(spacing: 8) {
+                if runningRentalIsActive {
+                    iconButton(
+                        systemName: "pencil",
+                        borderColor: Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255),
+                        iconColor: Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255),
+                        action: { isEditRentalPresented = true }
+                    )
+                    .accessibilityIdentifier("rentalDetails.editButton")
+                    .disabled(rentalEditorInitialValues == nil || isOperationInProgress)
+                    .opacity((rentalEditorInitialValues == nil || isOperationInProgress) ? 0.45 : 1)
+                }
+
+                iconButton(
+                    systemName: "trash",
+                    borderColor: Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255),
+                    iconColor: Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255),
+                    action: { isDeleteDialogPresented = true }
+                )
+            }
         }
         .frame(height: 45)
     }
@@ -645,8 +683,26 @@ struct AdminRentalDetailsScreen: View {
         return !rentalIsActive
     }
     private var bikeId: String? { details?.bikeId }
+    private var resolvedBikeId: String? { details?.bikeId }
     private var displayPolicy: RentalDetailsDisplayPolicy {
         .init(rentalIsActive: rentalIsActive, isInStockState: isInStockState)
+    }
+
+    private var rentalEditorInitialValues: RentalEditorInitialValues? {
+        guard runningRentalIsActive else { return nil }
+        guard let rentalId, let clientId, let bikeId = resolvedBikeId else { return nil }
+        return RentalEditorInitialValues(
+            rentalId: rentalId,
+            clientId: clientId,
+            bikeId: bikeId,
+            login: normalizedCredential(details?.clientLogin ?? fallbackSummary?.clientLogin),
+            password: normalizedCredential(details?.clientPassword),
+            periodStart: details?.rentalStart ?? DateFormatter.apiDate.string(from: Date()),
+            periodEnd: nil,
+            videoUrl: nil,
+            contractUrl: nil,
+            comment: nil
+        )
     }
 
     private var availableStartClients: [AdminClientSummaryResponse] {

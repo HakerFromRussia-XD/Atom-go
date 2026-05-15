@@ -451,6 +451,7 @@ struct AdminHomeView: View {
                 fallbackSummary: currentSummary(for: context),
                 completedAtFallback: context.completedAtFallback,
                 clients: viewModel.clientCatalog,
+                bikes: viewModel.bikes,
                 isLoading: viewModel.isRentalDetailsLoading,
                 errorMessage: viewModel.rentalDetailsErrorMessage,
                 isOperationInProgress: viewModel.isOperationInProgress,
@@ -500,6 +501,10 @@ struct AdminHomeView: View {
                         )
                         viewModel.openRentalDetails(rentalId: context.rentalId)
                     }
+                },
+                onUpdateRental: { payload in
+                    viewModel.updateRental(payload: payload)
+                    viewModel.openRentalDetails(rentalId: context.rentalId)
                 },
                 onDeleteRental: { clientId, rentalId in
                     viewModel.deleteRental(clientId: clientId, rentalId: rentalId)
