@@ -26,20 +26,20 @@ struct ClientCatalogSheet: View {
     private let searchHeight: CGFloat = 46
     private let chipsTopGap: CGFloat = 10
     private let chipsHeight: CGFloat = 36
-    private let cardsInitialTop: CGFloat = 216
     private let tabBarHeight: CGFloat = 76
 
     private var searchTop: CGFloat { topBarHeight + searchTopPadding }
     private var searchMaskHeight: CGFloat { searchTop + searchHeight / 2 }
     private var chipsTop: CGFloat { searchTop + searchHeight + chipsTopGap }
     private var chipsBottom: CGFloat { chipsTop + chipsHeight }
+    private var cardsInitialTop: CGFloat { chipsBottom - 4 }
 
     var body: some View {
         ZStack(alignment: .top) {
             athensGray.ignoresSafeArea()
 
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: 12) {
                     Color.clear
                         .frame(height: cardsInitialTop)
                         .background {
@@ -62,14 +62,24 @@ struct ClientCatalogSheet: View {
                                     clientRow(client)
                                     if index < visibleClients.count - 1 {
                                         Divider()
-                                            .padding(.leading, 72)
+                                            .overlay(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255))
                                     }
                                 }
                             }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .padding(.horizontal, 15)
+                            .padding(.vertical, 5)
+                            .background(Color(red: 250 / 255, green: 251 / 255, blue: 251 / 255))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                                    .stroke(AppDesign.accent, lineWidth: 1)
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+                            .shadow(
+                                color: Color(red: 25 / 255, green: 28 / 255, blue: 50 / 255).opacity(0.08),
+                                radius: 15,
+                                x: 0,
+                                y: 20
+                            )
                         }
                     }
                     .padding(.top, 1)
@@ -228,7 +238,8 @@ struct ClientCatalogSheet: View {
             Spacer()
 
             headerIconButton(
-                systemName: "plus",
+                assetName: "plus",
+                assetSize: 16,
                 accessibilityIdentifier: "clientCatalog.addClientButton",
                 action: { isCreateClientPresented = true }
             )
@@ -380,29 +391,84 @@ struct ClientCatalogSheet: View {
                     .background(AppDesign.surfaceBackground)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text(client.fullName)
-                        .font(.headline)
-                        .foregroundStyle(AppDesign.titleText)
-                    if let login = client.clientLogin, !login.isEmpty {
-                        Text("Логин: \(login)")
-                            .font(.subheadline)
-                            .foregroundStyle(AppDesign.subtleText)
-                    }
-                    Text(client.bikeModel)
-                        .font(.caption)
-                        .foregroundStyle(AppDesign.subtleText)
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    Text(clientSubtitle(for: client))
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                if clientTotalDebtRub(for: client) > 0 {
+                    Text(formattedDebtRub(clientTotalDebtRub(for: client)))
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255))
+                        .fixedSize(horizontal: true, vertical: false)
                 }
 
-                Spacer()
-
                 Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(AppDesign.subtleText)
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Color(red: 167 / 255, green: 167 / 255, blue: 171 / 255))
             }
+            .frame(minHeight: 51)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("clientCatalog.open.\(client.fullName)")
+    }
+
+    private func clientSubtitle(for client: AdminClientSummaryResponse) -> String {
+        if client.rentalIsActive {
+            let model = normalizedBikeModel(client.bikeModel)
+            if let paidUntil = shortPaidUntilText(for: client) {
+                return model.isEmpty ? "до \(paidUntil)" : "\(model) · до \(paidUntil)"
+            }
+            return model.isEmpty ? "Активная аренда" : model
+        }
+
+        let model = normalizedBikeModel(client.bikeModel)
+        if model.isEmpty {
+            return "-"
+        }
+        return model
+    }
+
+    private func normalizedBikeModel(_ rawValue: String) -> String {
+        let value = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        if value.isEmpty || value == "-" {
+            return ""
+        }
+        return value
+    }
+
+    private func shortPaidUntilText(for client: AdminClientSummaryResponse) -> String? {
+        guard
+            let paidUntil = client.paidUntil?.trimmingCharacters(in: .whitespacesAndNewlines),
+            !paidUntil.isEmpty,
+            let date = Self.apiDateFormatter.date(from: paidUntil)
+        else {
+            return nil
+        }
+
+        let day = Self.dayFormatter.string(from: date)
+        let monthIndex = Calendar(identifier: .gregorian).component(.month, from: date) - 1
+        let month = Self.ruShortMonths.indices.contains(monthIndex) ? Self.ruShortMonths[monthIndex] : ""
+        return "\(day) \(month)"
+    }
+
+    private func clientTotalDebtRub(for client: AdminClientSummaryResponse) -> Int {
+        max(0, client.debtRub) + max(0, client.carriedDebtRub)
+    }
+
+    private func formattedDebtRub(_ amount: Int) -> String {
+        let formatted = Self.rubFormatter.string(from: NSNumber(value: amount)) ?? "\(amount)"
+        return "\(formatted.replacingOccurrences(of: "\u{00A0}", with: " ")) ₽"
     }
 
     private func presentToast(_ message: String?) {
@@ -415,4 +481,29 @@ struct ClientCatalogSheet: View {
             toastMessage = nil
         }
     }
+
+    private static let apiDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+
+    private static let dayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ru_RU")
+        formatter.dateFormat = "dd"
+        return formatter
+    }()
+
+    private static let rubFormatter: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.groupingSeparator = " "
+        formatter.maximumFractionDigits = 0
+        formatter.locale = Locale(identifier: "ru_RU")
+        return formatter
+    }()
+
+    private static let ruShortMonths = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"]
 }

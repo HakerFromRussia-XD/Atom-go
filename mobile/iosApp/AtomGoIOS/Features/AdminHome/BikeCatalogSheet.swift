@@ -32,25 +32,27 @@ struct BikeCatalogSheet: View {
     private let searchHeight: CGFloat = 46
     private let chipsTopGap: CGFloat = 10
     private let chipsHeight: CGFloat = 36
-    private let cardsInitialTop: CGFloat = 216
     private let tabBarHeight: CGFloat = 76
 
     private var searchTop: CGFloat { topBarHeight + searchTopPadding }
     private var searchMaskHeight: CGFloat { searchTop + searchHeight / 2 }
     private var chipsTop: CGFloat { searchTop + searchHeight + chipsTopGap }
     private var chipsBottom: CGFloat { chipsTop + chipsHeight }
+    private var cardsInitialTop: CGFloat { chipsBottom - 4 }
 
     private struct BikeCatalogRuntimeSnapshot {
         let hasActiveRental: Bool
         let activeCount: Int
         let totalDebtRub: Int
         let borderColor: Color
+        let activeRental: AdminClientSummaryResponse?
 
         static let idle = BikeCatalogRuntimeSnapshot(
             hasActiveRental: false,
             activeCount: 0,
             totalDebtRub: 0,
-            borderColor: Color(red: 203 / 255, green: 48 / 255, blue: 224 / 255)
+            borderColor: Color(red: 203 / 255, green: 48 / 255, blue: 224 / 255),
+            activeRental: nil
         )
     }
 
@@ -73,7 +75,7 @@ struct BikeCatalogSheet: View {
             athensGray.ignoresSafeArea()
 
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: 12) {
                     Color.clear
                         .frame(height: cardsInitialTop)
                         .background {
@@ -89,14 +91,30 @@ struct BikeCatalogSheet: View {
                     VStack(alignment: .leading, spacing: 0) {
                         if projection.visibleBikes.isEmpty {
                             bikeEmptyState
-                                .padding(.top, 10)
+                                .padding(.top, 14)
                         } else {
-                            LazyVStack(spacing: 10) {
-                                ForEach(projection.visibleBikes) { bike in
+                            LazyVStack(spacing: 0) {
+                                ForEach(Array(projection.visibleBikes.enumerated()), id: \.element.bikeId) { index, bike in
                                     bikeRow(bike, runtime: projection.snapshot(for: bike))
+                                    if index < projection.visibleBikes.count - 1 {
+                                        Divider()
+                                            .overlay(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255))
+                                    }
                                 }
                             }
-                            .padding(.top, 10)
+                            .padding(.vertical, 5)
+                            .background(Color(red: 250 / 255, green: 251 / 255, blue: 251 / 255))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                                    .stroke(AppDesign.accent, lineWidth: 1)
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+                            .shadow(
+                                color: Color(red: 25 / 255, green: 28 / 255, blue: 50 / 255).opacity(0.08),
+                                radius: 15,
+                                x: 0,
+                                y: 20
+                            )
                         }
                     }
                     .padding(.top, 1)
@@ -274,7 +292,8 @@ struct BikeCatalogSheet: View {
             Spacer()
 
             headerIconButton(
-                systemName: "plus",
+                assetName: "plus",
+                assetSize: 16,
                 accessibilityIdentifier: "bikeCatalog.addBikeButton",
                 action: { isCreateBikePresented = true }
             )
@@ -288,7 +307,7 @@ struct BikeCatalogSheet: View {
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(AppDesign.titleText)
 
-            TextField("Поиск: ФИО, телефон, паспорт", text: $searchText)
+            TextField("Поиск: модель, серийный номер", text: $searchText)
                 .font(.system(size: 13, weight: .regular))
                 .foregroundStyle(AppDesign.titleText)
                 .autocorrectionDisabled()
@@ -467,62 +486,47 @@ struct BikeCatalogSheet: View {
     }
 
     private func bikeRow(_ bike: AdminBikeResponse, runtime: BikeCatalogRuntimeSnapshot) -> some View {
-        let hasDebt = runtime.totalDebtRub > 0
-
         return Button {
             editingBike = bike
         } label: {
-            HStack(spacing: 16) {
+            HStack(spacing: 8) {
                 bikeThumb(bike: bike, borderColor: runtime.borderColor)
 
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text(bike.bikeModel)
-                        .font(.system(size: 17, weight: .bold))
-                        .foregroundStyle(AppDesign.titleText)
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(Color(red: 17 / 255, green: 24 / 255, blue: 39 / 255))
                         .lineLimit(1)
 
-                    Text("\(bike.weeklyRateRub) ₽/нед")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
-                        .lineLimit(1)
-
-                    Text(serialLine(for: bike))
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(Color(red: 152 / 255, green: 161 / 255, blue: 173 / 255))
-                        .lineLimit(1)
+                    Text(bikeSubtitle(for: bike, runtime: runtime))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Color(red: 17 / 255, green: 24 / 255, blue: 39 / 255).opacity(0.5))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
 
-                if runtime.hasActiveRental {
-                    statusPill(runtime: runtime)
-                }
+                Text("\(formattedCompactRub(bike.weeklyRateRub)) ₽/нед")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                    .fixedSize(horizontal: true, vertical: false)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Color(red: 167 / 255, green: 167 / 255, blue: 171 / 255))
             }
-            .padding(.leading, 19)
-            .padding(.trailing, 15)
-            .padding(.vertical, 22)
-            .frame(height: 110)
-            .background(
-                RoundedRectangle(cornerRadius: 15, style: .continuous)
-                    .fill(blackHaze)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 15, style: .continuous)
-                    .stroke(alto, lineWidth: 1)
-            )
-            .shadow(
-                color: Color(red: 25 / 255, green: 28 / 255, blue: 50 / 255).opacity(0.08),
-                radius: 15,
-                x: 0,
-                y: 20
-            )
-            .contentShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+            .padding(.horizontal, 9)
+            .frame(minHeight: 67)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .contextMenu {
             Button("Редактировать") {
                 editingBike = bike
             }
-            if !runtime.hasActiveRental && !hasDebt {
+            if !runtime.hasActiveRental && runtime.totalDebtRub == 0 {
                 Button("Удалить", role: .destructive) {
                     bikePendingDeletion = bike
                 }
@@ -547,7 +551,7 @@ struct BikeCatalogSheet: View {
         BikePhotoView(source: bike.photoUrl) {
             placeholder
         }
-            .frame(width: 44, height: 44)
+            .frame(width: 59, height: 59)
             .background(Color(red: 227 / 255, green: 230 / 255, blue: 235 / 255))
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -556,30 +560,13 @@ struct BikeCatalogSheet: View {
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
-    private func statusPill(runtime: BikeCatalogRuntimeSnapshot) -> some View {
-        let isDebt = runtime.totalDebtRub > 0
-        return VStack(spacing: 0) {
-            Text(isDebt ? "Долг" : "Активн.")
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(Color.white.opacity(0.85))
-                .lineLimit(1)
-            Text(isDebt ? "\(formattedCompactRub(runtime.totalDebtRub)) ₽" : "\(runtime.activeCount)")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(Color.white)
-                .lineLimit(1)
-        }
-        .frame(minWidth: 108, minHeight: 56)
-        .padding(.horizontal, 14)
-        .background(isDebt ? AppDesign.danger : AppDesign.success)
-        .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-    }
-
     private func runtimeSnapshot(activeRentals: [AdminClientSummaryResponse]) -> BikeCatalogRuntimeSnapshot {
         let hasActiveRental = !activeRentals.isEmpty
         let totalDebt = activeRentals.reduce(0) { partial, item in
             partial + max(0, item.debtRub)
         }
         let hasSoonReturn = activeRentals.contains { $0.rentalPipelineStatus == "soon_return" }
+        let activeRental = activeRentals.first
         let borderColor: Color
         if hasActiveRental {
             borderColor = hasSoonReturn
@@ -593,8 +580,42 @@ struct BikeCatalogSheet: View {
             hasActiveRental: hasActiveRental,
             activeCount: activeRentals.count,
             totalDebtRub: totalDebt,
-            borderColor: borderColor
+            borderColor: borderColor,
+            activeRental: activeRental
         )
+    }
+
+    private func bikeSubtitle(for bike: AdminBikeResponse, runtime: BikeCatalogRuntimeSnapshot) -> String {
+        guard let rental = runtime.activeRental else {
+            return "-"
+        }
+
+        let clientName = rental.fullName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let namePart = clientName.isEmpty ? "Клиент" : clientName
+        switch rental.rentalPipelineStatus {
+        case "soon_return":
+            return "\(namePart) · вернут в течении нед."
+        default:
+            if let paidUntil = shortPaidUntilText(for: rental) {
+                return "\(namePart) · до \(paidUntil)"
+            }
+            return "\(namePart) · долгосрочно"
+        }
+    }
+
+    private func shortPaidUntilText(for rental: AdminClientSummaryResponse) -> String? {
+        guard
+            let paidUntil = rental.paidUntil?.trimmingCharacters(in: .whitespacesAndNewlines),
+            !paidUntil.isEmpty,
+            let date = Self.apiDateFormatter.date(from: paidUntil)
+        else {
+            return nil
+        }
+
+        let day = Self.dayFormatter.string(from: date)
+        let monthIndex = Calendar(identifier: .gregorian).component(.month, from: date) - 1
+        let month = Self.ruShortMonths.indices.contains(monthIndex) ? Self.ruShortMonths[monthIndex] : ""
+        return "\(day) \(month)"
     }
 
     private func bikeMatchesSearch(_ bike: AdminBikeResponse, query: String) -> Bool {
@@ -614,12 +635,6 @@ struct BikeCatalogSheet: View {
         return formatted.replacingOccurrences(of: "\u{00A0}", with: " ")
     }
 
-    private func serialLine(for bike: AdminBikeResponse) -> String {
-        let serial = bike.frameSerialNumber.trimmingCharacters(in: .whitespacesAndNewlines)
-        if serial.isEmpty { return "Серийный номер не задан" }
-        return "SN \(serial)"
-    }
-
     private var placeholder: some View {
         Image(systemName: "bicycle")
             .resizable()
@@ -635,4 +650,20 @@ struct BikeCatalogSheet: View {
         formatter.locale = Locale(identifier: "ru_RU")
         return formatter
     }()
+
+    private static let apiDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+
+    private static let dayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ru_RU")
+        formatter.dateFormat = "dd"
+        return formatter
+    }()
+
+    private static let ruShortMonths = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"]
 }

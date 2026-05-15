@@ -276,7 +276,8 @@ struct CreateRentalSheet: View {
             Spacer(minLength: 12)
 
             topBarButton(
-                imageName: "checkmark",
+                assetName: "ok",
+                assetSize: 16,
                 isDark: true,
                 accessibilityIdentifier: "createRental.submitButton",
                 action: submit

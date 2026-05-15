@@ -187,7 +187,7 @@ struct RentalDetailsDisplayPolicy {
     private static let inactiveMetricColor = Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255)
 
     var showsJournalHistory: Bool { !isInStockState }
-    var adjustmentButtonEnabled: Bool { rentalIsActive && !isInStockState }
+    var adjustmentButtonEnabled: Bool { !isInStockState }
 
     func metricText(activeValue: String) -> String {
         if isInStockState { return Self.dash }
@@ -243,7 +243,6 @@ struct AdminHomeView: View {
     @State private var searchText = ""
     @State private var selectedFilter: AdminRentFilter = .all
     @State private var selectedMainTab: AdminMainTab = .rents
-    @State private var isAdminMenuPresented = false
     @State private var pipelineMenuClientId: String?
     @State private var areFiltersInteractive = true
     @State private var initialCardsTopY: CGFloat?
@@ -282,18 +281,6 @@ struct AdminHomeView: View {
                     case let .loaded(clients):
                         adminLoadedRootView(clients: clients)
                     }
-                }
-                .confirmationDialog("Действия", isPresented: $isAdminMenuPresented, titleVisibility: .visible) {
-                    Button("Новая аренда") {
-                        isCreateRentalSheetPresented = true
-                    }
-                    Button("Обновить") {
-                        viewModel.load()
-                    }
-                    Button("Выйти", role: .destructive) {
-                        onLogout()
-                    }
-                    Button("Отмена", role: .cancel) {}
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
@@ -418,12 +405,8 @@ struct AdminHomeView: View {
                 onRequestCloseRentalDetails: {
                     viewModel.closeRentalDetails()
                 },
-                onAdjustDebtFromRental: { clientId, clientName, currentDebtRub in
-                    debtAdjustmentContext = DebtAdjustmentContext(
-                        clientId: clientId,
-                        clientName: clientName,
-                        currentDebtRub: currentDebtRub
-                    )
+                onAdjustDebtFromRental: { clientId, amountRub, sign, comment in
+                    viewModel.adjustDebt(clientId: clientId, amountRub: amountRub, sign: sign, comment: comment)
                 },
                 onFinishRental: { clientId, rentalId in
                     viewModel.finishRental(clientId: clientId, rentalId: rentalId) {
@@ -469,12 +452,8 @@ struct AdminHomeView: View {
                         viewModel.openClientDetails(clientId: context.clientId)
                     }
                 },
-                onAdjustDebt: { clientId, clientName, currentDebtRub in
-                    debtAdjustmentContext = DebtAdjustmentContext(
-                        clientId: clientId,
-                        clientName: clientName,
-                        currentDebtRub: currentDebtRub
-                    )
+                onApplyDebtAdjustment: { rentalId, amountRub, sign, comment in
+                    viewModel.adjustRentalDebt(rentalId: rentalId, amountRub: amountRub, sign: sign, comment: comment)
                 },
                 onFinishRental: { clientId, rentalId in
                     // openRentalDetails ОБЯЗАТЕЛЬНО после завершения finish,
@@ -528,7 +507,8 @@ struct AdminHomeView: View {
                     debtAdjustmentContext = nil
                 }
             )
-            .presentationDetents([.medium])
+            .presentationDetents([.height(312)])
+            .presentationDragIndicator(.hidden)
         }
         .sheet(item: $carriedDebtOperationContext) { context in
             CarriedDebtOperationSheet(
@@ -862,9 +842,9 @@ struct AdminHomeView: View {
                 .foregroundStyle(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
             Spacer()
             topIconButton(
-                systemName: "ellipsis",
-                accessibilityIdentifier: "admin.openServiceButton",
-                action: { isAdminMenuPresented = true }
+                assetName: "plus",
+                accessibilityIdentifier: "admin.createRentalButton",
+                action: { isCreateRentalSheetPresented = true }
             )
         }
         .padding(.horizontal, 8)

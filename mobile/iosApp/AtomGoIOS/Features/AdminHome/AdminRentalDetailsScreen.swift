@@ -14,13 +14,14 @@ struct AdminRentalDetailsScreen: View {
     let onClose: () -> Void
     let onRetry: () -> Void
     let onOpenClientCard: () -> Void
-    let onAdjustDebt: (_ clientId: String, _ clientName: String, _ currentDebtRub: Int) -> Void
+    let onApplyDebtAdjustment: (_ rentalId: String, _ amountRub: Int, _ sign: DebtAdjustmentSign, _ comment: String?) -> Void
     let onFinishRental: (_ clientId: String, _ rentalId: String) -> Void
     let onStartRental: (CreateRentalPayload) -> Void
     let onUpdateRental: (UpdateRentalPayload) -> Void
     let onDeleteRental: (_ clientId: String, _ rentalId: String) -> Void
 
     @State private var isDeleteDialogPresented = false
+    @State private var isDebtAdjustmentPresented = false
     @State private var isEditRentalPresented = false
     @State private var selectedStartClientId: String?
     @State private var isClientPickerPresented = false
@@ -188,6 +189,25 @@ struct AdminRentalDetailsScreen: View {
             presentToast(newValue)
         }
         .appToast(message: $copyToastMessage, bottomPadding: 86)
+        .sheet(isPresented: $isDebtAdjustmentPresented) {
+            if let rid = rentalId {
+                DebtAdjustmentSheet(
+                    context: DebtAdjustmentContext(
+                        clientId: details?.clientId ?? fallbackSummary?.clientId ?? "",
+                        clientName: clientName,
+                        currentDebtRub: debtRub
+                    ),
+                    isSaving: isOperationInProgress,
+                    onCancel: { isDebtAdjustmentPresented = false },
+                    onApply: { amountRub, sign, comment in
+                        onApplyDebtAdjustment(rid, amountRub, sign, comment)
+                        isDebtAdjustmentPresented = false
+                    }
+                )
+                .presentationDetents([.height(312)])
+                .presentationDragIndicator(.hidden)
+            }
+        }
     }
 
     private var topBar: some View {
@@ -601,8 +621,7 @@ struct AdminRentalDetailsScreen: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 8) {
                 Button {
-                    guard let clientId else { return }
-                    onAdjustDebt(clientId, clientName, debtRub)
+                    isDebtAdjustmentPresented = true
                 } label: {
                     Text("+ Корректировка")
                         .font(.system(size: 14, weight: .bold))
@@ -626,8 +645,8 @@ struct AdminRentalDetailsScreen: View {
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .disabled(!displayPolicy.adjustmentButtonEnabled || clientId == nil || isOperationInProgress)
-                .opacity((displayPolicy.adjustmentButtonEnabled && clientId != nil) ? 1 : 0.9)
+                .disabled(!displayPolicy.adjustmentButtonEnabled || rentalId == nil || isOperationInProgress)
+                .opacity((displayPolicy.adjustmentButtonEnabled && rentalId != nil) ? 1 : 0.9)
 
                 if runningRentalIsActive {
                     Button {

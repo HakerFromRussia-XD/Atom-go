@@ -39,7 +39,7 @@ struct AdminClientDetailsSheet: View {
     let onOpenRental: (String, String, String?) -> Void
     let onRequestOpenRentalDetails: (String) -> Void
     let onRequestCloseRentalDetails: () -> Void
-    let onAdjustDebtFromRental: (_ clientId: String, _ clientName: String, _ currentDebtRub: Int) -> Void
+    let onAdjustDebtFromRental: (_ rentalId: String, _ amountRub: Int, _ sign: DebtAdjustmentSign, _ comment: String?) -> Void
     let onFinishRental: (_ clientId: String, _ rentalId: String) -> Void
     let onStartRental: (_ rentalId: String, _ payload: CreateRentalPayload) -> Void
 
@@ -141,8 +141,8 @@ struct AdminClientDetailsSheet: View {
                         onOpenClientCard: {
                             rentalDetailsContext = nil
                         },
-                        onAdjustDebt: { clientId, clientName, currentDebtRub in
-                            onAdjustDebtFromRental(clientId, clientName, currentDebtRub)
+                        onApplyDebtAdjustment: { rentalId, amountRub, sign, comment in
+                            onAdjustDebtFromRental(rentalId, amountRub, sign, comment)
                         },
                         onFinishRental: { clientId, rentalId in
                             onFinishRental(clientId, rentalId)

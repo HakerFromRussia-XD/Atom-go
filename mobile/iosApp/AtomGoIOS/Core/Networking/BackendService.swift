@@ -300,6 +300,30 @@ private struct NativeCarriedDebtOperationResponse: Decodable {
     }
 }
 
+private struct NativeAdminDebtAdjustmentRequest: Encodable {
+    let amountRub: Int
+    let sign: String
+    let comment: String?
+
+    enum CodingKeys: String, CodingKey {
+        case amountRub = "amount_rub"
+        case sign
+        case comment
+    }
+}
+
+private struct NativeAdminDebtAdjustmentResponse: Decodable {
+    let clientId: String
+    let debtRub: Int
+    let totalAdjustmentRub: Int
+
+    enum CodingKeys: String, CodingKey {
+        case clientId = "client_id"
+        case debtRub = "debt_rub"
+        case totalAdjustmentRub = "total_adjustment_rub"
+    }
+}
+
 protocol BackendServicing {
     func isServerReachable() async -> Bool
     func login(login: String, password: String) async throws -> AuthSession
@@ -355,6 +379,13 @@ protocol BackendServicing {
     func adjustAdminClientDebt(
         accessToken: String,
         clientId: String,
+        amountRub: Int,
+        sign: DebtAdjustmentSign,
+        comment: String?
+    ) async throws -> DebtAdjustmentResult
+    func adjustAdminClientRentalDebt(
+        accessToken: String,
+        clientRentalId: String,
         amountRub: Int,
         sign: DebtAdjustmentSign,
         comment: String?
@@ -994,6 +1025,30 @@ final class BackendService: BackendServicing {
         )
     }
 
+    func adjustAdminClientRentalDebt(
+        accessToken: String,
+        clientRentalId: String,
+        amountRub: Int,
+        sign: DebtAdjustmentSign,
+        comment: String?
+    ) async throws -> DebtAdjustmentResult {
+        let response: NativeAdminDebtAdjustmentResponse = try await sendNativeRequest(
+            path: "/admin/client-rentals/\(clientRentalId)/adjustments",
+            method: "POST",
+            accessToken: accessToken,
+            body: NativeAdminDebtAdjustmentRequest(
+                amountRub: amountRub,
+                sign: sign.apiValue,
+                comment: comment
+            )
+        )
+        return DebtAdjustmentResult(
+            clientId: response.clientId,
+            debtRub: response.debtRub,
+            totalAdjustmentRub: response.totalAdjustmentRub
+        )
+    }
+
     func applyCarriedDebtOperation(
         accessToken: String,
         clientId: String,
@@ -1504,6 +1559,24 @@ final class LazyBackendService: BackendServicing {
             try await service.adjustAdminClientDebt(
                 accessToken: accessToken,
                 clientId: clientId,
+                amountRub: amountRub,
+                sign: sign,
+                comment: comment
+            )
+        }
+    }
+
+    func adjustAdminClientRentalDebt(
+        accessToken: String,
+        clientRentalId: String,
+        amountRub: Int,
+        sign: DebtAdjustmentSign,
+        comment: String?
+    ) async throws -> DebtAdjustmentResult {
+        try await withFallback { service in
+            try await service.adjustAdminClientRentalDebt(
+                accessToken: accessToken,
+                clientRentalId: clientRentalId,
                 amountRub: amountRub,
                 sign: sign,
                 comment: comment

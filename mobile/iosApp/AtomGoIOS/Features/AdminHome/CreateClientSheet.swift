@@ -182,9 +182,11 @@ struct CreateClientSheet: View {
                         ProgressView()
                             .tint(Color.white)
                     } else {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundStyle(Color.white)
+                        Image("ok")
+                            .renderingMode(.original)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 16, height: 16)
                     }
                 }
                 .frame(width: 47, height: 47)

@@ -156,9 +156,9 @@ struct EditBikeSheet: View {
             Spacer(minLength: 12)
 
             createBikeTopButton(
-                imageName: "checkmark",
+                assetName: "ok",
+                assetSize: 16,
                 isDark: true,
-                showsProgress: true,
                 accessibilityIdentifier: "editBike.submitButton",
                 action: submit
             )

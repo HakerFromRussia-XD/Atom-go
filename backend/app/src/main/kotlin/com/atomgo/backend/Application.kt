@@ -3108,6 +3108,99 @@ fun Application.module() {
                 )
             }
 
+            post("/admin/client-rentals/{clientRentalId}/adjustments") {
+                val session = authService.resolveSession(call.request.header("Authorization"))
+                if (session == null || session.role != Role.ADMIN) {
+                    call.respond(HttpStatusCode.Unauthorized, ApiErrorResponse(message = "Unauthorized"))
+                    return@post
+                }
+
+                val clientRentalId = call.parameters["clientRentalId"]
+                if (clientRentalId.isNullOrBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "clientRentalId is required"))
+                    return@post
+                }
+
+                val request = call.receive<ApiAdminDebtAdjustmentRequest>()
+                if (request.amountRub <= 0) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "amount_rub must be positive"))
+                    return@post
+                }
+                val normalizedSign = request.sign.trim().lowercase()
+                val direction = when (normalizedSign) {
+                    "minus" -> -1
+                    "plus" -> 1
+                    else -> null
+                }
+                if (direction == null) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "sign must be plus or minus"))
+                    return@post
+                }
+
+                val response = synchronized(stateLock) {
+                    val clientRental = store.clientRentals.firstOrNull {
+                        it.id == clientRentalId &&
+                            it.adminId == session.userId &&
+                            it.deletedAt == null
+                    } ?: return@synchronized null
+
+                    val bike = store.bikes.firstOrNull { it.id == clientRental.bikeId } ?: return@synchronized null
+                    val today = LocalDate.now()
+
+                    store.ledger += LedgerEntry(
+                        id = "adj-${UUID.randomUUID().toString().take(8)}",
+                        clientId = clientRental.clientId,
+                        type = LedgerType.ADJUSTMENT,
+                        direction = direction,
+                        amountRub = request.amountRub,
+                        createdAt = java.time.Instant.now(),
+                        note = request.comment?.trim()?.ifBlank { null },
+                        rentalId = clientRental.id
+                    )
+
+                    persistState()
+
+                    val debt = if (clientRental.isActiveAt(today)) {
+                        LedgerCalculator.debtRub(
+                            clientId = clientRental.clientId,
+                            rentalStartDate = clientRental.startDate,
+                            weeklyRateRub = bike.weeklyRateRub,
+                            entries = store.ledger,
+                            asOf = today,
+                            rentalId = clientRental.id
+                        )
+                    } else if (clientRental.endDate != null) {
+                        LedgerCalculator.finalDebtOnClosure(
+                            clientId = clientRental.clientId,
+                            rentalStartDate = clientRental.startDate,
+                            rentalEndDate = clientRental.endDate,
+                            weeklyRateRub = bike.weeklyRateRub,
+                            entries = store.ledger,
+                            rentalId = clientRental.id
+                        )
+                    } else {
+                        0
+                    }
+
+                    ApiAdminDebtAdjustmentResponse(
+                        clientId = clientRental.clientId,
+                        debtRub = debt,
+                        totalAdjustmentRub = LedgerCalculator.totalAdjustmentRub(
+                            entries = store.ledger,
+                            clientId = clientRental.clientId,
+                            rentalId = clientRental.id
+                        )
+                    )
+                }
+
+                if (response == null) {
+                    call.respond(HttpStatusCode.NotFound, ApiErrorResponse(message = "Client rental not found"))
+                    return@post
+                }
+
+                call.respond(response)
+            }
+
             /**
              * Admin-операции с перенесённым долгом клиента
              * (docs/14_rental_lifecycle.md §7).

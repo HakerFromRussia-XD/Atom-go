@@ -467,6 +467,29 @@ final class AdminHomeViewModel: ObservableObject {
         }
     }
 
+    func adjustRentalDebt(rentalId: String, amountRub: Int, sign: DebtAdjustmentSign, comment: String?) {
+        isOperationInProgress = true
+        operationErrorMessage = nil
+        operationSuccessMessage = nil
+
+        Task {
+            do {
+                let result = try await apiService.adjustAdminClientRentalDebt(
+                    accessToken: session.accessToken,
+                    clientRentalId: rentalId,
+                    amountRub: amountRub,
+                    sign: sign,
+                    comment: comment
+                )
+                operationSuccessMessage = "Корректировка сохранена. Новый долг: \(result.debtRub) ₽"
+                await refreshAfterMutation(scope: .rentalMutation, openDetailsFor: selectedRentalDetails?.clientId)
+            } catch {
+                operationErrorMessage = error.localizedDescription
+            }
+            isOperationInProgress = false
+        }
+    }
+
     /// Admin-операция над перенесённым долгом клиента
     /// (docs/14_rental_lifecycle.md §7, docs/04_api_draft.md «Admin: carried debt operations»).
     /// Для `payment` излишек автоматически уходит в активную клиентскую аренду — backend
