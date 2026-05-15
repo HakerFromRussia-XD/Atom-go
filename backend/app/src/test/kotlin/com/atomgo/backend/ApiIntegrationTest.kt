@@ -2576,6 +2576,91 @@ class ApiIntegrationTest {
         }
     }
 
+    @Test
+    fun `admin should adjust debt for closed client rental and journal must update`() = testApplication {
+        application { module() }
+        val adminToken = loginAsAdmin()
+        val clientId = createClientAndGetId(
+            adminToken,
+            fullName = "Closed Rental Adjustment",
+            phone = "79009993501"
+        )
+        val bikeId = createBikeAndGetId(
+            adminToken,
+            frameSerial = "CLOSED-ADJ-FRAME",
+            motorSerial = "CLOSED-ADJ-MOTOR",
+            weeklyRateRub = 3500
+        )
+        val start = LocalDate.now().minusDays(6).toString()
+
+        val createRental = client.post("/api/v1/admin/rentals") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "client_id":"$clientId",
+                  "bike_id":"$bikeId",
+                  "login":"closed.adjust.client",
+                  "password":"closedAdjustPwd",
+                  "period_start":"$start"
+                }
+                """.trimIndent()
+            )
+        }
+        assertEquals(HttpStatusCode.Created, createRental.status)
+        val lifecycleId = json.parseToJsonElement(createRental.bodyAsText())
+            .jsonObject["rental_id"]?.jsonPrimitive?.content ?: error("No lifecycle rental id")
+
+        val finish = client.post("/api/v1/admin/rentals/$lifecycleId/finish") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, finish.status)
+
+        val clientDetails = client.get("/api/v1/admin/clients/$clientId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, clientDetails.status)
+        val closedClientRentalId = json.parseToJsonElement(clientDetails.bodyAsText())
+            .jsonObject["rentals"]?.jsonArray
+            ?.firstOrNull { it.jsonObject["bike_id"]?.jsonPrimitive?.content == bikeId }
+            ?.jsonObject?.get("rental_id")?.jsonPrimitive?.content
+            ?: error("No closed client rental id")
+
+        val adjust = client.post("/api/v1/admin/client-rentals/$closedClientRentalId/adjustments") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "amount_rub":500,
+                  "sign":"plus",
+                  "comment":"closed rental adjustment"
+                }
+                """.trimIndent()
+            )
+        }
+        assertEquals(HttpStatusCode.OK, adjust.status)
+        val adjustJson = json.parseToJsonElement(adjust.bodyAsText()).jsonObject
+        assertEquals(clientId, adjustJson["client_id"]?.jsonPrimitive?.content)
+        assertEquals(500, adjustJson["debt_rub"]?.jsonPrimitive?.content?.toInt())
+        assertEquals(500, adjustJson["total_adjustment_rub"]?.jsonPrimitive?.content?.toInt())
+
+        val closedDetails = client.get("/api/v1/admin/rentals/$closedClientRentalId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, closedDetails.status)
+        val closedJson = json.parseToJsonElement(closedDetails.bodyAsText()).jsonObject
+        assertEquals(500, closedJson["debt_rub"]?.jsonPrimitive?.content?.toInt())
+        assertEquals(500, closedJson["total_adjustment_rub"]?.jsonPrimitive?.content?.toInt())
+        assertEquals(LocalDate.now().toString(), closedJson["completed_at"]?.jsonPrimitive?.content)
+        val journal = closedJson["journal_entries"]?.jsonArray ?: error("No journal entries")
+        val adjustmentEntry = journal.firstOrNull { it.jsonObject["type"]?.jsonPrimitive?.content == "adjustment" }
+            ?.jsonObject ?: error("No adjustment entry in journal")
+        assertEquals(500, adjustmentEntry["amount_rub"]?.jsonPrimitive?.content?.toInt())
+        assertEquals(LocalDate.now().toString(), adjustmentEntry["created_at"]?.jsonPrimitive?.content)
+    }
+
     /**
      * Soft-delete конкретной client_rental из истории клиента. Lifecycle и
      * остальные client_rentals НЕ трогаются, запись в БД остаётся

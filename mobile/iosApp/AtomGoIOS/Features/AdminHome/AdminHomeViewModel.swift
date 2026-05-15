@@ -482,7 +482,8 @@ final class AdminHomeViewModel: ObservableObject {
                     comment: comment
                 )
                 operationSuccessMessage = "Корректировка сохранена. Новый долг: \(result.debtRub) ₽"
-                await refreshAfterMutation(scope: .rentalMutation, openDetailsFor: selectedRentalDetails?.clientId)
+                let openClientId = result.clientId.isEmpty ? selectedRentalDetails?.clientId : result.clientId
+                await refreshAfterMutation(scope: .rentalMutation, openDetailsFor: openClientId)
             } catch {
                 operationErrorMessage = error.localizedDescription
             }

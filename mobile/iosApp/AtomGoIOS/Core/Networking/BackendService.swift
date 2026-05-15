@@ -690,6 +690,7 @@ final class BackendService: BackendServicing {
             clientId: client.clientId,
             rentalId: client.rentalId,
             clientLogin: client.clientLogin,
+            primaryPhone: nil,
             fullName: client.fullName,
             bikeModel: client.bikeModel,
             bikeAvatarUrl: client.bikeAvatarUrl,

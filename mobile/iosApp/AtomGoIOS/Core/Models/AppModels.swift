@@ -128,6 +128,7 @@ struct AdminClientSummaryResponse: Decodable, Identifiable {
     let clientId: String
     let rentalId: String?
     let clientLogin: String?
+    let primaryPhone: String?
     let fullName: String
     let bikeModel: String
     let bikeAvatarUrl: String
@@ -148,6 +149,7 @@ struct AdminClientSummaryResponse: Decodable, Identifiable {
         clientId: String,
         rentalId: String? = nil,
         clientLogin: String?,
+        primaryPhone: String? = nil,
         fullName: String,
         bikeModel: String,
         bikeAvatarUrl: String,
@@ -163,6 +165,7 @@ struct AdminClientSummaryResponse: Decodable, Identifiable {
         self.clientId = clientId
         self.rentalId = rentalId
         self.clientLogin = clientLogin
+        self.primaryPhone = primaryPhone
         self.fullName = fullName
         self.bikeModel = bikeModel
         self.bikeAvatarUrl = bikeAvatarUrl
@@ -180,6 +183,7 @@ struct AdminClientSummaryResponse: Decodable, Identifiable {
         case clientId = "client_id"
         case rentalId = "rental_id"
         case clientLogin = "client_login"
+        case primaryPhone = "primary_phone"
         case fullName = "full_name"
         case bikeModel = "bike_model"
         case bikeAvatarUrl = "bike_avatar_url"
@@ -198,6 +202,7 @@ struct AdminClientSummaryResponse: Decodable, Identifiable {
         clientId = try container.decode(String.self, forKey: .clientId)
         rentalId = try container.decodeIfPresent(String.self, forKey: .rentalId)
         clientLogin = try container.decodeIfPresent(String.self, forKey: .clientLogin)
+        primaryPhone = try container.decodeIfPresent(String.self, forKey: .primaryPhone)
         fullName = try container.decode(String.self, forKey: .fullName)
         bikeModel = try container.decode(String.self, forKey: .bikeModel)
         bikeAvatarUrl = try container.decode(String.self, forKey: .bikeAvatarUrl)

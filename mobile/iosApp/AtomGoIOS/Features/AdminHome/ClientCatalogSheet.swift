@@ -11,6 +11,7 @@ struct ClientCatalogSheet: View {
     let onCreate: (CreateClientPayload, @escaping () -> Void) -> Void
     let onOpenClient: (AdminClientSummaryResponse) -> Void
 
+    @Environment(\.openURL) private var openURL
     @State private var isCreateClientPresented = false
     @State private var searchText = ""
     @State private var selectedFilter: ClientCatalogFilter = .all
@@ -27,6 +28,7 @@ struct ClientCatalogSheet: View {
     private let chipsTopGap: CGFloat = 10
     private let chipsHeight: CGFloat = 36
     private let tabBarHeight: CGFloat = 76
+    private let callButtonGreen = Color(red: 52 / 255, green: 199 / 255, blue: 89 / 255)
 
     private var searchTop: CGFloat { topBarHeight + searchTopPadding }
     private var searchMaskHeight: CGFloat { searchTop + searchHeight / 2 }
@@ -380,47 +382,89 @@ struct ClientCatalogSheet: View {
     }
 
     private func clientRow(_ client: AdminClientSummaryResponse) -> some View {
-        Button {
-            onOpenClient(client)
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "person.crop.circle")
-                    .font(.system(size: 28, weight: .semibold))
-                    .foregroundStyle(AppDesign.iconSoft)
-                    .frame(width: 48, height: 48)
-                    .background(AppDesign.surfaceBackground)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        HStack(spacing: 12) {
+            callButton(for: client)
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(client.fullName)
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                    Text(clientSubtitle(for: client))
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
-                        .lineLimit(1)
-                        .truncationMode(.tail)
+            Button {
+                onOpenClient(client)
+            } label: {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(client.fullName)
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                        Text(clientSubtitle(for: client))
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    if clientTotalDebtRub(for: client) > 0 {
+                        Text(formattedDebtRub(clientTotalDebtRub(for: client)))
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255))
+                            .fixedSize(horizontal: true, vertical: false)
+                    }
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(Color(red: 167 / 255, green: 167 / 255, blue: 171 / 255))
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-                if clientTotalDebtRub(for: client) > 0 {
-                    Text(formattedDebtRub(clientTotalDebtRub(for: client)))
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255))
-                        .fixedSize(horizontal: true, vertical: false)
-                }
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(Color(red: 167 / 255, green: 167 / 255, blue: 171 / 255))
+                .frame(minHeight: 51)
+                .contentShape(Rectangle())
             }
-            .frame(minHeight: 51)
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+        }
+        .accessibilityIdentifier("clientCatalog.open.\(client.fullName)")
+    }
+
+    private func callButton(for client: AdminClientSummaryResponse) -> some View {
+        let telURL = telURLString(for: client.primaryPhone)
+
+        return Button {
+            guard let telURL, let url = URL(string: telURL) else { return }
+            openURL(url)
+        } label: {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.white)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(callButtonGreen, lineWidth: 1)
+                )
+                .overlay(
+                    Image(systemName: "phone.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(callButtonGreen)
+                )
+                .frame(width: 36, height: 36)
+                .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .buttonStyle(.plain)
-        .accessibilityIdentifier("clientCatalog.open.\(client.fullName)")
+        .disabled(telURL == nil)
+        .opacity(telURL == nil ? 0.45 : 1)
+        .accessibilityIdentifier("clientCatalog.call.\(client.fullName)")
+    }
+
+    private func telURLString(for rawPhone: String?) -> String? {
+        guard let rawPhone else { return nil }
+        let trimmed = rawPhone.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        var normalized = ""
+        for (index, scalar) in trimmed.unicodeScalars.enumerated() {
+            if CharacterSet.decimalDigits.contains(scalar) {
+                normalized.unicodeScalars.append(scalar)
+            } else if scalar == "+" && index == 0 {
+                normalized.unicodeScalars.append(scalar)
+            }
+        }
+
+        guard !normalized.isEmpty else { return nil }
+        return "tel://\(normalized)"
     }
 
     private func clientSubtitle(for client: AdminClientSummaryResponse) -> String {

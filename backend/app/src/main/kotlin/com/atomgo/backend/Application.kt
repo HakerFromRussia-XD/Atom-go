@@ -143,6 +143,8 @@ private data class ApiAdminClientSummaryResponse(
     val rentalId: String? = null,
     @SerialName("client_login")
     val clientLogin: String? = null,
+    @SerialName("primary_phone")
+    val primaryPhone: String? = null,
     @SerialName("full_name")
     val fullName: String,
     @SerialName("bike_model")
@@ -1813,6 +1815,7 @@ private fun buildAdminClientSummary(
         clientId = client.id,
         rentalId = snapshot?.rentalId,
         clientLogin = credentials.login,
+        primaryPhone = resolvePrimaryClientPhone(client),
         fullName = client.fullName,
         bikeModel = snapshot?.bikeModel ?: "-",
         bikeAvatarUrl = compactBikeAvatarUrl(snapshot?.bikePhotoUrl),
@@ -1897,8 +1900,9 @@ private fun buildAdminRentSummaryFromRental(
 
     return ApiAdminClientSummaryResponse(
         clientId = "",
-            rentalId = rental.id,
+        rentalId = rental.id,
         clientLogin = null,
+        primaryPhone = null,
         fullName = "",
         bikeModel = bike?.model ?: "",
         bikeAvatarUrl = compactBikeAvatarUrl(bike?.photoUrl),
@@ -1910,6 +1914,19 @@ private fun buildAdminRentSummaryFromRental(
         profitRub = 0,
         totalAdjustmentRub = 0
     )
+}
+
+private fun resolvePrimaryClientPhone(client: ClientAccount): String? {
+    return client.phones
+        .asSequence()
+        .map { it.number.trim() }
+        .firstOrNull { number ->
+            number.isNotBlank() && normalizeReceiptEmail(number) == null
+        }
+        ?: client.phones
+            .asSequence()
+            .map { it.number.trim() }
+            .firstOrNull { it.isNotBlank() }
 }
 
 private fun buildAdminClientDetails(

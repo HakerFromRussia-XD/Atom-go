@@ -543,6 +543,34 @@ final class CreateClientFlowUnitTests: XCTestCase {
     }
 
     @MainActor
+    func testViewModelAdjustRentalDebtUsesClientRentalEndpoint() async {
+        let service = MockAdminBackendService()
+        service.fetchRentsResult = .success([service.sampleSummary])
+        service.fetchClientCatalogResult = .success([service.sampleSummary])
+        service.fetchBikesResult = .success([service.sampleBike])
+        service.fetchRentalDetailsResult = .success(service.sampleRentalDetails)
+        service.adjustClientRentalDebtResult = .success(
+            DebtAdjustmentResult(clientId: service.sampleSummary.clientId, debtRub: 500, totalAdjustmentRub: 500)
+        )
+        let viewModel = makeViewModel(service: service)
+
+        viewModel.load()
+        await waitUntilAdminHomeLoads(viewModel)
+        viewModel.openRentalDetails(rentalId: service.sampleRentalDetails.rentalId)
+        for _ in 0 ..< 200 {
+            if viewModel.selectedRentalDetails != nil { break }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+
+        viewModel.adjustRentalDebt(rentalId: service.sampleRentalDetails.rentalId, amountRub: 500, sign: .plus, comment: "test")
+        await waitUntilOperationCompletes(viewModel)
+
+        XCTAssertEqual(service.adjustClientRentalDebtCallsCount, 1)
+        XCTAssertEqual(service.adjustClientDebtCallsCount, 0)
+        XCTAssertEqual(viewModel.operationSuccessMessage, "Корректировка сохранена. Новый долг: 500 ₽")
+    }
+
+    @MainActor
     func testViewModelDeleteRentalShowsReadableError() async {
         let service = MockAdminBackendService()
         service.deleteRentalResult = .failure(
@@ -906,6 +934,7 @@ private final class MockAdminBackendService: BackendServicing {
     var updateBikeResult: Result<AdminBikeResponse, Error> = .failure(BackendError.invalidResponse)
     var updateRentalResult: Result<AdminRentalHistoryItem, Error> = .failure(BackendError.invalidResponse)
     var deleteRentalResult: Result<DeleteRentalResult, Error> = .failure(BackendError.invalidResponse)
+    var adjustClientRentalDebtResult: Result<DebtAdjustmentResult, Error> = .failure(BackendError.invalidResponse)
     var createPaymentResult: Result<PaymentCreationResponse, Error> = .failure(BackendError.invalidResponse)
     var paymentStatusResult: Result<PaymentStatusResponse, Error> = .failure(BackendError.invalidResponse)
     var updateReceiptEmailCallsCount = 0
@@ -914,6 +943,8 @@ private final class MockAdminBackendService: BackendServicing {
     var createRentalCallsCount = 0
     var updateRentalCallsCount = 0
     var deleteRentalCallsCount = 0
+    var adjustClientDebtCallsCount = 0
+    var adjustClientRentalDebtCallsCount = 0
 
     let sampleSummary = AdminClientSummaryResponse(
         clientId: "client-001",
@@ -1125,7 +1156,19 @@ private final class MockAdminBackendService: BackendServicing {
         sign _: DebtAdjustmentSign,
         comment _: String?
     ) async throws -> DebtAdjustmentResult {
+        adjustClientDebtCallsCount += 1
         throw BackendError.invalidResponse
+    }
+
+    func adjustAdminClientRentalDebt(
+        accessToken _: String,
+        clientRentalId _: String,
+        amountRub _: Int,
+        sign _: DebtAdjustmentSign,
+        comment _: String?
+    ) async throws -> DebtAdjustmentResult {
+        adjustClientRentalDebtCallsCount += 1
+        return try adjustClientRentalDebtResult.get()
     }
 
     func applyCarriedDebtOperation(
