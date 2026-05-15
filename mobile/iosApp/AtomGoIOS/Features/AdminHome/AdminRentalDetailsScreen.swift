@@ -281,9 +281,7 @@ struct AdminRentalDetailsScreen: View {
                     Text("\(formattedRub(weeklyRateRub))/нед")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
-                    Text(displayPolicy.correctionLineText(formattedAdjustment: formattedRub(totalAdjustmentRub)))
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Color(red: 17 / 255, green: 24 / 255, blue: 39 / 255).opacity(0.5))
+                    rentalStatusBadge
                 }
                 .padding(.top, 16)
             }
@@ -876,6 +874,29 @@ struct AdminRentalDetailsScreen: View {
         canStartRental
             ? Color(red: 35 / 255, green: 143 / 255, blue: 71 / 255)
             : Color(red: 35 / 255, green: 143 / 255, blue: 71 / 255).opacity(0.65)
+    }
+
+    @ViewBuilder
+    private var rentalStatusBadge: some View {
+        if isInStockState {
+            EmptyView()
+        } else if runningRentalIsActive {
+            Text("Активная")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(Color.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(AppDesign.success)
+                .clipShape(Capsule())
+        } else {
+            Text("Завершённая")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(Color.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
+                .clipShape(Capsule())
+        }
     }
 
     private var avatarBorderColor: Color {
