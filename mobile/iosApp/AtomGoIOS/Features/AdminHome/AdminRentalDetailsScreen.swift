@@ -410,6 +410,7 @@ struct AdminRentalDetailsScreen: View {
                     accessibilityIdentifier: "rentalDetails.passwordField"
                 )
             }
+            Spacer(minLength: 0)
             HStack(spacing: 8) {
                 // Согласно docs/14_rental_lifecycle.md §4, кнопка «Сгенерировать»
                 // живёт только в lifecycle-аренде в статусе IN_STOCK, где админ
@@ -427,6 +428,12 @@ struct AdminRentalDetailsScreen: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("rentalDetails.generateCredentialsButton")
+                } else {
+                    Rectangle()
+                        .fill(Color.clear)
+                        .frame(width: 110, height: 47)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
                 }
 
                 Button(action: copyCredentialsToClipboard) {
@@ -440,8 +447,9 @@ struct AdminRentalDetailsScreen: View {
                 }
                 .buttonStyle(.plain)
             }
+            .frame(width: 165, alignment: .trailing)
         }
-        .frame(height: 67, alignment: .center)
+        .frame(maxWidth: .infinity, minHeight: 67, maxHeight: 67, alignment: .leading)
     }
 
     private func credentialField(
