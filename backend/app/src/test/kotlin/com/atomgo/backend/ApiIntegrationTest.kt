@@ -292,6 +292,11 @@ class ApiIntegrationTest {
         val adminToken = loginAsAdmin()
         val clientId = createClientAndGetId(adminToken)
         val firstBikeId = createBikeAndGetId(adminToken)
+        val secondBikeId = createBikeAndGetId(
+            adminToken,
+            frameSerial = "UPDATE-RENTAL-FRAME-2",
+            motorSerial = "UPDATE-RENTAL-MOTOR-2"
+        )
 
         val createRental = client.post("/api/v1/admin/rentals") {
             bearerAuth(adminToken)
@@ -319,18 +324,50 @@ class ApiIntegrationTest {
             setBody(
                 """
                 {
-                  "bike_id":"bike-002",
+                  "bike_id":"$secondBikeId",
                   "period_start":"2026-05-10",
-                  "period_end":"2026-05-30"
+                  "period_end":"2026-05-30",
+                  "login":"updated.rental.client",
+                  "password":"updated-rental-password",
+                  "video_url":"https://example.com/video-updated",
+                  "contract_url":"https://example.com/contract-updated",
+                  "comment":"updated comment"
                 }
                 """.trimIndent()
             )
         }
         assertEquals(HttpStatusCode.OK, updateRental.status)
         val updated = json.parseToJsonElement(updateRental.bodyAsText()).jsonObject
-        assertEquals("bike-002", updated["bike_id"]?.jsonPrimitive?.content)
+        assertEquals(secondBikeId, updated["bike_id"]?.jsonPrimitive?.content)
         assertEquals("2026-05-10", updated["period_start"]?.jsonPrimitive?.content)
         assertEquals("2026-05-30", updated["period_end"]?.jsonPrimitive?.content)
+        assertEquals("https://example.com/video-updated", updated["video_url"]?.jsonPrimitive?.content)
+        assertEquals("https://example.com/contract-updated", updated["contract_url"]?.jsonPrimitive?.content)
+        assertEquals("updated comment", updated["comment"]?.jsonPrimitive?.content)
+
+        val details = client.get("/api/v1/admin/rentals/$rentalId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, details.status)
+        val detailsBody = json.parseToJsonElement(details.bodyAsText()).jsonObject
+        assertEquals("updated.rental.client", detailsBody["client_login"]?.jsonPrimitive?.content)
+        assertEquals("updated-rental-password", detailsBody["client_password"]?.jsonPrimitive?.content)
+        assertEquals("https://example.com/video-updated", detailsBody["video_url"]?.jsonPrimitive?.content)
+        assertEquals("https://example.com/contract-updated", detailsBody["contract_url"]?.jsonPrimitive?.content)
+        assertEquals("updated comment", detailsBody["comment"]?.jsonPrimitive?.content)
+
+        val clientLogin = client.post("/api/v1/auth/login") {
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "login":"updated.rental.client",
+                  "password":"updated-rental-password"
+                }
+                """.trimIndent()
+            )
+        }
+        assertEquals(HttpStatusCode.OK, clientLogin.status)
     }
 
     @Test

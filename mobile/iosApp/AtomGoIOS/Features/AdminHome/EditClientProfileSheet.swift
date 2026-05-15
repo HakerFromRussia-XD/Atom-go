@@ -46,6 +46,9 @@ struct EditClientProfileSheet: View {
         _phones = State(initialValue: details.phones.map {
             EditClientProfilePhone(id: $0.id, label: $0.label, number: $0.number)
         })
+        let existingComment = details.comment?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        _comment = State(initialValue: existingComment)
+        _isCommentVisible = State(initialValue: !existingComment.isEmpty)
     }
 
     var body: some View {
@@ -298,11 +301,14 @@ struct EditClientProfileSheet: View {
             }
             .filter { !$0.label.isEmpty && !$0.number.isEmpty }
 
+        let normalizedComment = isCommentVisible ? comment.trimmedToOptional : nil
+
         let payload = UpdateClientProfilePayload(
             fullName: normalizedFullName,
             address: normalizedAddress,
             passportData: normalizedPassport,
-            phones: normalizedPhones
+            phones: normalizedPhones,
+            comment: normalizedComment
         )
         onSave(payload)
     }

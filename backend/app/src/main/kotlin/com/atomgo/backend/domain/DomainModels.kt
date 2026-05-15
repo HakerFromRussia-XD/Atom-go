@@ -85,6 +85,7 @@ data class ClientAccount(
      * См. docs/14_rental_lifecycle.md §7 и docs/02_money_and_debt_rules.md §7.
      */
     val carriedDebtRub: Int = 0,
+    val comment: String? = null,
     /**
      * Метка soft-delete. null = запись «живая» и показывается во всех списках/валидациях.
      * Не-null = удалена; в админских списках не показывается, но история client_rental

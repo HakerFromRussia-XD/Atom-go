@@ -79,7 +79,8 @@ class InMemoryStore(
                         com.atomgo.backend.domain.ClientPhone(label = "Рабочий (TG)", number = "+7 900 123-45-67"),
                         com.atomgo.backend.domain.ClientPhone(label = "Домашний", number = "+7 495 222-33-44")
                     ),
-                    adminId = adminId
+                    adminId = adminId,
+                    comment = "Постоянный клиент, всегда платит вовремя"
                 ),
                 ClientAccount(
                     id = clientId2,

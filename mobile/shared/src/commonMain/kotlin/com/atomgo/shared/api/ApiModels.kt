@@ -190,7 +190,8 @@ data class AdminUpdateClientRequest(
     val address: String,
     @SerialName("passport_data")
     val passportData: String,
-    val phones: List<AdminClientPhone>
+    val phones: List<AdminClientPhone>,
+    val comment: String? = null
 )
 
 @Serializable
@@ -281,7 +282,14 @@ data class AdminUpdateRentalRequest(
     @SerialName("period_start")
     val periodStart: String,
     @SerialName("period_end")
-    val periodEnd: String? = null
+    val periodEnd: String? = null,
+    val login: String? = null,
+    val password: String? = null,
+    @SerialName("video_url")
+    val videoUrl: String? = null,
+    @SerialName("contract_url")
+    val contractUrl: String? = null,
+    val comment: String? = null
 )
 
 @Serializable

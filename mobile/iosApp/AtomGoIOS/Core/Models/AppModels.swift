@@ -353,6 +353,7 @@ struct AdminClientDetailsResponse: Equatable {
     let rentals: [AdminRentalHistoryItem]
     /// Перенесённая задолженность клиента (см. docs/14_rental_lifecycle.md §7).
     let carriedDebtRub: Int
+    let comment: String?
 
     init(
         clientId: String,
@@ -369,7 +370,8 @@ struct AdminClientDetailsResponse: Equatable {
         totalAdjustmentRub: Int,
         phones: [AdminClientPhone],
         rentals: [AdminRentalHistoryItem],
-        carriedDebtRub: Int = 0
+        carriedDebtRub: Int = 0,
+        comment: String? = nil
     ) {
         self.clientId = clientId
         self.fullName = fullName
@@ -386,6 +388,7 @@ struct AdminClientDetailsResponse: Equatable {
         self.phones = phones
         self.rentals = rentals
         self.carriedDebtRub = carriedDebtRub
+        self.comment = comment
     }
 }
 
@@ -401,6 +404,7 @@ struct UpdateClientProfilePayload {
     var address: String
     var passportData: String
     var phones: [AdminClientPhone]
+    var comment: String?
 }
 
 struct CreateRentalPayload {
@@ -505,6 +509,11 @@ struct UpdateRentalPayload {
     var bikeId: String
     var periodStart: String
     var periodEnd: String?
+    var login: String? = nil
+    var password: String? = nil
+    var videoUrl: String? = nil
+    var contractUrl: String? = nil
+    var comment: String? = nil
 }
 
 struct DeleteRentalResult: Equatable {
@@ -620,6 +629,9 @@ struct AdminRentalDetailsResponse: Decodable, Equatable {
     let rentalPipelineStatus: String
     let rentalIsActive: Bool
     let journalEntries: [AdminRentalJournalEntry]
+    let videoUrl: String?
+    let contractUrl: String?
+    let comment: String?
 
     enum CodingKeys: String, CodingKey {
         case rentalId = "rental_id"
@@ -640,5 +652,8 @@ struct AdminRentalDetailsResponse: Decodable, Equatable {
         case rentalPipelineStatus = "rental_pipeline_status"
         case rentalIsActive = "rental_is_active"
         case journalEntries = "journal_entries"
+        case videoUrl = "video_url"
+        case contractUrl = "contract_url"
+        case comment
     }
 }

@@ -504,7 +504,6 @@ struct AdminHomeView: View {
                 },
                 onUpdateRental: { payload in
                     viewModel.updateRental(payload: payload)
-                    viewModel.openRentalDetails(rentalId: context.rentalId)
                 },
                 onDeleteRental: { clientId, rentalId in
                     viewModel.deleteRental(clientId: clientId, rentalId: rentalId)

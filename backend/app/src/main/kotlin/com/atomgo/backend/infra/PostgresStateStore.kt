@@ -93,6 +93,7 @@ class PostgresStateStore private constructor(
             statement.execute("ALTER TABLE atomgo_clients ADD COLUMN IF NOT EXISTS admin_id TEXT")
             statement.execute("ALTER TABLE atomgo_clients ADD COLUMN IF NOT EXISTS carried_debt_rub INT NOT NULL DEFAULT 0")
             statement.execute("ALTER TABLE atomgo_clients ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ")
+            statement.execute("ALTER TABLE atomgo_clients ADD COLUMN IF NOT EXISTS comment TEXT")
             statement.execute(
                 """
                 CREATE TABLE IF NOT EXISTS atomgo_client_phones (
@@ -447,7 +448,7 @@ class PostgresStateStore private constructor(
         val clients = linkedMapOf<String, ClientAccount>()
         connection.prepareStatement(
             """
-	            SELECT id, full_name, address, passport_data, admin_id, carried_debt_rub, deleted_at
+	            SELECT id, full_name, address, passport_data, admin_id, carried_debt_rub, deleted_at, comment
             FROM atomgo_clients
             ORDER BY id
             """.trimIndent()
@@ -462,7 +463,8 @@ class PostgresStateStore private constructor(
 	                        phones = mutableListOf(),
 	                        adminId = rs.getString("admin_id"),
 	                        carriedDebtRub = rs.getInt("carried_debt_rub"),
-	                        deletedAt = rs.getTimestamp("deleted_at")?.toInstant()
+	                        deletedAt = rs.getTimestamp("deleted_at")?.toInstant(),
+                        comment = rs.getString("comment")
                     )
                     clients[client.id] = client
                 }
@@ -707,8 +709,8 @@ class PostgresStateStore private constructor(
 
         connection.prepareStatement(
             """
-            INSERT INTO atomgo_clients (id, full_name, address, passport_data, admin_id, carried_debt_rub, deleted_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO atomgo_clients (id, full_name, address, passport_data, admin_id, carried_debt_rub, deleted_at, comment)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent()
         ).use { statement ->
             state.clients.forEach { client ->
@@ -719,6 +721,7 @@ class PostgresStateStore private constructor(
                 statement.setString(5, client.adminId)
                 statement.setInt(6, client.carriedDebtRub)
                 statement.setTimestamp(7, client.deletedAt?.let { java.sql.Timestamp.from(it) })
+                statement.setString(8, client.comment)
                 statement.addBatch()
             }
             statement.executeBatch()

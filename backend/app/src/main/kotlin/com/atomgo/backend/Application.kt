@@ -234,7 +234,8 @@ private data class ApiAdminClientDetailsResponse(
     val phones: List<ApiAdminClientPhoneResponse>,
     val rentals: List<ApiAdminRentalHistoryItemResponse>,
     @SerialName("carried_debt_rub")
-    val carriedDebtRub: Int = 0
+    val carriedDebtRub: Int = 0,
+    val comment: String? = null
 )
 
 @Serializable
@@ -254,7 +255,8 @@ private data class ApiAdminUpdateClientRequest(
     val address: String,
     @SerialName("passport_data")
     val passportData: String,
-    val phones: List<ApiAdminClientPhoneResponse> = emptyList()
+    val phones: List<ApiAdminClientPhoneResponse> = emptyList(),
+    val comment: String? = null
 )
 
 @Serializable
@@ -435,7 +437,14 @@ private data class ApiAdminUpdateRentalRequest(
     @SerialName("period_start")
     val periodStart: String,
     @SerialName("period_end")
-    val periodEnd: String? = null
+    val periodEnd: String? = null,
+    val login: String? = null,
+    val password: String? = null,
+    @SerialName("video_url")
+    val videoUrl: String? = null,
+    @SerialName("contract_url")
+    val contractUrl: String? = null,
+    val comment: String? = null
 )
 
 @Serializable
@@ -564,7 +573,12 @@ private data class ApiAdminRentalDetailsResponse(
     @SerialName("rental_is_active")
     val rentalIsActive: Boolean,
     @SerialName("journal_entries")
-    val journalEntries: List<ApiAdminRentalJournalEntryResponse>
+    val journalEntries: List<ApiAdminRentalJournalEntryResponse>,
+    @SerialName("video_url")
+    val videoUrl: String? = null,
+    @SerialName("contract_url")
+    val contractUrl: String? = null,
+    val comment: String? = null
 )
 
 @Serializable
@@ -2022,7 +2036,8 @@ private fun buildAdminClientDetails(
         totalAdjustmentRub = totalAdjustment,
         phones = client.phones.map { ApiAdminClientPhoneResponse(label = it.label, number = it.number) },
         rentals = rentals,
-        carriedDebtRub = client.carriedDebtRub
+        carriedDebtRub = client.carriedDebtRub,
+        comment = client.comment
     )
 }
 
@@ -2560,7 +2575,10 @@ fun Application.module() {
                         },
                         rentalPipelineStatus = RentalPipelineStatus.toApi(rental?.pipelineStatus ?: RentalPipelineStatus.LONG_TERM),
                         rentalIsActive = rentalIsActive,
-                        journalEntries = journal
+                        journalEntries = journal,
+                        videoUrl = targetClientRental?.videoUrl ?: rental?.videoUrl,
+                        contractUrl = targetClientRental?.contractUrl ?: rental?.contractUrl,
+                        comment = targetClientRental?.comment ?: rental?.comment
                     )
                 }
 
@@ -2940,7 +2958,8 @@ fun Application.module() {
                             fullName = fullName,
                             address = address,
                             passportData = passportData,
-                            phones = normalizedPhones
+                            phones = normalizedPhones,
+                            comment = request.comment?.trim()?.ifBlank { null } ?: currentClient.comment
                         )
                         store.clients[index] = updatedClient
                         persistState()
@@ -3270,6 +3289,9 @@ fun Application.module() {
                 val bikeId = request.bikeId.trim()
                 val periodStartRaw = request.periodStart.trim()
                 val periodEndRaw = request.periodEnd?.trim()?.ifBlank { null }
+                val loginRaw = request.login?.trim()?.ifBlank { null }
+                val passwordRaw = request.password?.trim()?.ifBlank { null }
+                val shouldUpdateCredentials = request.login != null || request.password != null
 
                 if (bikeId.isBlank()) {
                     call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "bike_id is required"))
@@ -3302,33 +3324,85 @@ fun Application.module() {
                     call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "period_end must be after or equal to period_start"))
                     return@post
                 }
+                if (shouldUpdateCredentials && (loginRaw == null || passwordRaw == null)) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "login and password are required"))
+                    return@post
+                }
 
-	                val updatedRental = synchronized(stateLock) {
-	                    val rentalIndex = store.rentals.indexOfFirst { it.id == rentalId && it.deletedAt == null }
-	                    if (rentalIndex < 0) {
-	                        null
-	                    } else {
-	                        val bike = store.bikes.firstOrNull { it.id == bikeId }
-	                            ?: return@synchronized RentalCreationOutcome.Failure(HttpStatusCode.NotFound, "Bike not found")
-	                        val currentRental = store.rentals[rentalIndex]
-	                        if (currentRental.adminId != session.userId || !adminOwnsBike(store, session.userId, bike.id)) {
-	                            return@synchronized RentalCreationOutcome.Failure(HttpStatusCode.Forbidden, "Forbidden")
-	                        }
+                val updatedRental = synchronized(stateLock) {
+                    val rentalIndex = store.rentals.indexOfFirst { it.id == rentalId && it.deletedAt == null }
+                    if (rentalIndex < 0) {
+                        null
+                    } else {
+                        val bike = store.bikes.firstOrNull { it.id == bikeId }
+                            ?: return@synchronized RentalCreationOutcome.Failure(HttpStatusCode.NotFound, "Bike not found")
+                        val currentRental = store.rentals[rentalIndex]
+                        if (currentRental.adminId != session.userId || !adminOwnsBike(store, session.userId, bike.id)) {
+                            return@synchronized RentalCreationOutcome.Failure(HttpStatusCode.Forbidden, "Forbidden")
+                        }
+                        val newVideoUrl = request.videoUrl?.trim()?.ifBlank { null }
+                        val newContractUrl = request.contractUrl?.trim()?.ifBlank { null }
+                        val newComment = request.comment?.trim()?.ifBlank { null }
+                        val activeClientRental = activeClientRentalForLifecycle(currentRental, store, LocalDate.now())
+
+                        if (shouldUpdateCredentials && activeClientRental == null) {
+                            return@synchronized RentalCreationOutcome.Failure(
+                                HttpStatusCode.Conflict,
+                                "rental has no active client rental"
+                            )
+                        }
+
+                        val normalizedLogin = loginRaw
+                        val normalizedPassword = passwordRaw
+                        if (normalizedPassword != null && activeClientRental != null) {
+                            val newFingerprint = passwordFingerprint(normalizedPassword)
+                            if (!isPasswordFingerprintUnique(store, newFingerprint, ignoreClientRentalId = activeClientRental.id)) {
+                                return@synchronized RentalCreationOutcome.Failure(HttpStatusCode.Conflict, "password is already used")
+                            }
+                        }
+
                         val updated = currentRental.copy(
                             bikeId = bike.id,
                             startDate = periodStart,
-                            endDate = periodEnd
+                            endDate = periodEnd,
+                            videoUrl = newVideoUrl ?: currentRental.videoUrl,
+                            contractUrl = newContractUrl ?: currentRental.contractUrl,
+                            comment = newComment ?: currentRental.comment
                         )
-                        activeClientRentalForLifecycle(currentRental, store, LocalDate.now())?.let { activeClientRental ->
-                            val clientRentalIndex = store.clientRentals.indexOfFirst { it.id == activeClientRental.id }
+
+                        activeClientRental?.let { currentClientRental ->
+                            val clientRentalIndex = store.clientRentals.indexOfFirst { it.id == currentClientRental.id }
                             if (clientRentalIndex >= 0) {
-                                store.clientRentals[clientRentalIndex] = activeClientRental.copy(
+                                val updatedClientRental = currentClientRental.copy(
                                     bikeId = bike.id,
                                     startDate = periodStart,
-                                    endDate = periodEnd
+                                    endDate = periodEnd,
+                                    clientLogin = normalizedLogin ?: currentClientRental.clientLogin,
+                                    clientPassword = normalizedPassword ?: currentClientRental.clientPassword,
+                                    videoUrl = newVideoUrl ?: currentClientRental.videoUrl,
+                                    contractUrl = newContractUrl ?: currentClientRental.contractUrl,
+                                    comment = newComment ?: currentClientRental.comment,
+                                    clientPasswordFingerprint = normalizedPassword
+                                        ?.let(::passwordFingerprint)
+                                        ?: currentClientRental.clientPasswordFingerprint
                                 )
+                                store.clientRentals[clientRentalIndex] = updatedClientRental
+                            }
+
+                            if (normalizedLogin != null && normalizedPassword != null && currentClientRental.clientId.isNotBlank()) {
+                                val clientUserIndex = store.users.indexOfFirst {
+                                    it.role == Role.CLIENT && it.clientId == currentClientRental.clientId
+                                }
+                                if (clientUserIndex >= 0) {
+                                    store.users[clientUserIndex] = store.users[clientUserIndex].copy(
+                                        login = normalizedLogin,
+                                        password = normalizedPassword
+                                    )
+                                }
+                                store.sessions.entries.removeAll { it.value.clientId == currentClientRental.clientId }
                             }
                         }
+
                         store.rentals[rentalIndex] = updated
                         persistState()
                         ApiAdminRentalHistoryItemResponse(

@@ -152,7 +152,6 @@ struct AdminClientDetailsSheet: View {
                         },
                         onUpdateRental: { payload in
                             onUpdateRental(payload)
-                            onRequestOpenRentalDetails(context.rentalId)
                         },
                         onDeleteRental: { clientId, rentalId in
                             onDeleteRental(clientId, rentalId)
@@ -206,7 +205,7 @@ struct AdminClientDetailsSheet: View {
             Spacer()
 
             HStack(spacing: 8) {
-                detailsTopButton(systemName: "pencil", color: AppDesign.accent) {
+                detailsTopButton(assetName: "refaktoring", color: AppDesign.accent) {
                     isProfileEditorPresented = true
                 }
                 detailsTopButton(systemName: "trash", color: AppDesign.danger) {
@@ -228,6 +227,28 @@ struct AdminClientDetailsSheet: View {
             Image(systemName: systemName)
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(color)
+                .frame(width: 47, height: 47)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(color, lineWidth: 1)
+                }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func detailsTopButton(
+        assetName: String,
+        color: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(assetName)
+                .renderingMode(.original)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 20, height: 20)
                 .frame(width: 47, height: 47)
                 .background(Color.white)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -539,9 +560,9 @@ struct AdminClientDetailsSheet: View {
     }
 
     private func latestComment(_ details: AdminClientDetailsResponse) -> String? {
-        details.rentals
-            .compactMap { $0.comment?.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .first { !$0.isEmpty }
+        guard let comment = details.comment?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !comment.isEmpty else { return nil }
+        return comment
     }
 
     private func historyAmountText(_ rental: AdminRentalHistoryItem) -> String {

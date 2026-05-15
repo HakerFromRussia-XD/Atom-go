@@ -549,7 +549,12 @@ struct CreateRentalSheet: View {
                     rentalId: rentalId,
                     bikeId: selectedBikeId,
                     periodStart: normalizedStart,
-                    periodEnd: normalizedEnd
+                    periodEnd: normalizedEnd,
+                    login: normalizedLogin,
+                    password: normalizedPassword,
+                    videoUrl: videoUrl.trimmedToOptional,
+                    contractUrl: contractUrl.trimmedToOptional,
+                    comment: comment.trimmedToOptional
                 )
             )
         }

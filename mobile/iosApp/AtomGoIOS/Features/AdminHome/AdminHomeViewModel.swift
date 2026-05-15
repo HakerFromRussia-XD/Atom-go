@@ -288,7 +288,7 @@ final class AdminHomeViewModel: ObservableObject {
         }
     }
 
-    func updateRental(payload: UpdateRentalPayload) {
+    func updateRental(payload: UpdateRentalPayload, onSuccess: (() -> Void)? = nil) {
         isOperationInProgress = true
         operationErrorMessage = nil
         operationSuccessMessage = nil
@@ -302,6 +302,9 @@ final class AdminHomeViewModel: ObservableObject {
                 operationSuccessMessage = "Аренда обновлена: \(rental.periodStart)"
                 // Обновили rental (bike/period) — bike мог поменяться, поэтому полный scope.
                 await refreshAfterMutation(scope: .all, openDetailsFor: payload.clientId)
+                await MainActor.run {
+                    onSuccess?()
+                }
             } catch {
                 operationErrorMessage = error.localizedDescription
             }

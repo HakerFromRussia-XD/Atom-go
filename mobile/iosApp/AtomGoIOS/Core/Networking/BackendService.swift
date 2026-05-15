@@ -250,6 +250,7 @@ private struct NativeAdminClientDetailsResponse: Decodable {
     let phones: [NativeAdminClientPhone]
     let rentals: [NativeAdminRentalHistoryItem]
     let carriedDebtRub: Int?
+    let comment: String?
 
     enum CodingKeys: String, CodingKey {
         case clientId = "client_id"
@@ -267,6 +268,7 @@ private struct NativeAdminClientDetailsResponse: Decodable {
         case phones
         case rentals
         case carriedDebtRub = "carried_debt_rub"
+        case comment
     }
 }
 
@@ -743,7 +745,8 @@ final class BackendService: BackendServicing {
             totalAdjustmentRub: native.totalAdjustmentRub,
             phones: phones,
             rentals: rentals,
-            carriedDebtRub: native.carriedDebtRub ?? 0
+            carriedDebtRub: native.carriedDebtRub ?? 0,
+            comment: native.comment
         )
     }
 
@@ -836,7 +839,12 @@ final class BackendService: BackendServicing {
         let request = shared.AdminUpdateRentalRequest(
             bikeId: payload.bikeId,
             periodStart: payload.periodStart,
-            periodEnd: payload.periodEnd
+            periodEnd: payload.periodEnd,
+            login: payload.login,
+            password: payload.password,
+            videoUrl: payload.videoUrl,
+            contractUrl: payload.contractUrl,
+            comment: payload.comment
         )
         let response: shared.AdminRentalHistoryItemResponse = try await awaitResult { completion in
             self.apiClient.updateAdminRental(
@@ -939,7 +947,8 @@ final class BackendService: BackendServicing {
             fullName: payload.fullName,
             address: payload.address,
             passportData: payload.passportData,
-            phones: phones
+            phones: phones,
+            comment: payload.comment
         )
         let details: shared.AdminClientDetailsResponse = try await awaitResult { completion in
             self.apiClient.updateAdminClient(

@@ -210,9 +210,8 @@ struct AdminRentalDetailsScreen: View {
             HStack(spacing: 8) {
                 if runningRentalIsActive {
                     iconButton(
-                        systemName: "pencil",
+                        assetName: "refaktoring",
                         borderColor: Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255),
-                        iconColor: Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255),
                         action: { isEditRentalPresented = true }
                     )
                     .accessibilityIdentifier("rentalDetails.editButton")
@@ -254,6 +253,30 @@ struct AdminRentalDetailsScreen: View {
         .buttonStyle(.plain)
     }
 
+    private func iconButton(
+        assetName: String,
+        borderColor: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(borderColor, lineWidth: 1)
+                )
+                .overlay(
+                    Image(assetName)
+                        .renderingMode(.original)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 20, height: 20)
+                )
+                .frame(width: 47, height: 47)
+        }
+        .buttonStyle(.plain)
+    }
+
     private var rentalCard: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 12) {
@@ -284,6 +307,21 @@ struct AdminRentalDetailsScreen: View {
                     rentalStatusBadge
                 }
                 .padding(.top, 16)
+
+                Spacer(minLength: 8)
+
+                VStack(spacing: 6) {
+                    rentalLinkButton(
+                        assetName: "youtube_link",
+                        url: rentalVideoUrl,
+                        accessibilityIdentifier: "rentalDetails.videoButton"
+                    )
+                    rentalLinkButton(
+                        assetName: "dogovor_link",
+                        url: rentalContractUrl,
+                        accessibilityIdentifier: "rentalDetails.contractButton"
+                    )
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 19)
@@ -402,7 +440,6 @@ struct AdminRentalDetailsScreen: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
         .shadow(color: Color(red: 25 / 255, green: 28 / 255, blue: 50 / 255).opacity(0.08), radius: 15, x: 0, y: 20)
-        .frame(height: 320)
     }
 
     private func metricColumn(title: String, value: String, color: Color) -> some View {
@@ -696,10 +733,10 @@ struct AdminRentalDetailsScreen: View {
             login: normalizedCredential(details?.clientLogin ?? fallbackSummary?.clientLogin),
             password: normalizedCredential(details?.clientPassword),
             periodStart: details?.rentalStart ?? DateFormatter.apiDate.string(from: Date()),
-            periodEnd: nil,
-            videoUrl: nil,
-            contractUrl: nil,
-            comment: nil
+            periodEnd: details?.completedAt,
+            videoUrl: details?.videoUrl,
+            contractUrl: details?.contractUrl,
+            comment: details?.comment
         )
     }
 
@@ -874,6 +911,43 @@ struct AdminRentalDetailsScreen: View {
         canStartRental
             ? Color(red: 35 / 255, green: 143 / 255, blue: 71 / 255)
             : Color(red: 35 / 255, green: 143 / 255, blue: 71 / 255).opacity(0.65)
+    }
+
+    private var rentalVideoUrl: URL? {
+        guard let raw = details?.videoUrl, !raw.isEmpty,
+              let url = URL(string: raw) else { return nil }
+        return url
+    }
+
+    private var rentalContractUrl: URL? {
+        guard let raw = details?.contractUrl, !raw.isEmpty,
+              let url = URL(string: raw) else { return nil }
+        return url
+    }
+
+    private func rentalLinkButton(
+        assetName: String,
+        url: URL?,
+        accessibilityIdentifier: String
+    ) -> some View {
+        let hasUrl = url != nil
+        return Button {
+            guard let url else { return }
+            UIApplication.shared.open(url)
+        } label: {
+            ZStack {
+                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                    .fill(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255)
+                        .opacity(hasUrl ? 1 : 0.25))
+                Image(assetName)
+                    .renderingMode(.original)
+                    .opacity(hasUrl ? 1 : 0.35)
+            }
+            .frame(width: 47, height: 47)
+        }
+        .buttonStyle(.plain)
+        .disabled(!hasUrl)
+        .accessibilityIdentifier(accessibilityIdentifier)
     }
 
     @ViewBuilder
