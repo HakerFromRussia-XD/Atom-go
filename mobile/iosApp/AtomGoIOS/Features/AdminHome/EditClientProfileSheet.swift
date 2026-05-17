@@ -169,7 +169,7 @@ struct EditClientProfileSheet: View {
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     .overlay {
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(ebonyClay, lineWidth: 1)
+                            .stroke(ebonyClay, lineWidth: 1.5)
                     }
             }
             .disabled(isSaving)
@@ -205,7 +205,7 @@ struct EditClientProfileSheet: View {
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(ebonyClay, lineWidth: 1)
+                        .stroke(ebonyClay, lineWidth: 1.5)
                 }
             }
             .disabled(isSaving)
@@ -261,7 +261,7 @@ struct EditClientProfileSheet: View {
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(grayChateau, style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                        .stroke(grayChateau, style: StrokeStyle(lineWidth: 1.5, dash: [3, 3]))
                 }
         }
         .buttonStyle(.plain)

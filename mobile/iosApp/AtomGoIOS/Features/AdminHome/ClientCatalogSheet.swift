@@ -73,7 +73,7 @@ struct ClientCatalogSheet: View {
                             .background(Color(red: 250 / 255, green: 251 / 255, blue: 251 / 255))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 15, style: .continuous)
-                                    .stroke(AppDesign.accent, lineWidth: 1)
+                                    .stroke(AppDesign.accent, lineWidth: 1.5)
                             )
                             .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
                             .shadow(
@@ -266,7 +266,7 @@ struct ClientCatalogSheet: View {
         .background(Color.white)
         .overlay(
             RoundedRectangle(cornerRadius: 12.84, style: .continuous)
-                .stroke(AppDesign.accent, lineWidth: 1)
+                .stroke(AppDesign.accent, lineWidth: 1.5)
         )
         .clipShape(RoundedRectangle(cornerRadius: 12.84, style: .continuous))
         .accessibilityIdentifier("clientCatalog.searchField")
@@ -298,7 +298,7 @@ struct ClientCatalogSheet: View {
             .background(isSelected ? AppDesign.accent : Color.white)
             .overlay(
                 RoundedRectangle(cornerRadius: 999, style: .continuous)
-                    .stroke(AppDesign.accent, lineWidth: 1)
+                    .stroke(AppDesign.accent, lineWidth: 1.5)
             )
             .clipShape(Capsule())
             .contentShape(Capsule())
@@ -318,7 +318,7 @@ struct ClientCatalogSheet: View {
                 .fill(Color.white)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(AppDesign.accent, lineWidth: 1)
+                        .stroke(AppDesign.accent, lineWidth: 1.5)
                 )
                 .overlay(
                     Image(systemName: systemName)
@@ -342,7 +342,7 @@ struct ClientCatalogSheet: View {
                 .fill(Color.white)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(AppDesign.accent, lineWidth: 1)
+                        .stroke(AppDesign.accent, lineWidth: 1.5)
                 )
                 .overlay(
                     Image(assetName)
@@ -414,7 +414,7 @@ struct ClientCatalogSheet: View {
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(Color(red: 167 / 255, green: 167 / 255, blue: 171 / 255))
                 }
-                .frame(minHeight: 51)
+                .frame(minHeight: 60)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -433,7 +433,7 @@ struct ClientCatalogSheet: View {
                 .fill(Color.white)
                 .overlay(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(callButtonGreen, lineWidth: 1)
+                        .stroke(callButtonGreen, lineWidth: 1.5)
                 )
                 .overlay(
                     Image(systemName: "phone.fill")

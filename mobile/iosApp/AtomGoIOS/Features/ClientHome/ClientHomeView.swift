@@ -405,7 +405,7 @@ struct ClientHomeView: View {
         .background(ClientColors.card)
         .overlay(
             RoundedRectangle(cornerRadius: 15 * scale, style: .continuous)
-                .stroke(ClientColors.borderSoft, lineWidth: 1)
+                .stroke(ClientColors.mainText, lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: 15 * scale, style: .continuous))
         .shadow(color: Color.black.opacity(0.08), radius: 15 * scale, x: 0, y: 20 * scale)

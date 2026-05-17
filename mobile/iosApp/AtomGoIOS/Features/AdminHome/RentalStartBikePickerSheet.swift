@@ -116,7 +116,7 @@ struct RentalStartBikePickerSheet: View {
         .background(Color.white)
         .overlay(
             RoundedRectangle(cornerRadius: 12.84, style: .continuous)
-                .stroke(AppDesign.accent, lineWidth: 1)
+                .stroke(AppDesign.accent, lineWidth: 1.5)
         )
         .clipShape(RoundedRectangle(cornerRadius: 12.84, style: .continuous))
         .accessibilityIdentifier("rentalBikePicker.searchField")
@@ -132,7 +132,7 @@ struct RentalStartBikePickerSheet: View {
                 .fill(Color.white)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(AppDesign.accent, lineWidth: 1)
+                        .stroke(AppDesign.accent, lineWidth: 1.5)
                 )
                 .overlay(
                     Image(systemName: systemName)
@@ -156,7 +156,7 @@ struct RentalStartBikePickerSheet: View {
                 .fill(Color.white)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(AppDesign.accent, lineWidth: 1)
+                        .stroke(AppDesign.accent, lineWidth: 1.5)
                 )
                 .overlay(
                     Image(assetName)

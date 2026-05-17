@@ -299,7 +299,7 @@ struct CreateRentalSheet: View {
                 .fill(isDark ? AppDesign.accent : Color.white)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(AppDesign.accent, lineWidth: 1)
+                        .stroke(AppDesign.accent, lineWidth: 1.5)
                 )
                 .overlay(
                     Image(systemName: imageName)
@@ -324,7 +324,7 @@ struct CreateRentalSheet: View {
                 .fill(isDark ? AppDesign.accent : Color.white)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(AppDesign.accent, lineWidth: 1)
+                        .stroke(AppDesign.accent, lineWidth: 1.5)
                 )
                 .overlay(
                     Image(assetName)
@@ -383,7 +383,7 @@ struct CreateRentalSheet: View {
             .background(Color.white)
             .overlay(
                 RoundedRectangle(cornerRadius: 12.84, style: .continuous)
-                    .stroke(AppDesign.accent, lineWidth: 1)
+                    .stroke(AppDesign.accent, lineWidth: 1.5)
             )
             .overlay(alignment: .leading) {
                 RoundedRectangle(cornerRadius: 4, style: .continuous)
@@ -425,7 +425,7 @@ struct CreateRentalSheet: View {
                 .background(Color.white)
                 .overlay(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(AppDesign.accent, lineWidth: 1)
+                        .stroke(AppDesign.accent, lineWidth: 1.5)
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }

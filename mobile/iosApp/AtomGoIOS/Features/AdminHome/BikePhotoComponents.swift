@@ -17,12 +17,12 @@ struct PlaceholderBikeAvatar: View {
                     path.move(to: CGPoint(x: size.width, y: 0))
                     path.addLine(to: CGPoint(x: 0, y: size.height))
                 }
-                .stroke(Color(red: 156 / 255, green: 166 / 255, blue: 179 / 255).opacity(0.45), lineWidth: 1)
+                .stroke(Color(red: 156 / 255, green: 166 / 255, blue: 179 / 255).opacity(0.45), lineWidth: 1.5)
 
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .stroke(
                         Color(red: 156 / 255, green: 166 / 255, blue: 179 / 255),
-                        style: StrokeStyle(lineWidth: 1, dash: [4, 4])
+                        style: StrokeStyle(lineWidth: 1.5, dash: [4, 4])
                     )
             }
         }

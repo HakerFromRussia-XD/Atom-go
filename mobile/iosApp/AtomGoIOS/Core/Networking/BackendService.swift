@@ -2,10 +2,14 @@ import Foundation
 import shared
 
 private enum BackendRuntimeConfig {
+    private static let switchFileName = "BackendSwitch"
+    private static let switchFileExt = "properties"
     private static let simulatorKey = "BackendBaseURLSimulator"
     private static let deviceKey = "BackendBaseURLDevice"
     private static let deviceHostnameKey = "BackendBaseURLDeviceHostname"
+    private static let envModeOverrideKey = "ATOMGO_ENV"
     private static let envOverrideKey = "ATOMGO_BACKEND_URL"
+    private static let productionFallback = "https://atomgo.157.22.203.6.nip.io/api/v1"
     private static let simulatorFallback = "http://127.0.0.1:8080/api/v1"
     private static let deviceIPv4Fallback = "http://192.168.1.234:8080/api/v1"
     private static let deviceHostnameFallback = "http://MacBook-Pro-2.local:8080/api/v1"
@@ -18,6 +22,12 @@ private enum BackendRuntimeConfig {
         if let envValue = ProcessInfo.processInfo.environment[envOverrideKey],
            let normalized = normalize(envValue) {
             return [normalized]
+        }
+
+        let mode = runtimeMode
+        if mode == "prod" || mode == "production" {
+            let production = normalize(switchFileEntries["ATOMGO_BASE_URL_PROD"]) ?? productionFallback
+            return [production]
         }
 
         #if targetEnvironment(simulator)
@@ -50,6 +60,34 @@ private enum BackendRuntimeConfig {
             return String(trimmed.dropLast())
         }
         return trimmed
+    }
+
+    private static var runtimeMode: String {
+        if let envMode = ProcessInfo.processInfo.environment[envModeOverrideKey],
+           let normalized = normalize(envMode) {
+            return normalized.lowercased()
+        }
+        if let fileMode = normalize(switchFileEntries["ATOMGO_ENV"]) {
+            return fileMode.lowercased()
+        }
+        return "local"
+    }
+
+    private static var switchFileEntries: [String: String] {
+        guard let url = Bundle.main.url(forResource: switchFileName, withExtension: switchFileExt),
+              let data = try? Data(contentsOf: url),
+              let text = String(data: data, encoding: .utf8) else {
+            return [:]
+        }
+        var result: [String: String] = [:]
+        for rawLine in text.split(whereSeparator: \.isNewline) {
+            let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            if line.isEmpty || line.hasPrefix("#") { continue }
+            let parts = line.split(separator: "=", maxSplits: 1).map { String($0) }
+            guard parts.count == 2 else { continue }
+            result[parts[0].trimmingCharacters(in: .whitespacesAndNewlines)] = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return result
     }
 }
 

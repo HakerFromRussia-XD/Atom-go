@@ -7,7 +7,7 @@ struct ContentView: View {
     @State private var toastMessage: String?
     @State private var toastDismissTask: Task<Void, Never>?
     @FocusState private var focusedField: LoginInputField?
-    private let showQuickFillButtons = true
+    private let showQuickFillButtons = false
 
     var body: some View {
         GeometryReader { geometry in
@@ -63,10 +63,30 @@ struct ContentView: View {
                 .frame(width: 343 * xScale, height: 64 * yScale)
                 .offset(x: 35 * xScale, y: 562 * yScale)
 
-                Text("Forget Password ?")
-                    .font(AppDesign.poppinsMedium(size: 14 * textScale))
-                    .foregroundStyle(AppDesign.subtleText)
-                .frame(width: 343 * xScale, alignment: .trailing)
+                HStack {
+                    Button {
+                        viewModel.setRememberMe(!viewModel.rememberMe)
+                    } label: {
+                        HStack(spacing: 8 * xScale) {
+                            Image(systemName: viewModel.rememberMe ? "checkmark.square.fill" : "square")
+                                .font(.system(size: 17 * textScale, weight: .semibold))
+                                .foregroundStyle(AppDesign.accent)
+                            Text("Запомнить меня")
+                                .font(AppDesign.poppinsMedium(size: 13 * textScale))
+                                .foregroundStyle(AppDesign.subtleText)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("login.rememberMeToggle")
+
+                    Spacer(minLength: 0)
+
+                    Text("Forget Password ?")
+                        .font(AppDesign.poppinsMedium(size: 14 * textScale))
+                        .foregroundStyle(AppDesign.subtleText)
+                }
+                .frame(width: 343 * xScale, alignment: .leading)
                 .offset(x: 35 * xScale, y: 642 * yScale)
 
                 if showQuickFillButtons {

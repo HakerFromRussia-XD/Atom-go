@@ -637,6 +637,7 @@ struct AdminRentalDetailsResponse: Decodable, Equatable {
     let videoUrl: String?
     let contractUrl: String?
     let comment: String?
+    let clientRentalId: String?
 
     enum CodingKeys: String, CodingKey {
         case rentalId = "rental_id"
@@ -660,5 +661,6 @@ struct AdminRentalDetailsResponse: Decodable, Equatable {
         case videoUrl = "video_url"
         case contractUrl = "contract_url"
         case comment
+        case clientRentalId = "client_rental_id"
     }
 }

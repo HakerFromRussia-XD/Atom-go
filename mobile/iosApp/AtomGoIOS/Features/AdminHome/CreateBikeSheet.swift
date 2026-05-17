@@ -156,7 +156,7 @@ struct CreateBikeSheet: View {
                 .fill(isDark ? ebonyClay : Color.white)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(ebonyClay, lineWidth: 1)
+                        .stroke(ebonyClay, lineWidth: 1.5)
                 )
                 .overlay(
                     Group {
@@ -188,7 +188,7 @@ struct CreateBikeSheet: View {
                 .fill(isDark ? ebonyClay : Color.white)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(ebonyClay, lineWidth: 1)
+                        .stroke(ebonyClay, lineWidth: 1.5)
                 )
                 .overlay(
                     Image(assetName)
@@ -226,7 +226,7 @@ struct CreateBikeSheet: View {
                         .fill(Color.white)
                         .overlay(
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(ebonyClay, lineWidth: 1)
+                                .stroke(ebonyClay, lineWidth: 1.5)
                         )
                         .overlay(
                             Image(systemName: "photo.on.rectangle")
@@ -247,7 +247,7 @@ struct CreateBikeSheet: View {
             .frame(width: width, height: 202)
             .overlay {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(ebonyClay, style: StrokeStyle(lineWidth: 1, dash: [3, 2.5]))
+                    .stroke(ebonyClay, style: StrokeStyle(lineWidth: 1.5, dash: [3, 2.5]))
             }
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }

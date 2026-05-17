@@ -56,14 +56,14 @@ struct AtomGoInputField: View {
                 RoundedRectangle(cornerRadius: 12.84, style: .continuous)
                     .stroke(
                         Color(red: 152 / 255, green: 161 / 255, blue: 173 / 255),
-                        style: StrokeStyle(lineWidth: 1, dash: [3, 2.5])
+                        style: StrokeStyle(lineWidth: 1.5, dash: [3, 2.5])
                     )
             } else if accentBorder {
                 RoundedRectangle(cornerRadius: 12.84, style: .continuous)
-                    .stroke(AppDesign.accent, lineWidth: 1)
+                    .stroke(AppDesign.accent, lineWidth: 1.5)
             } else {
                 RoundedRectangle(cornerRadius: 12.84, style: .continuous)
-                    .stroke(borderColor, lineWidth: 1)
+                    .stroke(borderColor, lineWidth: 1.5)
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 12.84, style: .continuous))

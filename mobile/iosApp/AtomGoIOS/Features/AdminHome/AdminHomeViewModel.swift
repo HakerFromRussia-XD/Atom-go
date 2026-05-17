@@ -483,7 +483,14 @@ final class AdminHomeViewModel: ObservableObject {
                 )
                 operationSuccessMessage = "Корректировка сохранена. Новый долг: \(result.debtRub) ₽"
                 let openClientId = result.clientId.isEmpty ? selectedRentalDetails?.clientId : result.clientId
-                await refreshAfterMutation(scope: .rentalMutation, openDetailsFor: openClientId)
+                // iOS всегда передаёт clientRentalId — используем его для рефреша.
+                // GET /admin/rentals/{client_rental_id} корректно возвращает
+                // данные аренды включая пересчитанный долг после корректировки.
+                await refreshAfterMutation(
+                    scope: .rentalMutation,
+                    openDetailsFor: openClientId,
+                    refreshRentalDetailsFor: rentalId
+                )
             } catch {
                 operationErrorMessage = error.localizedDescription
             }
@@ -621,7 +628,8 @@ final class AdminHomeViewModel: ObservableObject {
     /// в operationErrorMessage.
     private func refreshAfterMutation(
         scope: RefreshScope = .rentalMutation,
-        openDetailsFor clientId: String? = nil
+        openDetailsFor clientId: String? = nil,
+        refreshRentalDetailsFor overrideRentalId: String? = nil
     ) async {
         // Details обновляем ТОЛЬКО если sheet клиентских деталей сейчас открыт.
         // Раньше мы делали лишний request на details даже если карточка закрыта.
@@ -629,11 +637,9 @@ final class AdminHomeViewModel: ObservableObject {
         let detailsClientId: String? = (normalizedClientId?.isEmpty == false && selectedClientDetails != nil)
             ? normalizedClientId
             : nil
-        // Если открыт экран деталей аренды — тоже его перезаливаем. Без этого
-        // selectedRentalDetails оставался устаревшим (login/password/статус
-        // прежней client_rental), и при последующем «Создать новую!» payload
-        // мог уйти с уже неактуальными данными.
-        let rentalDetailsId: String? = selectedRentalDetails?.rentalId
+        // overrideRentalId позволяет указать конкретный ID для рефреша аренды
+        // (например, clientRentalId вместо lifecycle rentalId при корректировке долга).
+        let rentalDetailsId: String? = overrideRentalId ?? selectedRentalDetails?.rentalId
         let accessToken = session.accessToken
         let api = apiService
 

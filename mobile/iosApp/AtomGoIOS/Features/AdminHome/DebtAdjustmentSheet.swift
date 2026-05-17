@@ -143,7 +143,7 @@ struct DebtAdjustmentSheet: View {
                 }
                 .overlay {
                     RoundedRectangle(cornerRadius: 15, style: .continuous)
-                        .stroke(isSelected ? mainText : Color.clear, lineWidth: 1)
+                        .stroke(isSelected ? mainText : Color.clear, lineWidth: 1.5)
                 }
                 .padding(4)
         }

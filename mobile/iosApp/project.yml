@@ -33,6 +33,11 @@ targets:
         NSLocalNetworkUsageDescription: AtomGo uses your local network to connect to a development backend on your Mac.
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
+        UIRequiresFullScreen: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
         UILaunchScreen: {}
     settings:
       base:

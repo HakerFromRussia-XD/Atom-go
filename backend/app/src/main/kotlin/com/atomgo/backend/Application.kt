@@ -580,7 +580,9 @@ private data class ApiAdminRentalDetailsResponse(
     val videoUrl: String? = null,
     @SerialName("contract_url")
     val contractUrl: String? = null,
-    val comment: String? = null
+    val comment: String? = null,
+    @SerialName("client_rental_id")
+    val clientRentalId: String? = null
 )
 
 @Serializable
@@ -2595,7 +2597,8 @@ fun Application.module() {
                         journalEntries = journal,
                         videoUrl = targetClientRental?.videoUrl ?: rental?.videoUrl,
                         contractUrl = targetClientRental?.contractUrl ?: rental?.contractUrl,
-                        comment = targetClientRental?.comment ?: rental?.comment
+                        comment = targetClientRental?.comment ?: rental?.comment,
+                        clientRentalId = targetClientRental?.id
                     )
                 }
 
@@ -3155,14 +3158,12 @@ fun Application.module() {
                 }
 
                 val response = synchronized(stateLock) {
+                    val today = LocalDate.now()
                     val clientRental = store.clientRentals.firstOrNull {
-                        it.id == clientRentalId &&
-                            it.adminId == session.userId &&
-                            it.deletedAt == null
+                        it.id == clientRentalId && it.adminId == session.userId && it.deletedAt == null
                     } ?: return@synchronized null
 
                     val bike = store.bikes.firstOrNull { it.id == clientRental.bikeId } ?: return@synchronized null
-                    val today = LocalDate.now()
 
                     store.ledger += LedgerEntry(
                         id = "adj-${UUID.randomUUID().toString().take(8)}",

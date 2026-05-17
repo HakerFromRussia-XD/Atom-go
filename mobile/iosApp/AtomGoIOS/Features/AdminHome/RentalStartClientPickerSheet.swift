@@ -126,7 +126,7 @@ struct RentalStartClientPickerSheet: View {
         .background(Color.white)
         .overlay(
             RoundedRectangle(cornerRadius: 12.84, style: .continuous)
-                .stroke(AppDesign.accent, lineWidth: 1)
+                .stroke(AppDesign.accent, lineWidth: 1.5)
         )
         .clipShape(RoundedRectangle(cornerRadius: 12.84, style: .continuous))
         .accessibilityIdentifier("rentalClientPicker.searchField")
@@ -158,7 +158,7 @@ struct RentalStartClientPickerSheet: View {
             .background(isSelected ? AppDesign.accent : Color.white)
             .overlay(
                 RoundedRectangle(cornerRadius: 999, style: .continuous)
-                    .stroke(AppDesign.accent, lineWidth: 1)
+                    .stroke(AppDesign.accent, lineWidth: 1.5)
             )
             .clipShape(Capsule())
             .contentShape(Capsule())
@@ -178,7 +178,7 @@ struct RentalStartClientPickerSheet: View {
                 .fill(Color.white)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(AppDesign.accent, lineWidth: 1)
+                        .stroke(AppDesign.accent, lineWidth: 1.5)
                 )
                 .overlay(
                     Image(systemName: systemName)
@@ -202,7 +202,7 @@ struct RentalStartClientPickerSheet: View {
                 .fill(Color.white)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(AppDesign.accent, lineWidth: 1)
+                        .stroke(AppDesign.accent, lineWidth: 1.5)
                 )
                 .overlay(
                     Image(assetName)

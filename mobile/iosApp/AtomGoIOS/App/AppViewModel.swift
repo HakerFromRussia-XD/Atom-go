@@ -19,7 +19,7 @@ final class AppViewModel: ObservableObject {
         // `true`  -> сразу после запуска приложения выполняем автологин админа
         //            и открываем экран выбранной аренды для быстрой UI-проверки.
         // `false` -> стандартный запуск с экраном логина.
-        static let isEnabled = true
+        static let isEnabled = false
 
         static let adminLogin = "admin"
         static let adminPassword = "admin123"

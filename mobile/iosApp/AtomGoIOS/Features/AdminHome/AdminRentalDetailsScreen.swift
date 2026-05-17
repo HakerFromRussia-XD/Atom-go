@@ -190,7 +190,7 @@ struct AdminRentalDetailsScreen: View {
         }
         .appToast(message: $copyToastMessage, bottomPadding: 86)
         .sheet(isPresented: $isDebtAdjustmentPresented) {
-            if let rid = rentalId {
+            if let cid = clientRentalId {
                 DebtAdjustmentSheet(
                     context: DebtAdjustmentContext(
                         clientId: details?.clientId ?? fallbackSummary?.clientId ?? "",
@@ -200,7 +200,7 @@ struct AdminRentalDetailsScreen: View {
                     isSaving: isOperationInProgress,
                     onCancel: { isDebtAdjustmentPresented = false },
                     onApply: { amountRub, sign, comment in
-                        onApplyDebtAdjustment(rid, amountRub, sign, comment)
+                        onApplyDebtAdjustment(cid, amountRub, sign, comment)
                         isDebtAdjustmentPresented = false
                     }
                 )
@@ -461,7 +461,7 @@ struct AdminRentalDetailsScreen: View {
         .background(Color.white)
         .overlay(
             RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .stroke(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255), lineWidth: 1)
+                .stroke(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255), lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
         .shadow(color: Color(red: 25 / 255, green: 28 / 255, blue: 50 / 255).opacity(0.08), radius: 15, x: 0, y: 20)
@@ -645,8 +645,8 @@ struct AdminRentalDetailsScreen: View {
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .disabled(!displayPolicy.adjustmentButtonEnabled || rentalId == nil || isOperationInProgress)
-                .opacity((displayPolicy.adjustmentButtonEnabled && rentalId != nil) ? 1 : 0.9)
+                .disabled(!displayPolicy.adjustmentButtonEnabled || clientRentalId == nil || isOperationInProgress)
+                .opacity((displayPolicy.adjustmentButtonEnabled && clientRentalId != nil) ? 1 : 0.9)
 
                 if runningRentalIsActive {
                     Button {
@@ -692,6 +692,10 @@ struct AdminRentalDetailsScreen: View {
 
     private var rentalId: String? {
         details?.rentalId ?? fallbackSummary?.rentalId
+    }
+
+    private var clientRentalId: String? {
+        details?.clientRentalId
     }
 
     private var clientName: String {
