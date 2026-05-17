@@ -629,15 +629,35 @@ struct AdminHomeView: View {
                         }
                         .allowsHitTesting(false)
 
-                    VStack(alignment: .leading, spacing: 15) {
+                    VStack(alignment: .leading, spacing: 0) {
                         let visibleClients = filteredClients(clients)
 
                         if visibleClients.isEmpty {
                             emptyRentalsView
+                                .padding(.top, 14)
                         } else {
-                            ForEach(visibleClients, id: \.id) { client in
-                                clientCard(client)
+                            LazyVStack(spacing: 0) {
+                                ForEach(Array(visibleClients.enumerated()), id: \.element.id) { index, client in
+                                    clientCard(client)
+                                    if index < visibleClients.count - 1 {
+                                        Divider()
+                                            .overlay(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255))
+                                    }
+                                }
                             }
+                            .padding(.vertical, 5)
+                            .background(Color(red: 250 / 255, green: 251 / 255, blue: 251 / 255))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 15, style: .continuous)
+                                    .stroke(AppDesign.accent, lineWidth: 1)
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+                            .shadow(
+                                color: Color(red: 25 / 255, green: 28 / 255, blue: 50 / 255).opacity(0.08),
+                                radius: 15,
+                                x: 0,
+                                y: 20
+                            )
                         }
                     }
                     .padding(.top, 1)
@@ -1051,13 +1071,6 @@ struct AdminHomeView: View {
         .padding(.horizontal, 9)
         .frame(height: 77)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(red: 250 / 255, green: 251 / 255, blue: 251 / 255))
-        .overlay(
-            RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .stroke(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255), lineWidth: 1)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-        .shadow(color: Color(red: 25 / 255, green: 28 / 255, blue: 50 / 255).opacity(0.08), radius: 15, x: 0, y: 20)
         .contentShape(Rectangle())
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("admin.rent.card.\(cardKey)")
