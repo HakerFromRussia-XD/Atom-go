@@ -28,6 +28,7 @@ data class ProviderCreatePaymentRequest(
     val localPaymentId: String,
     val clientId: String,
     val rentalId: String,
+    val adminLogin: String? = null,
     val paymentType: PaymentType,
     val amountRub: Int,
     val idempotenceKey: String,
@@ -89,6 +90,7 @@ class DisabledYooKassaPaymentProvider(private val reason: String) : PaymentProvi
 class YooKassaPaymentProvider internal constructor(
     private val defaultConfig: YooKassaConfig,
     private val ipConfig: YooKassaConfig?,
+    private val selfEmployedOverrides: Map<String, YooKassaConfig>,
     private val json: Json,
     private val httpClient: HttpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(10))
@@ -97,7 +99,7 @@ class YooKassaPaymentProvider internal constructor(
     private val log = LoggerFactory.getLogger(YooKassaPaymentProvider::class.java)
 
     override fun createPayment(request: ProviderCreatePaymentRequest, taxMode: AdminTaxMode): ProviderPaymentInfo {
-        val selectedConfig = configForTaxMode(taxMode)
+        val selectedConfig = configForTaxMode(taxMode, request.adminLogin)
         val returnUrl = "${selectedConfig.publicBaseUrl}/api/v1/payments/${request.localPaymentId}/return"
         val payload = YooKassaCreatePaymentRequest(
             amount = YooKassaAmount(value = rubToDecimalString(request.amountRub), currency = "RUB"),
@@ -132,7 +134,7 @@ class YooKassaPaymentProvider internal constructor(
     }
 
     override fun fetchPayment(providerPaymentId: String, taxMode: AdminTaxMode): ProviderPaymentInfo? {
-        val selectedConfig = configForTaxMode(taxMode)
+        val selectedConfig = configForTaxMode(taxMode, null)
         val httpRequest = baseRequest("${selectedConfig.apiBaseUrl}/payments/$providerPaymentId", selectedConfig)
             .GET()
             .build()
@@ -180,11 +182,16 @@ class YooKassaPaymentProvider internal constructor(
         }
     }
 
-    private fun configForTaxMode(taxMode: AdminTaxMode): YooKassaConfig {
+    private fun configForTaxMode(taxMode: AdminTaxMode, adminLogin: String?): YooKassaConfig {
         return if (taxMode == AdminTaxMode.INDIVIDUAL_ENTREPRENEUR && ipConfig != null) {
             ipConfig
         } else {
-            defaultConfig
+            val normalizedLogin = adminLogin?.trim()?.lowercase()
+            if (!normalizedLogin.isNullOrBlank()) {
+                selfEmployedOverrides[normalizedLogin] ?: defaultConfig
+            } else {
+                defaultConfig
+            }
         }
     }
 
@@ -227,6 +234,10 @@ class YooKassaPaymentProvider internal constructor(
 
             val trimmedApiBaseUrl = apiBaseUrl.trimEnd('/')
             val trimmedPublicBaseUrl = publicBaseUrl!!.trimEnd('/')
+            val selfEmployedOverrides = loadSelfEmployedOverrides(
+                apiBaseUrl = trimmedApiBaseUrl,
+                publicBaseUrl = trimmedPublicBaseUrl
+            )
             val ipConfig = if (hasIpShopId && hasIpSecretKey) {
                 YooKassaConfig(
                     shopId = shopIdIp,
@@ -246,8 +257,39 @@ class YooKassaPaymentProvider internal constructor(
                     publicBaseUrl = trimmedPublicBaseUrl
                 ),
                 ipConfig = ipConfig,
+                selfEmployedOverrides = selfEmployedOverrides,
                 json = json
             )
+        }
+
+        private fun loadSelfEmployedOverrides(
+            apiBaseUrl: String,
+            publicBaseUrl: String
+        ): Map<String, YooKassaConfig> {
+            val env = System.getenv()
+            val shopPrefix = "YOOKASSA_SHOP_ID_"
+            val secretPrefix = "YOOKASSA_SECRET_KEY_"
+            val result = linkedMapOf<String, YooKassaConfig>()
+
+            for ((key, shopIdRaw) in env) {
+                if (!key.startsWith(shopPrefix)) continue
+                val suffix = key.removePrefix(shopPrefix).trim()
+                if (suffix.isBlank() || suffix == "IP") continue
+                val secretKeyName = secretPrefix + suffix
+                val secretRaw = env[secretKeyName]?.trim().orEmpty()
+                val shopId = shopIdRaw.trim()
+                if (shopId.isBlank() || secretRaw.isBlank()) continue
+
+                val loginAlias = suffix.lowercase().replace('_', '-')
+                result[loginAlias] = YooKassaConfig(
+                    shopId = shopId,
+                    secretKey = secretRaw,
+                    apiBaseUrl = apiBaseUrl,
+                    publicBaseUrl = publicBaseUrl
+                )
+            }
+
+            return result
         }
     }
 }

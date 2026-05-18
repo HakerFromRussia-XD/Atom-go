@@ -639,7 +639,7 @@ struct BikeCatalogSheet: View {
         Image(systemName: "bicycle")
             .resizable()
             .scaledToFit()
-            .padding(8)
+            .padding(14)
             .foregroundStyle(AppDesign.iconSoft)
     }
 

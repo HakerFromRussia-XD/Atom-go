@@ -67,7 +67,8 @@ class PaymentService(
         val weeklyRateRub: Int,
         val clientName: String,
         val bikeModel: String,
-        val taxMode: AdminTaxMode
+        val taxMode: AdminTaxMode,
+        val adminLogin: String? = null
     )
 
     fun createPayment(
@@ -124,6 +125,7 @@ class PaymentService(
                 localPaymentId = paymentId,
                 clientId = clientId,
                 rentalId = terms.rentalId,
+                adminLogin = terms.adminLogin,
                 paymentType = paymentType,
                 amountRub = amount,
                 idempotenceKey = idempotenceKey,
@@ -387,6 +389,8 @@ class PaymentService(
         val bike = store.bikes.firstOrNull { it.id == activeRental.bikeId }
             ?: throw IllegalStateException("Bike not found for active rental")
         val lifecycleRental = store.rentals.firstOrNull { it.id == activeRental.rentalId }
+        val adminId = lifecycleRental?.adminId ?: activeRental.adminId
+        val adminLogin = adminId?.let { id -> store.users.firstOrNull { it.id == id }?.login }
 
         return BillingTerms(
             rentalId = activeRental.id,
@@ -395,7 +399,8 @@ class PaymentService(
             weeklyRateRub = bike.weeklyRateRub,
             clientName = client.fullName,
             bikeModel = bike.model,
-            taxMode = lifecycleRental?.taxMode ?: activeRental.taxMode
+            taxMode = lifecycleRental?.taxMode ?: activeRental.taxMode,
+            adminLogin = adminLogin
         )
     }
 }
