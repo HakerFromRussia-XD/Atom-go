@@ -73,6 +73,7 @@ class YooKassaPaymentProviderTest {
                 apiBaseUrl = server.baseUrl,
                 publicBaseUrl = "https://atom-od.ru"
             ),
+            selfEmployedOverrides = emptyMap(),
             json = Json { ignoreUnknownKeys = true }
         )
     }

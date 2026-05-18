@@ -2216,7 +2216,599 @@ fun Application.module() {
 
     routing {
         get("/") {
-            call.respond(ApiServiceInfoResponse(service = "Atom Go API", version = "0.1.0"))
+            call.respondText(
+                """
+                <!DOCTYPE html>
+                <html lang="ru">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>AtomGo Одинцово — Электровелосипеды</title>
+                    <style>
+                        :root {
+                            --bg-main: #09090b;
+                            --bg-sec: #18181b;
+                            --bg-card: #27272a;
+                            --text-main: #ffffff;
+                            --text-muted: #a1a1aa;
+                            --emerald: #10b981;
+                            --emerald-hover: #059669;
+                            --border-light: rgba(255,255,255,0.05);
+                            --border-strong: rgba(255,255,255,0.2);
+                            --hero-overlay: rgba(0, 0, 0, 0.75);
+                        }
+                        [data-theme="light"] {
+                            --bg-main: #ffffff;
+                            --bg-sec: #f4f4f5;
+                            --bg-card: #e4e4e7;
+                            --text-main: #09090b;
+                            --text-muted: #52525b;
+                            --emerald: #059669;
+                            --emerald-hover: #047857;
+                            --border-light: rgba(0,0,0,0.1);
+                            --border-strong: rgba(0,0,0,0.3);
+                            --hero-overlay: rgba(255, 255, 255, 0.85);
+                        }
+                        * { margin: 0; padding: 0; box-sizing: border-box; }
+                        body {
+                            font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                            background-color: var(--bg-main);
+                            color: var(--text-main);
+                            line-height: 1.5;
+                            transition: background-color 0.3s, color 0.3s;
+                        }
+                        a { text-decoration: none; color: inherit; }
+                        .container { max-width: 1150px; margin: 0 auto; padding: 0 24px; }
+                        .theme-toggle {
+                            position: absolute;
+                            top: 30px;
+                            left: 30px;
+                            z-index: 30;
+                            background: var(--bg-card);
+                            border: 1px solid var(--border-strong);
+                            color: var(--text-main);
+                            width: 48px;
+                            height: 48px;
+                            border-radius: 50%;
+                            cursor: pointer;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                        }
+                        .hero {
+                            position: relative;
+                            min-height: 100vh;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            background: url('https://atom-od.ru/XXXL.webp') center/cover no-repeat;
+                            padding: 80px 20px;
+                        }
+                        .hero::before {
+                            content: '';
+                            position: absolute;
+                            inset: 0;
+                            background: var(--hero-overlay);
+                        }
+                        .hero-content {
+                            position: relative;
+                            z-index: 10;
+                            max-width: 900px;
+                            width: 100%;
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                            text-align: center;
+                        }
+                        .logo {
+                            position: absolute;
+                            top: 30px;
+                            right: 30px;
+                            width: 110px;
+                            border-radius: 16px;
+                            z-index: 20;
+                            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+                        }
+                        h1 { font-size: clamp(3rem, 8vw, 5rem); font-weight: 900; line-height: 1; margin-bottom: 10px; }
+                        .subtitle { font-size: clamp(1.3rem, 4vw, 2.2rem); font-weight: 500; color: var(--emerald); margin-bottom: 36px; }
+                        .hero-card {
+                            background: rgba(0, 0, 0, 0.35);
+                            border: 1px solid var(--border-strong);
+                            border-radius: 24px;
+                            padding: 22px;
+                            backdrop-filter: blur(5px);
+                            max-width: 780px;
+                        }
+                        [data-theme="light"] .hero-card { background: rgba(255, 255, 255, 0.7); }
+                        .btn-group { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin-top: 26px; }
+                        .btn {
+                            padding: 14px 28px;
+                            border-radius: 14px;
+                            font-size: 1.05rem;
+                            font-weight: 700;
+                            border: 2px solid transparent;
+                            display: inline-block;
+                        }
+                        .btn-primary { background: var(--emerald); color: #fff; }
+                        .btn-primary:hover { background: var(--emerald-hover); }
+                        .btn-outline { border-color: var(--border-strong); }
+                        .section { padding: 80px 0; }
+                        .section-alt { background: var(--bg-sec); border-top: 1px solid var(--border-light); border-bottom: 1px solid var(--border-light); }
+                        .grid {
+                            display: grid;
+                            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                            gap: 16px;
+                            margin-top: 22px;
+                        }
+                        .card {
+                            border: 1px solid var(--border-light);
+                            border-radius: 16px;
+                            padding: 18px;
+                            background: var(--bg-card);
+                        }
+                        .card h3 { font-size: 1.05rem; margin-bottom: 6px; }
+                        .card p { color: var(--text-muted); }
+                        .rent-highlight {
+                            background: linear-gradient(180deg, #0d0f17 0%, #11131c 100%);
+                        }
+                        .rent-wrap {
+                            max-width: 760px;
+                            margin: 0 auto;
+                            text-align: center;
+                        }
+                        .rent-price {
+                            font-size: clamp(2.2rem, 6vw, 4.2rem);
+                            font-weight: 900;
+                            color: var(--emerald);
+                            margin-bottom: 26px;
+                        }
+                        .rent-price span {
+                            font-size: clamp(1.1rem, 2.5vw, 2rem);
+                            color: var(--text-muted);
+                        }
+                        .features-list {
+                            text-align: left;
+                            max-width: 760px;
+                            margin: 0 auto 28px;
+                            list-style: none;
+                        }
+                        .features-list li {
+                            font-size: 1.1rem;
+                            margin-bottom: 14px;
+                            display: flex;
+                            align-items: flex-start;
+                            gap: 14px;
+                            background: var(--bg-card);
+                            padding: 20px;
+                            border-radius: 16px;
+                            border: 1px solid var(--border-light);
+                        }
+                        .features-list svg { color: var(--emerald); min-width: 24px; margin-top: 2px; }
+                        footer {
+                            text-align: center;
+                            padding: 40px 20px;
+                            color: var(--text-muted);
+                            border-top: 1px solid var(--border-light);
+                            background-color: var(--bg-main);
+                        }
+                        @media (max-width: 680px) {
+                            .logo { width: 82px; top: 20px; right: 20px; }
+                            .theme-toggle { top: 20px; left: 20px; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <button class="theme-toggle" id="themeToggle" aria-label="Переключить тему">◐</button>
+                    <img src="https://atom-od.ru/logo.jpg" class="logo" alt="AtomGo">
+                    <section class="hero">
+                        <div class="hero-content">
+                            <h1>ATOMGO</h1>
+                            <p class="subtitle">Электровелосипеды в Одинцово</p>
+                            <div class="hero-card">
+                                <p>Аренда и выкуп электровелосипедов с прозрачными условиями и онлайн-оплатой.</p>
+                                <div class="btn-group">
+                                    <a class="btn btn-primary" href="/requisites">Реквизиты</a>
+                                    <a class="btn btn-outline" href="/offer">Публичная оферта</a>
+                                    <a class="btn btn-outline" href="/privacy">Политика</a>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                    <section class="section rent-highlight">
+                        <div class="container">
+                            <div class="rent-wrap">
+                                <h2>Аренда байков</h2>
+                                <div class="rent-price">3 500 ₽ <span>/ 7 дней</span></div>
+                                <ul class="features-list">
+                                    <li>
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                                        <div>
+                                            <strong>Бесплатное ТО</strong>
+                                            <p style="color: var(--text-muted); font-size: 0.95rem; margin-top: 4px;">Обслуживание за наш счет (за исключением случаев умышленного повреждения техники).</p>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                                        <div>
+                                            <strong>Полный комплект</strong>
+                                            <p style="color: var(--text-muted); font-size: 0.95rem; margin-top: 4px;">В стоимость уже включены зарядное устройство, надежный замок и держатель для телефона.</p>
+                                        </div>
+                                    </li>
+                                    <li>
+                                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                                        <div>
+                                            <strong>Условия оформления</strong>
+                                            <p style="color: var(--text-muted); font-size: 0.95rem; margin-top: 4px;">Срок аренды от 1 месяца. Предусмотрен возвратный депозит (размер уточняйте у менеджера).</p>
+                                        </div>
+                                    </li>
+                                </ul>
+                                <p style="font-size: 1.2rem; font-weight: 500; margin-bottom: 26px;">Мы всегда на связи и рады помочь с любыми вопросами! 😇</p>
+                                <a href="tel:+79859325907" class="btn btn-primary">Позвонить и арендовать</a>
+                            </div>
+                        </div>
+                    </section>
+                    <section class="section">
+                        <div class="container">
+                            <h2>Почему AtomGo</h2>
+                            <div class="grid">
+                                <div class="card"><h3>Гибкие тарифы</h3><p>Помесячная аренда и платежи по понятному графику.</p></div>
+                                <div class="card"><h3>Оперативный сервис</h3><p>Быстрая поддержка и сопровождение клиентов.</p></div>
+                                <div class="card"><h3>Официальные платежи</h3><p>Оплата через ЮKassa и реквизиты для безналичных переводов.</p></div>
+                            </div>
+                        </div>
+                    </section>
+                    <section class="section section-alt">
+                        <div class="container">
+                            <h2>Старт за 3 шага</h2>
+                            <div class="grid">
+                                <div class="card"><h3>1. Заявка</h3><p>Оставляете заявку и выбираете формат аренды.</p></div>
+                                <div class="card"><h3>2. Подтверждение</h3><p>Согласовываем условия и договор.</p></div>
+                                <div class="card"><h3>3. Поехали</h3><p>Получаете велосипед и начинаете поездки.</p></div>
+                            </div>
+                        </div>
+                    </section>
+                    <section class="section">
+                        <div class="container">
+                            <h2>Как получить велосипед</h2>
+                            <div class="grid">
+                                <div class="card">
+                                    <h3>Способ получения</h3>
+                                    <p>Самовывоз по предварительному согласованию с менеджером после подтверждения заявки.</p>
+                                </div>
+                                <div class="card">
+                                    <h3>Где выдача</h3>
+                                    <p>г. Одинцово и ближайший район Московской области. Точную точку выдачи подтверждаем при звонке.</p>
+                                </div>
+                                <div class="card">
+                                    <h3>График</h3>
+                                    <p>Ежедневно, по записи. После оплаты с вами связывается менеджер и согласовывает время передачи.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                    <section class="section section-alt">
+                        <div class="container">
+                            <h2>Контакты и реквизиты компании</h2>
+                            <div class="grid">
+                                <div class="card">
+                                    <h3>Название</h3>
+                                    <p>AtomGo</p>
+                                </div>
+                                <div class="card">
+                                    <h3>Статус</h3>
+                                    <p>Самозанятый</p>
+                                </div>
+                                <div class="card">
+                                    <h3>ФИО</h3>
+                                    <p>Сергеев Роман Сергеевич</p>
+                                </div>
+                                <div class="card">
+                                    <h3>Телефон</h3>
+                                    <p><a href="tel:+79859325907">+7(985) 932-59-07</a></p>
+                                </div>
+                                <div class="card">
+                                    <h3>E-mail</h3>
+                                    <p><a href="mailto:rs@motorica.org">rs@motorica.org</a></p>
+                                </div>
+                                <div class="card">
+                                    <h3>ИНН</h3>
+                                    <p>332504133970</p>
+                                </div>
+                            </div>
+                            <p style="margin-top: 16px; color: var(--text-muted);">
+                                Полные банковские реквизиты: <a href="/requisites" style="text-decoration: underline;">страница реквизитов</a>.
+                            </p>
+                        </div>
+                    </section>
+                    <footer>
+                        <div style="max-width: 800px; margin: 0 auto;">
+                            <p style="font-weight: bold; margin-bottom: 10px;">© 2026 AtomGo Одинцово.</p>
+                            <p style="font-size: 0.9rem; margin-bottom: 5px;">Сергеев Роман Сергеевич</p>
+                            <p style="font-size: 0.9rem; margin-bottom: 20px;">ИНН: 332504133970</p>
+                            <p style="font-size: 0.9rem; margin-bottom: 20px;">Юридический адрес: 143081, РОССИЯ, МОСКОВСКАЯ ОБЛ, ОДИНЦОВО, Можайское шоссе 14в</p>
+                            <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; font-size: 0.85rem;">
+                                <a href="/offer" style="text-decoration: underline;">Публичная оферта</a>
+                                <a href="/privacy" style="text-decoration: underline;">Политика конфиденциальности</a>
+                            </div>
+                        </div>
+                    </footer>
+                    <script>
+                        const root = document.documentElement;
+                        const toggle = document.getElementById('themeToggle');
+                        if (localStorage.getItem('theme') === 'light') {
+                            root.setAttribute('data-theme', 'light');
+                        }
+                        toggle.addEventListener('click', () => {
+                            if (root.getAttribute('data-theme') === 'light') {
+                                root.removeAttribute('data-theme');
+                                localStorage.setItem('theme', 'dark');
+                            } else {
+                                root.setAttribute('data-theme', 'light');
+                                localStorage.setItem('theme', 'light');
+                            }
+                        });
+                    </script>
+                </body>
+                </html>
+                """.trimIndent(),
+                ContentType.Text.Html
+            )
+        }
+        get("/offer") {
+            call.respondText(
+                """
+                <!DOCTYPE html>
+                <html lang="ru">
+                <head>
+                  <meta charset="UTF-8">
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                  <title>Публичная оферта — AtomGo</title>
+                  <style>
+                    body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background: #09090b; color: #fff; line-height: 1.6; }
+                    .container { max-width: 900px; margin: 0 auto; padding: 48px 22px; }
+                    .box { background: #18181b; border: 1px solid rgba(255,255,255,.08); border-radius: 20px; padding: 26px; }
+                    h1 { margin-top: 0; }
+                    h2 { color: #10b981; margin-top: 24px; }
+                    p, li { color: #d4d4d8; }
+                    a { color: #10b981; }
+                  </style>
+                </head>
+                <body>
+                  <div class="container">
+                    <p><a href="/">← На главную</a></p>
+                    <div class="box">
+                      <h1>Публичная оферта (Договор аренды транспортного средства)</h1>
+                      <p>Настоящая публичная оферта является официальным предложением Сергеева Романа Сергеевича (далее — «Арендодатель») в адрес любого физического или юридического лица (далее — «Арендатор») заключить договор оказания услуг проката электротранспорта на нижеизложенных условиях.</p>
+                      <h2>1. Предмет договора</h2>
+                      <p>По настоящему договору Арендодатель обязуется предоставить Арендатору транспортное средство за плату во временное владение и пользование без оказания услуг по управлению им и его технической эксплуатации. Передаваемое в аренду транспортное средство находится в исправном состоянии, отвечающем требованиям, предъявляемым к эксплуатации транспортных средств.</p>
+                      <h2>2. Права и обязанности сторон</h2>
+                      <p>Арендодатель обязан предоставить Арендатору транспортное средство в состоянии, соответствующем условиям настоящего договора и его функциональному назначению, вместе со всеми его принадлежностями и относящимися к нему документами. Арендодатель имеет право потребовать расторжения договора и возмещения убытков в случае, если Арендатор пользуется транспортным средством не в соответствии с условиями договора аренды или назначением транспортного средства.</p>
+                      <p>Арендатор обязан:</p>
+                      <ul>
+                        <li>пользоваться арендованным транспортным средством в соответствии с условиями настоящего договора и в соответствии с назначением транспортного средства;</li>
+                        <li>своими силами осуществлять управление арендованным транспортным средством и его коммерческую и техническую эксплуатацию;</li>
+                        <li>нести расходы на содержание арендованного транспортного средства, его страхование, включая страхование своей ответственности, а также расходы, возникающие в связи с его эксплуатацией;</li>
+                        <li>в течение всего срока действия договора аренды поддерживать надлежащее состояние арендованного транспортного средства, включая осуществление текущего и капитального ремонта;</li>
+                        <li>своевременно вносить арендную плату;</li>
+                        <li>при прекращении договора аренды вернуть Арендодателю транспортное средство в том состоянии, в котором он его получил, с учетом нормального износа.</li>
+                      </ul>
+                      <p>Арендатор вправе без согласия Арендодателя сдавать арендованное транспортное средство в субаренду на условиях договора аренды транспортного средства с экипажем или без экипажа, а также от своего имени заключать с третьими лицами договоры перевозки и иные договоры, если они не противоречат назначению транспортного средства.</p>
+                      <h2>3. Арендная плата</h2>
+                      <p>Арендатор вносит плату за пользование транспортным средством каждый месяц авансом в первый день каждого месяца. Арендная плата за первый и последний платежные месяцы, если они являются неполными, рассчитывается пропорционально числу дней в конкретном календарном месяце. Арендатор освобождается от уплаты арендной платы за время, в течение которого транспортное средство было непригодно к эксплуатации вследствие неисправности, если только непригодность транспортного средства не наступила по вине Арендатора.</p>
+                      <h2>4. Ответственность сторон</h2>
+                      <p>Арендодатель отвечает за недостатки сданного в аренду транспортного средства, полностью или частично препятствующие пользованию им, даже если во время заключения настоящего договора он не знал об этих недостатках. Арендодатель не отвечает за недостатки сданного в аренду транспортного средства, которые были им оговорены при заключении настоящего договора или были заранее известны Арендатору либо должны были быть обнаружены Арендатором во время осмотра транспортного средства или проверки его исправности при заключении договора или передаче транспортного средства в аренду. Арендатор несет ответственность за вред, причиненный транспортным средством, его механизмами, устройствами, оборудованием третьим лицам.</p>
+                      <h2>5. Досрочное расторжение договора аренды</h2>
+                      <p>По требованию Арендодателя настоящий договор может быть досрочно расторгнут в случаях, если Арендатор пользуется транспортным средством с существенным нарушением условий настоящего договора или назначения транспортного средства либо с неоднократными нарушениями, существенно ухудшает транспортное средство, более двух раз подряд по истечении установленного договором срока платежа не вносит арендную плату, либо не производит капитального ремонта транспортного средства.</p>
+                      <p>По требованию Арендатора настоящий договор может быть досрочно расторгнут судом в случаях, если Арендодатель не предоставляет транспортное средство в пользование Арендатору либо создает препятствия пользованию им в соответствии с условиями настоящего договора или назначением транспортного средства, переданное Арендатору транспортное средство имеет препятствующие пользованию им недостатки, которые не были оговорены Арендодателем при заключении договора, не были заранее известны Арендатору и не должны были быть обнаружены Арендатором во время осмотра, либо транспортное средство в силу обстоятельств, за которые Арендатор не отвечает, окажется в состоянии, не пригодном для использования.</p>
+                      <p>Любые споры, возникающие из настоящего договора или в связи с ним, Стороны буду стараться урегулировать путем переговоров, а в случае недостижения согласия - в судебном порядке.</p>
+                    </div>
+                  </div>
+                </body>
+                </html>
+                """.trimIndent(),
+                ContentType.Text.Html
+            )
+        }
+        get("/privacy") {
+            call.respondText(
+                """
+                <!DOCTYPE html>
+                <html lang="ru">
+                <head>
+                  <meta charset="UTF-8">
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                  <title>Политика конфиденциальности — AtomGo</title>
+                  <style>
+                    body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background: #09090b; color: #fff; line-height: 1.6; }
+                    .container { max-width: 900px; margin: 0 auto; padding: 48px 22px; }
+                    .box { background: #18181b; border: 1px solid rgba(255,255,255,.08); border-radius: 20px; padding: 26px; }
+                    h1 { margin-top: 0; }
+                    h2 { color: #10b981; margin-top: 24px; }
+                    p, li { color: #d4d4d8; }
+                    a { color: #10b981; }
+                  </style>
+                </head>
+                <body>
+                  <div class="container">
+                    <p><a href="/">← На главную</a></p>
+                    <div class="box">
+                      <h1>Политика конфиденциальности</h1>
+                      <h2>1. Сбор информации</h2>
+                      <p>Мы собираем информацию, которую вы оставляете при оформлении заявки на сайте (имя, телефон, мессенджеры). Также могут собираться обезличенные данные (cookies, техническая информация о посещении) для улучшения качества сервиса.</p>
+                      <h2>2. Использование данных</h2>
+                      <p>Собранные данные используются исключительно для связи с вами, обработки заказа, заключения договора аренды/купли-продажи и оказания клиентской поддержки.</p>
+                      <h2>3. Контакты оператора</h2>
+                      <p>Сергеев Роман Сергеевич</p>
+                      <p>Телефон: +7(985) 932-59-07</p>
+                      <p>E-mail: rs@motorica.org</p>
+                    </div>
+                  </div>
+                </body>
+                </html>
+                """.trimIndent(),
+                ContentType.Text.Html
+            )
+        }
+        get("/payment") {
+            call.respondText(
+                """
+                <!DOCTYPE html>
+                <html lang="ru">
+                <head>
+                  <meta charset="UTF-8">
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                  <title>Оплата аренды — AtomGo</title>
+                  <style>
+                    body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background: #09090b; color: #fff; line-height: 1.6; }
+                    .container { max-width: 900px; margin: 0 auto; padding: 48px 22px; }
+                    .box { background: #18181b; border: 1px solid rgba(255,255,255,.08); border-radius: 20px; padding: 26px; }
+                    h1 { margin-top: 0; }
+                    h2 { color: #10b981; margin-top: 24px; }
+                    p { color: #d4d4d8; }
+                    a { color: #10b981; }
+                    .btns { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 18px; }
+                    .btn {
+                      display: inline-block;
+                      padding: 12px 18px;
+                      border-radius: 12px;
+                      border: 1px solid rgba(255,255,255,.2);
+                      color: #fff;
+                      text-decoration: none;
+                      font-weight: 600;
+                    }
+                    .btn-primary { background: #10b981; border-color: #10b981; color: #fff; }
+                  </style>
+                </head>
+                <body>
+                  <div class="container">
+                    <p><a href="/">← На главную</a></p>
+                    <div class="box">
+                      <h1>Оплата аренды</h1>
+                      <p>Оплата принимается онлайн через YooKassa после подтверждения условий аренды.</p>
+                      <h2>Как проходит оплата</h2>
+                      <p>1. Вы оставляете заявку по телефону.</p>
+                      <p>2. Менеджер подтверждает условия и итоговую сумму.</p>
+                      <p>3. Мы отправляем ссылку на оплату через YooKassa.</p>
+                      <p>4. После оплаты согласовываем выдачу велосипеда.</p>
+                      <div class="btns">
+                        <a class="btn btn-primary" href="tel:+79859325907">Оставить заявку</a>
+                        <a class="btn" href="/requisites">Реквизиты компании</a>
+                      </div>
+                    </div>
+                  </div>
+                </body>
+                </html>
+                """.trimIndent(),
+                ContentType.Text.Html
+            )
+        }
+        get("/requisites") {
+            call.respondText(
+                """
+                <!doctype html>
+                <html lang="ru">
+                <head>
+                  <meta charset="utf-8" />
+                  <meta name="viewport" content="width=device-width, initial-scale=1" />
+                  <title>Реквизиты компании — AtomGo</title>
+                  <style>
+                    :root {
+                      --bg-main: #09090b;
+                      --bg-sec: #18181b;
+                      --bg-card: #27272a;
+                      --text-main: #ffffff;
+                      --text-muted: #a1a1aa;
+                      --emerald: #10b981;
+                      --border-light: rgba(255,255,255,0.08);
+                    }
+                    body {
+                      margin: 0;
+                      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                      background: var(--bg-main);
+                      color: var(--text-main);
+                    }
+                    .wrap {
+                      max-width: 860px;
+                      margin: 40px auto;
+                      padding: 24px;
+                    }
+                    .card {
+                      background: var(--bg-sec);
+                      border: 1px solid var(--border-light);
+                      border-radius: 18px;
+                      padding: 24px;
+                    }
+                    h1 {
+                      margin: 0 0 18px;
+                      font-size: 28px;
+                      line-height: 1.2;
+                    }
+                    dl {
+                      margin: 0;
+                      display: grid;
+                      grid-template-columns: minmax(220px, 260px) 1fr;
+                      gap: 10px 14px;
+                    }
+                    dt {
+                      font-weight: 600;
+                      color: var(--text-muted);
+                    }
+                    dd {
+                      margin: 0;
+                      word-break: break-word;
+                    }
+                    .meta {
+                      margin-top: 16px;
+                      color: var(--text-muted);
+                      font-size: 14px;
+                    }
+                    .title-accent { color: var(--emerald); }
+                    @media (max-width: 640px) {
+                      .wrap { margin: 18px auto; padding: 12px; }
+                      .card { padding: 16px; }
+                      h1 { font-size: 24px; }
+                      dl { grid-template-columns: 1fr; gap: 8px; }
+                    }
+                  </style>
+                </head>
+                <body>
+                  <main class="wrap">
+                    <section class="card">
+                      <h1>Реквизиты <span class="title-accent">AtomGo</span></h1>
+                      <dl>
+                        <dt>ФИО</dt>
+                        <dd>СЕРГЕЕВ РОМАН СЕРГЕЕВИЧ</dd>
+                        <dt>Статус</dt>
+                        <dd>Самозанятый</dd>
+                        <dt>Телефон</dt>
+                        <dd>+7(985) 932-59-07</dd>
+                        <dt>E-mail</dt>
+                        <dd>rs@motorica.org</dd>
+                        <dt>ИНН самозанятого</dt>
+                        <dd>332504133970</dd>
+                        <dt>Номер счета</dt>
+                        <dd>40817810238263543437</dd>
+                        <dt>Банк получателя</dt>
+                        <dd>ПАО СБЕРБАНК</dd>
+                        <dt>БИК</dt>
+                        <dd>044525225</dd>
+                        <dt>Корреспондентский счет</dt>
+                        <dd>30101810400000000225</dd>
+                        <dt>ИНН банка</dt>
+                        <dd>7707083893</dd>
+                        <dt>КПП банка</dt>
+                        <dd>773643001</dd>
+                        <dt>SWIFT-код</dt>
+                        <dd>SABRRUMM</dd>
+                      </dl>
+                      <p class="meta">Информация размещена для подключения онлайн-оплаты через ЮKassa.</p>
+                    </section>
+                  </main>
+                </body>
+                </html>
+                """.trimIndent(),
+                ContentType.Text.Html
+            )
         }
         get("/health/live") {
             call.respond(HttpStatusCode.OK, ApiStatusResponse(status = "live"))

@@ -405,8 +405,8 @@ struct AdminHomeView: View {
                 onRequestCloseRentalDetails: {
                     viewModel.closeRentalDetails()
                 },
-                onAdjustDebtFromRental: { clientId, amountRub, sign, comment in
-                    viewModel.adjustDebt(clientId: clientId, amountRub: amountRub, sign: sign, comment: comment)
+                onAdjustDebtFromRental: { rentalId, amountRub, sign, comment in
+                    viewModel.adjustRentalDebt(rentalId: rentalId, amountRub: amountRub, sign: sign, comment: comment)
                 },
                 onFinishRental: { clientId, rentalId in
                     viewModel.finishRental(clientId: clientId, rentalId: rentalId) {
