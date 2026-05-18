@@ -69,6 +69,7 @@ struct RentalStartClientPickerSheet: View {
             HStack {
                 headerIconButton(
                     systemName: "xmark",
+                    isDark: false,
                     accessibilityIdentifier: "rentalClientPicker.closeButton",
                     action: onClose
                 )
@@ -84,6 +85,7 @@ struct RentalStartClientPickerSheet: View {
                 headerIconButton(
                     assetName: "ok",
                     assetSize: 16,
+                    isDark: true,
                     accessibilityIdentifier: "rentalClientPicker.confirmButton",
                     action: onConfirm
                 )
@@ -170,12 +172,13 @@ struct RentalStartClientPickerSheet: View {
 
     private func headerIconButton(
         systemName: String,
+        isDark: Bool,
         accessibilityIdentifier: String,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white)
+                .fill(isDark ? AppDesign.accent : Color.white)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .stroke(AppDesign.accent, lineWidth: 1.5)
@@ -183,7 +186,7 @@ struct RentalStartClientPickerSheet: View {
                 .overlay(
                     Image(systemName: systemName)
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(AppDesign.accent)
+                        .foregroundStyle(isDark ? Color.white : AppDesign.accent)
                 )
                 .frame(width: 47, height: 47)
         }
@@ -194,22 +197,34 @@ struct RentalStartClientPickerSheet: View {
     private func headerIconButton(
         assetName: String,
         assetSize: CGFloat,
+        isDark: Bool,
         accessibilityIdentifier: String,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white)
+                .fill(isDark ? AppDesign.accent : Color.white)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .stroke(AppDesign.accent, lineWidth: 1.5)
                 )
                 .overlay(
-                    Image(assetName)
-                        .renderingMode(.original)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: assetSize, height: assetSize)
+                    ZStack {
+                        if isDark {
+                            Image(assetName)
+                                .renderingMode(.template)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: assetSize, height: assetSize)
+                                .foregroundStyle(Color.white)
+                        } else {
+                            Image(assetName)
+                                .renderingMode(.original)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: assetSize, height: assetSize)
+                        }
+                    }
                 )
                 .frame(width: 47, height: 47)
         }
