@@ -6,6 +6,7 @@ struct ClientCatalogSheet: View {
     let clients: [AdminClientSummaryResponse]
     let isSaving: Bool
     let apiErrorMessage: String?
+    @Binding var selectedFilter: ClientCatalogFilter
     var showsCloseButton: Bool = true
     let onCancel: () -> Void
     let onCreate: (CreateClientPayload, @escaping () -> Void) -> Void
@@ -14,7 +15,6 @@ struct ClientCatalogSheet: View {
     @Environment(\.openURL) private var openURL
     @State private var isCreateClientPresented = false
     @State private var searchText = ""
-    @State private var selectedFilter: ClientCatalogFilter = .all
     @State private var initialCardsTopY: CGFloat?
     @State private var areFiltersInteractive = true
     @State private var toastMessage: String?

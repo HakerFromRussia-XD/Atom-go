@@ -7,6 +7,7 @@ struct BikeCatalogSheet: View {
     let rentals: [AdminClientSummaryResponse]
     let isSaving: Bool
     let apiErrorMessage: String?
+    @Binding var selectedFilter: BikeCatalogFilter
     var showsCloseButton: Bool = true
     let onCancel: () -> Void
     let onCreate: (CreateBikePayload, @escaping () -> Void) -> Void
@@ -17,7 +18,6 @@ struct BikeCatalogSheet: View {
     @State private var bikePendingDeletion: AdminBikeResponse?
     @State private var isCreateBikePresented = false
     @State private var searchText = ""
-    @State private var selectedFilter: BikeCatalogFilter = .all
     @State private var initialCardsTopY: CGFloat?
     @State private var areFiltersInteractive = true
     @State private var toastMessage: String?

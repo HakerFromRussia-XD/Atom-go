@@ -242,6 +242,8 @@ struct AdminHomeView: View {
     @State private var ignoredNextTapClientId: String?
     @State private var searchText = ""
     @State private var selectedFilter: AdminRentFilter = .all
+    @State private var selectedClientCatalogFilter: ClientCatalogFilter = .all
+    @State private var selectedBikeCatalogFilter: BikeCatalogFilter = .all
     @State private var selectedMainTab: AdminMainTab = .rents
     @State private var pipelineMenuClientId: String?
     @State private var areFiltersInteractive = true
@@ -569,6 +571,7 @@ struct AdminHomeView: View {
                     clients: viewModel.clientCatalog,
                     isSaving: viewModel.isOperationInProgress,
                     apiErrorMessage: viewModel.operationErrorMessage,
+                    selectedFilter: $selectedClientCatalogFilter,
                     showsCloseButton: false,
                     onCancel: onLogout,
                     onCreate: { payload, onSuccess in
@@ -586,6 +589,7 @@ struct AdminHomeView: View {
                     rentals: clients,
                     isSaving: viewModel.isOperationInProgress,
                     apiErrorMessage: viewModel.operationErrorMessage,
+                    selectedFilter: $selectedBikeCatalogFilter,
                     showsCloseButton: false,
                     onCancel: onLogout,
                     onCreate: { payload, onSuccess in
