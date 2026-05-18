@@ -531,7 +531,12 @@ struct AdminHomeView: View {
         }
         .onChange(of: scenePhase) { newPhase in
             if newPhase == .active {
-                viewModel.load()
+                switch viewModel.state {
+                case .idle, .failed:
+                    viewModel.load()
+                case .loading, .loaded:
+                    break
+                }
             }
         }
         .appToast(message: $toastMessage, bottomPadding: 96)
