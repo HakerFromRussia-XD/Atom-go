@@ -627,7 +627,8 @@ private fun AdminSearchField(
             Icon(
                 imageVector = Icons.Outlined.Search,
                 contentDescription = null,
-                tint = AppDesign.TitleText
+                tint = AppDesign.TitleText,
+                modifier = Modifier.size(14.dp)
             )
             Spacer(Modifier.width(10.dp))
             BasicTextField(
@@ -719,7 +720,7 @@ private fun AdminFilterChip(
         label = "admin_filter_text"
     )
     val counterColor by animateColorAsState(
-        targetValue = if (isSelected) Color.White.copy(alpha = 0.2f) else Color.Black.copy(alpha = 0.08f),
+        targetValue = if (isSelected) Color.White.copy(alpha = 0.2f) else Color(0xFFE5E5E8),
         animationSpec = tween(180),
         label = "admin_filter_counter"
     )
@@ -781,7 +782,7 @@ private fun AdminBottomTabBar(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(top = 12.dp, bottom = 8.dp)
+                .padding(top = 12.dp, bottom = 22.dp)
         ) {
             Box(
                 modifier = Modifier
