@@ -98,6 +98,40 @@ class HomeNavigationUiTest {
         captureScreen("admin-rents-scroll-down.png")
     }
 
+    @Test
+    fun adminTabs_clientsAndBikes_openWithLists() {
+        composeRule.onNodeWithTag("login_email_input", useUnmergedTree = true).performClick()
+        composeRule.onNodeWithTag("login_email_input", useUnmergedTree = true).performTextReplacement("admin")
+
+        composeRule.onNodeWithTag("login_password_input", useUnmergedTree = true).performClick()
+        composeRule.onNodeWithTag("login_password_input", useUnmergedTree = true).performTextReplacement("admin123")
+
+        composeRule.onNodeWithTag("login_submit_button", useUnmergedTree = true).performClick()
+        composeRule.waitUntil(timeoutMillis = 60_000) {
+            runCatching {
+                composeRule.onNodeWithTag("admin_home_title", useUnmergedTree = true).fetchSemanticsNode()
+            }.isSuccess
+        }
+
+        composeRule.onNodeWithTag("admin_tab_clients", useUnmergedTree = true).performClick()
+        composeRule.waitUntil(timeoutMillis = 60_000) {
+            runCatching {
+                composeRule.onNodeWithTag("admin_clients_list", useUnmergedTree = true).fetchSemanticsNode()
+            }.isSuccess
+        }
+        composeRule.onNodeWithTag("admin_clients_list", useUnmergedTree = true).assertIsDisplayed()
+        captureScreen("admin-clients-tab.png")
+
+        composeRule.onNodeWithTag("admin_tab_bikes", useUnmergedTree = true).performClick()
+        composeRule.waitUntil(timeoutMillis = 60_000) {
+            runCatching {
+                composeRule.onNodeWithTag("admin_bikes_list", useUnmergedTree = true).fetchSemanticsNode()
+            }.isSuccess
+        }
+        composeRule.onNodeWithTag("admin_bikes_list", useUnmergedTree = true).assertIsDisplayed()
+        captureScreen("admin-bikes-tab.png")
+    }
+
     @Ignore("Requires stable seeded client credentials on backend environment")
     @Test
     fun loginAsClient_opensClientHome() {

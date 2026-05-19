@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.atomgo.shared.api.AtomGoApiClient
 import com.atomgo.shared.api.ClientDashboardResponse
+import com.atomgo.shared.api.AdminBikeResponse
 import com.atomgo.shared.api.AdminClientSummaryResponse
 import com.atomgo.shared.api.AdminClientPhone
 import com.atomgo.shared.api.AdminCreateBikeRequest
@@ -80,6 +81,22 @@ class AppViewModel : ViewModel() {
         viewModelScope.launch {
             runCatching {
                 apiClient.fetchAdminRents(accessToken)
+            }.also(onResult)
+        }
+    }
+
+    fun fetchAdminClients(accessToken: String, onResult: (Result<List<AdminClientSummaryResponse>>) -> Unit) {
+        viewModelScope.launch {
+            runCatching {
+                apiClient.fetchAdminClients(accessToken)
+            }.also(onResult)
+        }
+    }
+
+    fun fetchAdminBikes(accessToken: String, onResult: (Result<List<AdminBikeResponse>>) -> Unit) {
+        viewModelScope.launch {
+            runCatching {
+                apiClient.fetchAdminBikes(accessToken)
             }.also(onResult)
         }
     }

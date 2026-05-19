@@ -96,6 +96,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.atomgo.shared.api.AdminBikeResponse
 import com.atomgo.shared.api.AdminClientSummaryResponse
 import com.atomgo.shared.api.AdminClientDetailsResponse
 import com.atomgo.shared.api.ClientDashboardResponse
@@ -566,6 +567,18 @@ private enum class AdminRentFilter {
     Mine
 }
 
+private enum class AdminClientFilter {
+    All,
+    Debtors,
+    Active
+}
+
+private enum class AdminBikeFilter {
+    All,
+    Free,
+    Rented
+}
+
 private enum class AdminHomeTab {
     Rents,
     Clients,
@@ -577,6 +590,18 @@ private data class AdminFilterCounters(
     val soonReturn: Int,
     val debtors: Int,
     val mine: Int
+)
+
+private data class AdminClientFilterCounters(
+    val all: Int,
+    val debtors: Int,
+    val active: Int
+)
+
+private data class AdminBikeFilterCounters(
+    val all: Int,
+    val free: Int,
+    val rented: Int
 )
 
 private data class RentStatusPill(
@@ -618,6 +643,7 @@ private fun AdminSquareTopButton(
 private fun AdminSearchField(
     value: String,
     onValueChange: (String) -> Unit,
+    placeholder: String,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -651,7 +677,7 @@ private fun AdminSearchField(
                 decorationBox = { innerTextField ->
                     if (value.isBlank()) {
                         Text(
-                            text = "Поиск по клиенту, велосипеду...",
+                            text = placeholder,
                             fontSize = 13.sp,
                             color = Color(0xFF73747F)
                         )
@@ -955,10 +981,20 @@ private fun AdminHomeScreen(
     onLogout: () -> Unit
 ) {
     var rents by remember { mutableStateOf<List<AdminClientSummaryResponse>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(true) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var filter by remember { mutableStateOf(AdminRentFilter.All) }
-    var search by remember { mutableStateOf("") }
+    var clientsCatalog by remember { mutableStateOf<List<AdminClientSummaryResponse>>(emptyList()) }
+    var bikesCatalog by remember { mutableStateOf<List<AdminBikeResponse>>(emptyList()) }
+    var isRentsLoading by remember { mutableStateOf(true) }
+    var rentsError by remember { mutableStateOf<String?>(null) }
+    var isClientsLoading by remember { mutableStateOf(false) }
+    var clientsError by remember { mutableStateOf<String?>(null) }
+    var isBikesLoading by remember { mutableStateOf(false) }
+    var bikesError by remember { mutableStateOf<String?>(null) }
+    var rentsFilter by remember { mutableStateOf(AdminRentFilter.All) }
+    var rentsSearch by remember { mutableStateOf("") }
+    var clientsFilter by remember { mutableStateOf(AdminClientFilter.All) }
+    var clientsSearch by remember { mutableStateOf("") }
+    var bikesFilter by remember { mutableStateOf(AdminBikeFilter.All) }
+    var bikesSearch by remember { mutableStateOf("") }
     var selectedTab by remember { mutableStateOf(AdminHomeTab.Rents) }
     var adminMessage by remember { mutableStateOf<String?>(null) }
     var showCreateClient by remember { mutableStateOf(false) }
@@ -976,20 +1012,58 @@ private fun AdminHomeScreen(
     var isDetailLoading by remember { mutableStateOf(false) }
     var toastMessage by remember { mutableStateOf<String?>(null) }
 
-    fun refresh() {
-        isLoading = true
-        error = null
+    fun refreshRents() {
+        isRentsLoading = true
+        rentsError = null
         appViewModel.fetchAdminRents(session.accessToken) { result ->
             result.onSuccess {
                 rents = it
-                isLoading = false
+                isRentsLoading = false
             }.onFailure {
-                error = it.message ?: "Ошибка загрузки"
-                isLoading = false
+                rentsError = it.message ?: "Ошибка загрузки"
+                isRentsLoading = false
             }
         }
     }
-    LaunchedEffect(Unit) { refresh() }
+    fun refreshClients() {
+        isClientsLoading = true
+        clientsError = null
+        appViewModel.fetchAdminClients(session.accessToken) { result ->
+            result.onSuccess {
+                clientsCatalog = it
+                isClientsLoading = false
+            }.onFailure {
+                clientsError = it.message ?: "Ошибка загрузки"
+                isClientsLoading = false
+            }
+        }
+    }
+    fun refreshBikes() {
+        isBikesLoading = true
+        bikesError = null
+        appViewModel.fetchAdminBikes(session.accessToken) { result ->
+            result.onSuccess {
+                bikesCatalog = it
+                isBikesLoading = false
+            }.onFailure {
+                bikesError = it.message ?: "Ошибка загрузки"
+                isBikesLoading = false
+            }
+        }
+    }
+    fun refreshAllCatalogs() {
+        refreshRents()
+        refreshClients()
+        refreshBikes()
+    }
+    LaunchedEffect(Unit) { refreshAllCatalogs() }
+    LaunchedEffect(selectedTab) {
+        when (selectedTab) {
+            AdminHomeTab.Clients -> if (clientsCatalog.isEmpty() && !isClientsLoading) refreshClients()
+            AdminHomeTab.Bikes -> if (bikesCatalog.isEmpty() && !isBikesLoading) refreshBikes()
+            AdminHomeTab.Rents -> Unit
+        }
+    }
     LaunchedEffect(adminMessage) {
         val text = adminMessage?.trim().orEmpty()
         if (text.isNotEmpty()) {
@@ -999,27 +1073,65 @@ private fun AdminHomeScreen(
         }
     }
 
-    val normalizedQuery = search.trim()
+    val normalizedQuery = rentsSearch.trim()
     val searchedRents = rents.filter { item ->
         normalizedQuery.isEmpty() ||
             item.fullName.contains(normalizedQuery, ignoreCase = true) ||
             item.bikeModel.contains(normalizedQuery, ignoreCase = true) ||
             (item.clientLogin ?: "").contains(normalizedQuery, ignoreCase = true)
     }
-    val filtered = searchedRents.filter { item ->
-        when (filter) {
+    val filteredRents = searchedRents.filter { item ->
+        when (rentsFilter) {
             AdminRentFilter.All -> true
             AdminRentFilter.SoonReturn -> item.rentalIsActive && item.rentalPipelineStatus.orEmpty() == "soon_return"
             AdminRentFilter.Debtors -> item.debtRub > 0
             AdminRentFilter.Mine -> !item.rentalIsActive
         }
     }
+    val normalizedClientQuery = clientsSearch.trim()
+    val filteredClients = clientsCatalog.filter { item ->
+        normalizedClientQuery.isEmpty() ||
+            item.fullName.contains(normalizedClientQuery, ignoreCase = true) ||
+            item.bikeModel.contains(normalizedClientQuery, ignoreCase = true) ||
+            (item.clientLogin ?: "").contains(normalizedClientQuery, ignoreCase = true)
+    }.filter { item ->
+        when (clientsFilter) {
+            AdminClientFilter.All -> true
+            AdminClientFilter.Debtors -> item.debtRub > 0
+            AdminClientFilter.Active -> item.rentalIsActive
+        }
+    }
+    val normalizedBikeQuery = bikesSearch.trim()
+    val filteredBikes = bikesCatalog.filter { bike ->
+        normalizedBikeQuery.isEmpty() ||
+            bike.bikeModel.contains(normalizedBikeQuery, ignoreCase = true) ||
+            bike.frameSerialNumber.contains(normalizedBikeQuery, ignoreCase = true) ||
+            bike.motorSerialNumber.contains(normalizedBikeQuery, ignoreCase = true) ||
+            bike.batterySerialNumber1.contains(normalizedBikeQuery, ignoreCase = true) ||
+            (bike.batterySerialNumber2?.contains(normalizedBikeQuery, ignoreCase = true) == true)
+    }.filter { bike ->
+        when (bikesFilter) {
+            AdminBikeFilter.All -> true
+            AdminBikeFilter.Free -> !bike.bikeIsInRental
+            AdminBikeFilter.Rented -> bike.bikeIsInRental
+        }
+    }.sortedBy { it.bikeModel.lowercase() }
 
     val filterCounts = AdminFilterCounters(
         all = rents.size,
         soonReturn = rents.count { it.rentalIsActive && it.rentalPipelineStatus.orEmpty() == "soon_return" },
         debtors = rents.count { it.debtRub > 0 },
         mine = rents.count { !it.rentalIsActive }
+    )
+    val clientsFilterCounts = AdminClientFilterCounters(
+        all = clientsCatalog.size,
+        debtors = clientsCatalog.count { it.debtRub > 0 },
+        active = clientsCatalog.count { it.rentalIsActive }
+    )
+    val bikesFilterCounts = AdminBikeFilterCounters(
+        all = bikesCatalog.size,
+        free = bikesCatalog.count { !it.bikeIsInRental },
+        rented = bikesCatalog.count { it.bikeIsInRental }
     )
     val density = LocalDensity.current
     val statusBarTop = with(density) { WindowInsets.statusBars.getTop(this).toDp() }
@@ -1065,14 +1177,14 @@ private fun AdminHomeScreen(
                             .zIndex(1f)
                     ) {
                         AdminFilterRows(
-                            selectedFilter = filter,
+                            selectedFilter = rentsFilter,
                             counts = filterCounts,
-                            onSelect = { filter = it }
+                            onSelect = { rentsFilter = it }
                         )
                     }
 
                     when {
-                        isLoading -> {
+                        isRentsLoading -> {
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -1083,7 +1195,7 @@ private fun AdminHomeScreen(
                             }
                         }
 
-                        error != null -> {
+                        rentsError != null -> {
                             Column(
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -1093,15 +1205,15 @@ private fun AdminHomeScreen(
                             ) {
                                 Text("Не удалось загрузить аренды", color = AppDesign.Danger, fontWeight = FontWeight.Bold)
                                 Spacer(Modifier.height(4.dp))
-                                Text(error.orEmpty(), color = AppDesign.SubtleText)
+                                Text(rentsError.orEmpty(), color = AppDesign.SubtleText)
                                 Spacer(Modifier.height(12.dp))
-                                OutlinedButton(onClick = ::refresh) { Text("Повторить") }
+                                OutlinedButton(onClick = ::refreshRents) { Text("Повторить") }
                             }
                         }
 
                         else -> {
                             Crossfade(
-                                targetState = filtered,
+                                targetState = filteredRents,
                                 animationSpec = tween(durationMillis = 180),
                                 label = "admin_rents_crossfade",
                                 modifier = Modifier
@@ -1202,7 +1314,7 @@ private fun AdminHomeScreen(
                     ) {
                         AdminFilterHitRows(
                             enabled = filtersInteractive,
-                            onSelect = { filter = it }
+                            onSelect = { rentsFilter = it }
                         )
                     }
 
@@ -1253,8 +1365,9 @@ private fun AdminHomeScreen(
                         Spacer(Modifier.height(searchTopPadding))
 
                         AdminSearchField(
-                            value = search,
-                            onValueChange = { search = it },
+                            value = rentsSearch,
+                            onValueChange = { rentsSearch = it },
+                            placeholder = "Поиск по клиенту, велосипеду...",
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("admin_search_field")
@@ -1264,18 +1377,52 @@ private fun AdminHomeScreen(
             }
 
             AdminHomeTab.Clients -> {
-                AdminSecondaryTabStub(
-                    title = "Клиенты",
-                    buttonText = "Новый клиент",
-                    onPrimaryAction = { showCreateClient = true }
+                AdminClientsCatalogScreen(
+                    statusBarTop = statusBarTop,
+                    clients = clientsCatalog,
+                    isLoading = isClientsLoading,
+                    error = clientsError,
+                    search = clientsSearch,
+                    onSearchChange = { clientsSearch = it },
+                    selectedFilter = clientsFilter,
+                    filterCounts = clientsFilterCounts,
+                    onFilterSelect = { clientsFilter = it },
+                    onRetry = ::refreshClients,
+                    onLogout = onLogout,
+                    onCreate = { showCreateClient = true },
+                    onOpenClient = { client ->
+                        isDetailLoading = true
+                        detailPayload = null
+                        detailClientId = client.clientId
+                        appViewModel.fetchAdminClientDetails(session.accessToken, client.clientId) { result ->
+                            result.onSuccess {
+                                detailPayload = it
+                                isDetailLoading = false
+                            }.onFailure {
+                                adminMessage = "Ошибка загрузки деталей: ${it.message}"
+                                isDetailLoading = false
+                            }
+                        }
+                    },
+                    visibleClients = filteredClients
                 )
             }
 
             AdminHomeTab.Bikes -> {
-                AdminSecondaryTabStub(
-                    title = "Велосипеды",
-                    buttonText = "Новый велосипед",
-                    onPrimaryAction = { showCreateBike = true }
+                AdminBikesCatalogScreen(
+                    statusBarTop = statusBarTop,
+                    bikes = bikesCatalog,
+                    isLoading = isBikesLoading,
+                    error = bikesError,
+                    search = bikesSearch,
+                    onSearchChange = { bikesSearch = it },
+                    selectedFilter = bikesFilter,
+                    filterCounts = bikesFilterCounts,
+                    onFilterSelect = { bikesFilter = it },
+                    onRetry = ::refreshBikes,
+                    onLogout = onLogout,
+                    onCreate = { showCreateBike = true },
+                    visibleBikes = filteredBikes
                 )
             }
         }
@@ -1308,7 +1455,7 @@ private fun AdminHomeScreen(
                     result.onSuccess {
                         adminMessage = "Клиент создан"
                         showCreateClient = false
-                        refresh()
+                        refreshAllCatalogs()
                     }.onFailure { adminMessage = "Ошибка создания клиента: ${it.message}" }
                 }
             }
@@ -1331,7 +1478,7 @@ private fun AdminHomeScreen(
                     result.onSuccess {
                         adminMessage = "Велосипед создан"
                         showCreateBike = false
-                        refresh()
+                        refreshAllCatalogs()
                     }.onFailure { adminMessage = "Ошибка создания велосипеда: ${it.message}" }
                 }
             }
@@ -1353,7 +1500,7 @@ private fun AdminHomeScreen(
                     result.onSuccess {
                         adminMessage = "Аренда создана"
                         showCreateRental = false
-                        refresh()
+                        refreshAllCatalogs()
                     }.onFailure { adminMessage = "Ошибка создания аренды: ${it.message}" }
                 }
             }
@@ -1377,7 +1524,7 @@ private fun AdminHomeScreen(
                     result.onSuccess {
                         adminMessage = "Клиент обновлен"
                         showUpdateClient = false
-                        refresh()
+                        refreshAllCatalogs()
                     }.onFailure { adminMessage = "Ошибка обновления клиента: ${it.message}" }
                 }
             }
@@ -1401,7 +1548,7 @@ private fun AdminHomeScreen(
                     result.onSuccess {
                         adminMessage = "Велосипед обновлен"
                         showUpdateBike = false
-                        refresh()
+                        refreshAllCatalogs()
                     }.onFailure { adminMessage = "Ошибка обновления велосипеда: ${it.message}" }
                 }
             }
@@ -1424,7 +1571,7 @@ private fun AdminHomeScreen(
                     result.onSuccess {
                         adminMessage = "Аренда обновлена"
                         showUpdateRental = false
-                        refresh()
+                        refreshAllCatalogs()
                     }.onFailure { adminMessage = "Ошибка обновления аренды: ${it.message}" }
                 }
             }
@@ -1447,7 +1594,7 @@ private fun AdminHomeScreen(
                     result.onSuccess {
                         adminMessage = "Аренда завершена"
                         showFinishRentalFor = null
-                        refresh()
+                        refreshAllCatalogs()
                     }.onFailure { adminMessage = "Ошибка завершения аренды: ${it.message}" }
                 }
             }
@@ -1469,7 +1616,7 @@ private fun AdminHomeScreen(
                     result.onSuccess {
                         adminMessage = "Аренда запущена"
                         showStartRental = false
-                        refresh()
+                        refreshAllCatalogs()
                     }.onFailure { adminMessage = "Ошибка запуска аренды: ${it.message}" }
                 }
             }
@@ -1488,7 +1635,7 @@ private fun AdminHomeScreen(
                         result.onSuccess {
                             adminMessage = "Аренда удалена"
                             confirmDeleteRentalId = null
-                            refresh()
+                            refreshAllCatalogs()
                         }.onFailure { adminMessage = "Ошибка удаления аренды: ${it.message}" }
                     }
                 }) { Text("Удалить") }
@@ -1509,7 +1656,7 @@ private fun AdminHomeScreen(
                         result.onSuccess {
                             adminMessage = "Клиент удален"
                             confirmDeleteClientId = null
-                            refresh()
+                            refreshAllCatalogs()
                         }.onFailure { adminMessage = "Ошибка удаления клиента: ${it.message}" }
                     }
                 }) { Text("Удалить") }
@@ -1543,6 +1690,601 @@ private fun AdminHomeScreen(
             },
             confirmButton = { OutlinedButton(onClick = { detailClientId = null }) { Text("Закрыть") } }
         )
+    }
+}
+
+@Composable
+private fun AdminClientsCatalogScreen(
+    statusBarTop: androidx.compose.ui.unit.Dp,
+    clients: List<AdminClientSummaryResponse>,
+    isLoading: Boolean,
+    error: String?,
+    search: String,
+    onSearchChange: (String) -> Unit,
+    selectedFilter: AdminClientFilter,
+    filterCounts: AdminClientFilterCounters,
+    onFilterSelect: (AdminClientFilter) -> Unit,
+    onRetry: () -> Unit,
+    onLogout: () -> Unit,
+    onCreate: () -> Unit,
+    onOpenClient: (AdminClientSummaryResponse) -> Unit,
+    visibleClients: List<AdminClientSummaryResponse>
+) {
+    val density = LocalDensity.current
+    val horizontalInset = 8.dp
+    val topBarHeight = 62.dp
+    val searchTopPadding = 6.dp
+    val searchHeight = 46.dp
+    val chipsTopGap = 10.dp
+    val chipsHeight = 36.dp
+    val chipsTop = statusBarTop + topBarHeight + searchTopPadding + searchHeight + chipsTopGap
+    val cardsInitialTop = chipsTop + chipsHeight + chipsTopGap
+    val searchMaskHeight = statusBarTop + topBarHeight + searchTopPadding + (searchHeight / 2)
+    val searchMaskHeightPx = with(density) { searchMaskHeight.toPx() }
+    val listState = rememberLazyListState()
+    val filtersInteractive by remember {
+        derivedStateOf {
+            when (listState.firstVisibleItemIndex) {
+                0 -> listState.firstVisibleItemScrollOffset < 10
+                else -> false
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = horizontalInset)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(chipsHeight)
+                .offset(y = chipsTop)
+                .zIndex(1f)
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AdminFilterChip(
+                    title = "Все",
+                    count = filterCounts.all,
+                    width = 84.dp,
+                    isSelected = selectedFilter == AdminClientFilter.All,
+                    testTag = "admin_client_filter_all",
+                    onClick = { onFilterSelect(AdminClientFilter.All) }
+                )
+                AdminFilterChip(
+                    title = "Должники",
+                    count = filterCounts.debtors,
+                    width = 106.dp,
+                    isSelected = selectedFilter == AdminClientFilter.Debtors,
+                    testTag = "admin_client_filter_debtors",
+                    onClick = { onFilterSelect(AdminClientFilter.Debtors) }
+                )
+                AdminFilterChip(
+                    title = "Активные",
+                    count = filterCounts.active,
+                    width = 106.dp,
+                    isSelected = selectedFilter == AdminClientFilter.Active,
+                    testTag = "admin_client_filter_active",
+                    onClick = { onFilterSelect(AdminClientFilter.Active) }
+                )
+            }
+        }
+
+        when {
+            isLoading -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .zIndex(2f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = AppDesign.Accent)
+                }
+            }
+            error != null -> {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = cardsInitialTop)
+                        .zIndex(2f),
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text("Не удалось загрузить клиентов", color = AppDesign.Danger, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(4.dp))
+                    Text(error, color = AppDesign.SubtleText)
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedButton(onClick = onRetry) { Text("Повторить") }
+                }
+            }
+            else -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .drawWithContent {
+                            clipRect(
+                                left = 0f,
+                                top = searchMaskHeightPx,
+                                right = size.width,
+                                bottom = size.height
+                            ) {
+                                this@drawWithContent.drawContent()
+                            }
+                        }
+                        .zIndex(2f)
+                        .testTag("admin_clients_list"),
+                    state = listState,
+                    contentPadding = PaddingValues(bottom = 120.dp)
+                ) {
+                    item("admin_clients_top_spacer") {
+                        Spacer(Modifier.height(cardsInitialTop))
+                    }
+                    if (visibleClients.isEmpty()) {
+                        item("admin_clients_empty") {
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 14.dp),
+                                shape = RoundedCornerShape(15.dp),
+                                color = Color(0xFFFAFBFB),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, AppDesign.Accent)
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 30.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text("Список клиентов пуст", color = AppDesign.TitleText, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    } else {
+                        item("admin_clients_container") {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(15.dp),
+                                color = Color(0xFFFAFBFB),
+                                shadowElevation = 8.dp,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, AppDesign.Accent)
+                            ) {
+                                Column(modifier = Modifier.padding(vertical = 5.dp)) {
+                                    visibleClients.forEachIndexed { index, item ->
+                                        AdminClientCatalogRow(item = item, onClick = { onOpenClient(item) })
+                                        if (index < visibleClients.lastIndex) {
+                                            HorizontalDivider(color = Color(0xFFEAEAF0), thickness = 1.dp)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(chipsHeight)
+                .offset(y = chipsTop)
+                .zIndex(3.5f)
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AdminFilterHitTarget(width = 84.dp, enabled = filtersInteractive) { onFilterSelect(AdminClientFilter.All) }
+                AdminFilterHitTarget(width = 106.dp, enabled = filtersInteractive) { onFilterSelect(AdminClientFilter.Debtors) }
+                AdminFilterHitTarget(width = 106.dp, enabled = filtersInteractive) { onFilterSelect(AdminClientFilter.Active) }
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(searchMaskHeight)
+                .background(AppDesign.PageBackground)
+                .zIndex(3f)
+        )
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .zIndex(4f)
+        ) {
+            Spacer(Modifier.height(statusBarTop))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(topBarHeight),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                AdminSquareTopButton(
+                    iconRes = R.drawable.ic_admin_exit,
+                    testTag = "admin_clients_logout_button",
+                    onClick = onLogout
+                )
+                Spacer(Modifier.weight(1f))
+                Text("Клиенты", color = Color(0xFF141718), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.weight(1f))
+                AdminSquareTopButton(
+                    iconRes = R.drawable.ic_admin_plus,
+                    testTag = "admin_clients_create_button",
+                    onClick = onCreate
+                )
+            }
+            Spacer(Modifier.height(searchTopPadding))
+            AdminSearchField(
+                value = search,
+                onValueChange = onSearchChange,
+                placeholder = "Поиск: ФИО, телефон, паспорт",
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+@Composable
+private fun AdminBikesCatalogScreen(
+    statusBarTop: androidx.compose.ui.unit.Dp,
+    bikes: List<AdminBikeResponse>,
+    isLoading: Boolean,
+    error: String?,
+    search: String,
+    onSearchChange: (String) -> Unit,
+    selectedFilter: AdminBikeFilter,
+    filterCounts: AdminBikeFilterCounters,
+    onFilterSelect: (AdminBikeFilter) -> Unit,
+    onRetry: () -> Unit,
+    onLogout: () -> Unit,
+    onCreate: () -> Unit,
+    visibleBikes: List<AdminBikeResponse>
+) {
+    val density = LocalDensity.current
+    val horizontalInset = 8.dp
+    val topBarHeight = 62.dp
+    val searchTopPadding = 6.dp
+    val searchHeight = 46.dp
+    val chipsTopGap = 10.dp
+    val chipsHeight = 36.dp
+    val chipsTop = statusBarTop + topBarHeight + searchTopPadding + searchHeight + chipsTopGap
+    val cardsInitialTop = chipsTop + chipsHeight + chipsTopGap
+    val searchMaskHeight = statusBarTop + topBarHeight + searchTopPadding + (searchHeight / 2)
+    val searchMaskHeightPx = with(density) { searchMaskHeight.toPx() }
+    val listState = rememberLazyListState()
+    val filtersInteractive by remember {
+        derivedStateOf {
+            when (listState.firstVisibleItemIndex) {
+                0 -> listState.firstVisibleItemScrollOffset < 10
+                else -> false
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = horizontalInset)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(chipsHeight)
+                .offset(y = chipsTop)
+                .zIndex(1f)
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AdminFilterChip(
+                    title = "Все",
+                    count = filterCounts.all,
+                    width = 84.dp,
+                    isSelected = selectedFilter == AdminBikeFilter.All,
+                    testTag = "admin_bike_filter_all",
+                    onClick = { onFilterSelect(AdminBikeFilter.All) }
+                )
+                AdminFilterChip(
+                    title = "Свободные",
+                    count = filterCounts.free,
+                    width = 128.dp,
+                    isSelected = selectedFilter == AdminBikeFilter.Free,
+                    testTag = "admin_bike_filter_free",
+                    onClick = { onFilterSelect(AdminBikeFilter.Free) }
+                )
+                AdminFilterChip(
+                    title = "В аренде",
+                    count = filterCounts.rented,
+                    width = 110.dp,
+                    isSelected = selectedFilter == AdminBikeFilter.Rented,
+                    testTag = "admin_bike_filter_rented",
+                    onClick = { onFilterSelect(AdminBikeFilter.Rented) }
+                )
+            }
+        }
+
+        when {
+            isLoading -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .zIndex(2f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(color = AppDesign.Accent)
+                }
+            }
+            error != null -> {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = cardsInitialTop)
+                        .zIndex(2f),
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Text("Не удалось загрузить велосипеды", color = AppDesign.Danger, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(4.dp))
+                    Text(error, color = AppDesign.SubtleText)
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedButton(onClick = onRetry) { Text("Повторить") }
+                }
+            }
+            else -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .drawWithContent {
+                            clipRect(
+                                left = 0f,
+                                top = searchMaskHeightPx,
+                                right = size.width,
+                                bottom = size.height
+                            ) {
+                                this@drawWithContent.drawContent()
+                            }
+                        }
+                        .zIndex(2f)
+                        .testTag("admin_bikes_list"),
+                    state = listState,
+                    contentPadding = PaddingValues(bottom = 120.dp)
+                ) {
+                    item("admin_bikes_top_spacer") {
+                        Spacer(Modifier.height(cardsInitialTop))
+                    }
+                    if (visibleBikes.isEmpty()) {
+                        item("admin_bikes_empty") {
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 14.dp),
+                                shape = RoundedCornerShape(15.dp),
+                                color = Color(0xFFFAFBFB),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, AppDesign.Accent)
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 30.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Text("Список велосипедов пуст", color = AppDesign.TitleText, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    } else {
+                        item("admin_bikes_container") {
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(15.dp),
+                                color = Color(0xFFFAFBFB),
+                                shadowElevation = 8.dp,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, AppDesign.Accent)
+                            ) {
+                                Column(modifier = Modifier.padding(vertical = 5.dp)) {
+                                    visibleBikes.forEachIndexed { index, bike ->
+                                        AdminBikeCatalogRow(bike = bike)
+                                        if (index < visibleBikes.lastIndex) {
+                                            HorizontalDivider(color = Color(0xFFEAEAF0), thickness = 1.dp)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(chipsHeight)
+                .offset(y = chipsTop)
+                .zIndex(3.5f)
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AdminFilterHitTarget(width = 84.dp, enabled = filtersInteractive) { onFilterSelect(AdminBikeFilter.All) }
+                AdminFilterHitTarget(width = 128.dp, enabled = filtersInteractive) { onFilterSelect(AdminBikeFilter.Free) }
+                AdminFilterHitTarget(width = 110.dp, enabled = filtersInteractive) { onFilterSelect(AdminBikeFilter.Rented) }
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(searchMaskHeight)
+                .background(AppDesign.PageBackground)
+                .zIndex(3f)
+        )
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .zIndex(4f)
+        ) {
+            Spacer(Modifier.height(statusBarTop))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(topBarHeight),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                AdminSquareTopButton(
+                    iconRes = R.drawable.ic_admin_exit,
+                    testTag = "admin_bikes_logout_button",
+                    onClick = onLogout
+                )
+                Spacer(Modifier.weight(1f))
+                Text("Велосипеды", color = Color(0xFF141718), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.weight(1f))
+                AdminSquareTopButton(
+                    iconRes = R.drawable.ic_admin_plus,
+                    testTag = "admin_bikes_create_button",
+                    onClick = onCreate
+                )
+            }
+            Spacer(Modifier.height(searchTopPadding))
+            AdminSearchField(
+                value = search,
+                onValueChange = onSearchChange,
+                placeholder = "Поиск: модель, серийный номер",
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+@Composable
+private fun AdminClientCatalogRow(
+    item: AdminClientSummaryResponse,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(77.dp)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 9.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(59.dp)
+                .background(Color(0xFFE3E6EB), RoundedCornerShape(12.dp))
+                .border(
+                    width = 3.dp,
+                    color = avatarBorderColor(item),
+                    shape = RoundedCornerShape(12.dp)
+                )
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Group,
+                contentDescription = null,
+                tint = AppDesign.IconSoft,
+                modifier = Modifier.align(Alignment.Center).size(30.dp)
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                text = item.fullName,
+                color = Color(0xFF111827),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = if (item.bikeModel.isBlank()) "Без велосипеда" else item.bikeModel,
+                color = Color(0x80111827),
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        val status = if (item.debtRub > 0) {
+            RentStatusPill("Долг", money(item.debtRub), Color(0xFFD63034), 108)
+        } else if (item.rentalIsActive) {
+            RentStatusPill("Активен", "Да", Color(0xFF238F47), 108)
+        } else {
+            RentStatusPill("Активен", "Нет", Color(0xFF141718), 108)
+        }
+        Column(
+            modifier = Modifier
+                .width(status.widthDp.dp)
+                .height(44.dp)
+                .background(status.color, RoundedCornerShape(15.dp)),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(status.title, color = Color.White.copy(alpha = 0.85f), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text(status.value, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        }
+    }
+}
+
+@Composable
+private fun AdminBikeCatalogRow(bike: AdminBikeResponse) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(77.dp)
+            .padding(horizontal = 9.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(59.dp)
+                .background(Color(0xFFE3E6EB), RoundedCornerShape(12.dp))
+                .border(
+                    width = 3.dp,
+                    color = if (bike.bikeIsInRental) Color(0xFF34C759) else Color(0xFFCB30E0),
+                    shape = RoundedCornerShape(12.dp)
+                )
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.DirectionsBike,
+                contentDescription = null,
+                tint = AppDesign.IconSoft,
+                modifier = Modifier.align(Alignment.Center).size(32.dp)
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Text(
+                text = bike.bikeModel,
+                color = Color(0xFF111827),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = bike.frameSerialNumber,
+                color = Color(0x80111827),
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        val status = if (bike.bikeIsInRental) {
+            RentStatusPill("Статус", "В аренде", Color(0xFF238F47), 108)
+        } else {
+            RentStatusPill("Статус", "Свободен", Color(0xFF141718), 108)
+        }
+        Column(
+            modifier = Modifier
+                .width(status.widthDp.dp)
+                .height(44.dp)
+                .background(status.color, RoundedCornerShape(15.dp)),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(status.title, color = Color.White.copy(alpha = 0.85f), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            Text(status.value, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        }
     }
 }
 
