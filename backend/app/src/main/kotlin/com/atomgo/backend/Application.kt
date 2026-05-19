@@ -2407,7 +2407,7 @@ fun Application.module() {
                             <div class="hero-card">
                                 <p>Аренда и выкуп электровелосипедов с прозрачными условиями и онлайн-оплатой.</p>
                                 <div class="btn-group">
-                                    <a class="btn btn-primary" href="/requisites">Реквизиты</a>
+                                    <a class="btn btn-primary" href="/payment">Оплата аренды</a>
                                     <a class="btn btn-outline" href="/offer">Публичная оферта</a>
                                     <a class="btn btn-outline" href="/privacy">Политика</a>
                                 </div>
@@ -2443,7 +2443,7 @@ fun Application.module() {
                                     </li>
                                 </ul>
                                 <p style="font-size: 1.2rem; font-weight: 500; margin-bottom: 26px;">Мы всегда на связи и рады помочь с любыми вопросами! 😇</p>
-                                <a href="tel:+79859325907" class="btn btn-primary">Позвонить и арендовать</a>
+                                <p style="font-size: 1.15rem; font-weight: 700; color: var(--emerald);">Телефон: +7(985) 932-59-07</p>
                             </div>
                         </div>
                     </section>
@@ -2659,43 +2659,171 @@ fun Application.module() {
                   <meta name="viewport" content="width=device-width, initial-scale=1.0">
                   <title>Оплата аренды — AtomGo</title>
                   <style>
-                    body { font-family: system-ui, -apple-system, sans-serif; margin: 0; background: #09090b; color: #fff; line-height: 1.6; }
-                    .container { max-width: 900px; margin: 0 auto; padding: 48px 22px; }
-                    .box { background: #18181b; border: 1px solid rgba(255,255,255,.08); border-radius: 20px; padding: 26px; }
-                    h1 { margin-top: 0; }
-                    h2 { color: #10b981; margin-top: 24px; }
-                    p { color: #d4d4d8; }
-                    a { color: #10b981; }
-                    .btns { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 18px; }
-                    .btn {
-                      display: inline-block;
-                      padding: 12px 18px;
-                      border-radius: 12px;
-                      border: 1px solid rgba(255,255,255,.2);
-                      color: #fff;
-                      text-decoration: none;
-                      font-weight: 600;
+                    :root {
+                      --bg-main: #09090b;
+                      --bg-sec: #18181b;
+                      --bg-card: #27272a;
+                      --text-main: #ffffff;
+                      --text-muted: #a1a1aa;
+                      --emerald: #10b981;
+                      --emerald-hover: #059669;
+                      --border-light: rgba(255,255,255,0.05);
+                      --border-strong: rgba(255,255,255,0.2);
                     }
-                    .btn-primary { background: #10b981; border-color: #10b981; color: #fff; }
+                    [data-theme="light"] {
+                      --bg-main: #ffffff;
+                      --bg-sec: #f4f4f5;
+                      --bg-card: #e4e4e7;
+                      --text-main: #09090b;
+                      --text-muted: #52525b;
+                      --emerald: #059669;
+                      --emerald-hover: #047857;
+                      --border-light: rgba(0,0,0,0.1);
+                      --border-strong: rgba(0,0,0,0.3);
+                    }
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    body {
+                      font-family: system-ui, -apple-system, sans-serif;
+                      background-color: var(--bg-main);
+                      color: var(--text-main);
+                      line-height: 1.6;
+                      transition: background-color 0.3s, color 0.3s;
+                    }
+                    .container { max-width: 600px; margin: 0 auto; padding: 60px 24px; }
+                    .btn-outline {
+                      border: 2px solid var(--border-strong);
+                      color: var(--text-main);
+                      padding: 10px 20px;
+                      border-radius: 12px;
+                      display: inline-flex;
+                      align-items: center;
+                      gap: 8px;
+                      margin-bottom: 40px;
+                      font-weight: bold;
+                      transition: all 0.2s;
+                      text-decoration: none;
+                    }
+                    .btn-outline:hover { background: var(--text-main); color: var(--bg-main); }
+                    .pay-card {
+                      background: var(--bg-card);
+                      padding: 36px;
+                      border-radius: 24px;
+                      border: 1px solid var(--border-light);
+                      box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+                      text-align: left;
+                    }
+                    .pay-card h1 { font-size: 2rem; margin-bottom: 10px; font-weight: 900; }
+                    .pay-card p.subtitle { color: var(--text-muted); margin-bottom: 26px; }
+                    .panel {
+                      background: var(--bg-main);
+                      border: 1px solid var(--border-strong);
+                      border-radius: 14px;
+                      padding: 18px;
+                    }
+                    label { display: block; margin-bottom: 8px; color: var(--text-muted); }
+                    input[type="tel"],
+                    select {
+                      width: 100%;
+                      background: var(--bg-card);
+                      color: var(--text-main);
+                      border: 1px solid var(--border-strong);
+                      border-radius: 10px;
+                      padding: 12px;
+                      margin-bottom: 14px;
+                    }
+                    .btn-pay {
+                      width: 100%;
+                      background: var(--emerald);
+                      color: #fff;
+                      border: none;
+                      border-radius: 12px;
+                      padding: 12px 16px;
+                      font-size: 1rem;
+                      font-weight: 700;
+                      cursor: pointer;
+                    }
+                    .btn-pay:hover { background: var(--emerald-hover); }
+                    .hint { color: var(--text-muted); font-size: 0.92rem; margin-top: 12px; }
+                    .status { margin-top: 12px; font-size: 0.92rem; color: #fca5a5; }
                   </style>
                 </head>
                 <body>
                   <div class="container">
-                    <p><a href="/">← На главную</a></p>
-                    <div class="box">
+                    <a href="/" class="btn-outline">← На главную</a>
+                    <div class="pay-card">
                       <h1>Оплата аренды</h1>
-                      <p>Оплата принимается онлайн через YooKassa после подтверждения условий аренды.</p>
-                      <h2>Как проходит оплата</h2>
-                      <p>1. Вы оставляете заявку по телефону.</p>
-                      <p>2. Менеджер подтверждает условия и итоговую сумму.</p>
-                      <p>3. Мы отправляем ссылку на оплату через YooKassa.</p>
-                      <p>4. После оплаты согласовываем выдачу велосипеда.</p>
-                      <div class="btns">
-                        <a class="btn btn-primary" href="tel:+79859325907">Оставить заявку</a>
-                        <a class="btn" href="/requisites">Реквизиты компании</a>
+                      <p class="subtitle">AtomGo</p>
+                      <div class="panel">
+                        <label for="phone">Телефон</label>
+                        <input id="phone" type="tel" placeholder="8XXXXXXXXXX" value="">
+                        <label for="paymentType">Тип платежа</label>
+                        <select id="paymentType">
+                          <option value="week">Неделя</option>
+                          <option value="two_weeks">2 недели</option>
+                          <option value="month">Месяц</option>
+                          <option value="debt_exact">Погасить долг</option>
+                        </select>
+                        <button id="payBtn" class="btn-pay" type="button">Перейти к оплате</button>
+                        <p class="hint">Тестовый сценарий оплаты: для проверки доступен номер <strong>89859325907</strong>.</p>
+                        <div id="status" class="status"></div>
                       </div>
                     </div>
                   </div>
+                  <script>
+                    const statusEl = document.getElementById("status");
+                    const btn = document.getElementById("payBtn");
+                    const typeEl = document.getElementById("paymentType");
+                    const phoneEl = document.getElementById("phone");
+                    const API = "/api/v1";
+                    const LOGIN = "client2";
+                    const PASSWORD = "client234";
+                    const ALLOWED_PHONE = "89859325907";
+
+                    function normalizePhone(raw) {
+                      return (raw || "").replace(/[^0-9]/g, "");
+                    }
+
+                    async function createPaymentFlow() {
+                      statusEl.textContent = "";
+                      const phone = normalizePhone(phoneEl.value);
+                      if (phone !== ALLOWED_PHONE) {
+                        statusEl.textContent = "Для тестовой оплаты используйте номер 89859325907.";
+                        return;
+                      }
+                      btn.disabled = true;
+                      btn.textContent = "Создаём платёж...";
+                      try {
+                        const authRes = await fetch(API + "/auth/login", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ login: LOGIN, password: PASSWORD })
+                        });
+                        if (!authRes.ok) throw new Error("Не удалось авторизоваться клиентом client2");
+                        const auth = await authRes.json();
+                        const token = auth.access_token;
+                        if (!token) throw new Error("Токен авторизации не получен");
+
+                        const payRes = await fetch(API + "/payments/create", {
+                          method: "POST",
+                          headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": "Bearer " + token
+                          },
+                          body: JSON.stringify({ payment_type: typeEl.value })
+                        });
+                        const payJson = await payRes.json().catch(() => ({}));
+                        if (!payRes.ok) throw new Error(payJson.message || "Не удалось создать платёж");
+                        if (!payJson.confirmation_url) throw new Error("YooKassa не вернула ссылку на оплату");
+                        window.location.href = payJson.confirmation_url;
+                      } catch (e) {
+                        statusEl.textContent = e.message || "Ошибка оплаты";
+                      } finally {
+                        btn.disabled = false;
+                        btn.textContent = "Перейти к оплате";
+                      }
+                    }
+                    btn.addEventListener("click", createPaymentFlow);
+                  </script>
                 </body>
                 </html>
                 """.trimIndent(),
