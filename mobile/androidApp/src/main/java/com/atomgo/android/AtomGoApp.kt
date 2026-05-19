@@ -806,27 +806,20 @@ private fun AdminBottomTabBar(
     onTabSelected: (AdminHomeTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val borderColor = Color(red = 218f / 255f, green = 218f / 255f, blue = 218f / 255f)
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .testTag("admin_bottom_tab_bar"),
         color = Color.White,
-        shadowElevation = 2.dp
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(top = 8.dp, bottom = 8.dp)
+                .padding(top = 2.dp, bottom = 2.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(borderColor)
-            )
-            Spacer(Modifier.height(6.dp))
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -886,26 +879,26 @@ private fun AdminBottomTabItem(
         modifier = modifier
             .clickable { onClick(tab) }
             .testTag(tag)
-            .padding(vertical = 2.dp),
+            .padding(vertical = 1.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Icon(
             imageVector = if (isSelected) selectedIcon else unselectedIcon,
             contentDescription = null,
             tint = color,
-            modifier = Modifier.size(if (tab == AdminHomeTab.Bikes) 22.dp else 20.dp)
+            modifier = Modifier.size(if (tab == AdminHomeTab.Bikes) 21.dp else 19.dp)
         )
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(2.dp))
         Text(
             text = title,
             color = color,
-            fontSize = 10.sp,
+            fontSize = 9.sp,
             fontWeight = FontWeight.Bold
         )
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(2.dp))
         Box(
             modifier = Modifier
-                .size(5.dp)
+                .size(4.dp)
                 .background(if (isSelected) Color(0xFF141718) else Color.Transparent, RoundedCornerShape(999.dp))
         )
     }
