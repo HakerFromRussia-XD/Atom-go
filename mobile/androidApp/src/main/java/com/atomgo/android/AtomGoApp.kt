@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -70,6 +71,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -611,39 +613,46 @@ private fun AdminSearchField(
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        singleLine = true,
-        textStyle = TextStyle(
-            fontSize = 13.sp,
-            color = AppDesign.TitleText
-        ),
-        placeholder = {
-            Text(
-                text = "Поиск по клиенту, велосипеду...",
-                fontSize = 13.sp,
-                color = Color(0xFF73747F)
-            )
-        },
-        leadingIcon = {
+    Box(
+        modifier = modifier
+            .height(46.dp)
+            .background(Color.White, RoundedCornerShape(12.84.dp))
+            .border(1.dp, AppDesign.Accent, RoundedCornerShape(12.84.dp))
+            .padding(horizontal = 15.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Icon(
                 imageVector = Icons.Outlined.Search,
                 contentDescription = null,
                 tint = AppDesign.TitleText
             )
-        },
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = Color.White,
-            unfocusedContainerColor = Color.White,
-            focusedBorderColor = AppDesign.Accent,
-            unfocusedBorderColor = AppDesign.Accent,
-            focusedPlaceholderColor = Color(0xFF73747F),
-            unfocusedPlaceholderColor = Color(0xFF73747F)
-        ),
-        shape = RoundedCornerShape(12.84.dp),
-        modifier = modifier.height(46.dp)
-    )
+            Spacer(Modifier.width(10.dp))
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                singleLine = true,
+                textStyle = TextStyle(
+                    fontSize = 13.sp,
+                    color = AppDesign.TitleText
+                ),
+                cursorBrush = SolidColor(AppDesign.TitleText),
+                modifier = Modifier.fillMaxWidth(),
+                decorationBox = { innerTextField ->
+                    if (value.isBlank()) {
+                        Text(
+                            text = "Поиск по клиенту, велосипеду...",
+                            fontSize = 13.sp,
+                            color = Color(0xFF73747F)
+                        )
+                    }
+                    innerTextField()
+                }
+            )
+        }
+    }
 }
 
 @Composable
