@@ -1,8 +1,8 @@
 package com.atomgo.android
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -39,6 +39,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material.icons.filled.Group
@@ -64,6 +67,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -72,9 +76,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -88,6 +94,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.atomgo.shared.api.AdminClientSummaryResponse
 import com.atomgo.shared.api.AdminClientDetailsResponse
@@ -701,6 +708,35 @@ private fun AdminFilterRows(
 }
 
 @Composable
+private fun AdminFilterHitRows(
+    enabled: Boolean,
+    onSelect: (AdminRentFilter) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            AdminFilterHitTarget(width = 84.dp, enabled = enabled) { onSelect(AdminRentFilter.All) }
+            AdminFilterHitTarget(width = 146.dp, enabled = enabled) { onSelect(AdminRentFilter.SoonReturn) }
+            AdminFilterHitTarget(width = 132.dp, enabled = enabled) { onSelect(AdminRentFilter.Debtors) }
+        }
+        AdminFilterHitTarget(width = 108.dp, enabled = enabled) { onSelect(AdminRentFilter.Mine) }
+    }
+}
+
+@Composable
+private fun AdminFilterHitTarget(
+    width: androidx.compose.ui.unit.Dp,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .width(width)
+            .height(36.dp)
+            .clickable(enabled = enabled, onClick = onClick)
+    )
+}
+
+@Composable
 private fun AdminFilterChip(
     title: String,
     count: Int,
@@ -775,14 +811,14 @@ private fun AdminBottomTabBar(
         modifier = modifier
             .fillMaxWidth()
             .testTag("admin_bottom_tab_bar"),
-        color = Color.White.copy(alpha = 0.93f),
+        color = Color.White,
         shadowElevation = 2.dp
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
-                .padding(top = 12.dp, bottom = 22.dp)
+                .padding(top = 8.dp, bottom = 8.dp)
         ) {
             Box(
                 modifier = Modifier
@@ -790,8 +826,13 @@ private fun AdminBottomTabBar(
                     .height(1.dp)
                     .background(borderColor)
             )
-            Spacer(Modifier.height(8.dp))
-            Row(modifier = Modifier.fillMaxWidth()) {
+            Spacer(Modifier.height(6.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 414.dp)
+                    .align(Alignment.CenterHorizontally)
+            ) {
                 AdminBottomTabItem(
                     tab = AdminHomeTab.Rents,
                     selectedTab = selectedTab,
@@ -845,26 +886,26 @@ private fun AdminBottomTabItem(
         modifier = modifier
             .clickable { onClick(tab) }
             .testTag(tag)
-            .padding(vertical = 6.dp),
+            .padding(vertical = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Icon(
             imageVector = if (isSelected) selectedIcon else unselectedIcon,
             contentDescription = null,
             tint = color,
-            modifier = Modifier.size(if (tab == AdminHomeTab.Bikes) 24.dp else 22.dp)
+            modifier = Modifier.size(if (tab == AdminHomeTab.Bikes) 22.dp else 20.dp)
         )
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(4.dp))
         Text(
             text = title,
             color = color,
             fontSize = 10.sp,
             fontWeight = FontWeight.Bold
         )
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(4.dp))
         Box(
             modifier = Modifier
-                .size(6.dp)
+                .size(5.dp)
                 .background(if (isSelected) Color(0xFF141718) else Color.Transparent, RoundedCornerShape(999.dp))
         )
     }
@@ -997,68 +1038,52 @@ private fun AdminHomeScreen(
     ) {
         when (selectedTab) {
             AdminHomeTab.Rents -> {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 8.dp)
-                ) {
-                    Spacer(Modifier.height(statusBarTop))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(62.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        AdminSquareTopButton(
-                            iconRes = R.drawable.ic_admin_exit,
-                            testTag = "admin_logout_button",
-                            onClick = onLogout
-                        )
-                        Spacer(Modifier.weight(1f))
-                        Text(
-                            "Все аренды",
-                            color = Color(0xFF141718),
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier
-                                .testTag("admin_home_title")
-                                .semantics { contentDescription = "admin_home_title" }
-                        )
-                        Spacer(Modifier.weight(1f))
-                        AdminSquareTopButton(
-                            iconRes = R.drawable.ic_admin_plus,
-                            testTag = "admin_create_button"
-                        ) {
-                            showCreateRental = true
+                val horizontalInset = 8.dp
+                val topBarHeight = 62.dp
+                val searchTopPadding = 6.dp
+                val searchHeight = 46.dp
+                val chipsTopGap = 10.dp
+                val chipsHeight = 80.dp
+                val chipsTop = statusBarTop + topBarHeight + searchTopPadding + searchHeight + chipsTopGap
+                val cardsInitialTop = chipsTop + chipsHeight + chipsTopGap
+                val searchMaskHeight = statusBarTop + topBarHeight + searchTopPadding + (searchHeight / 2)
+                val bottomCardsInset = 120.dp
+                val searchMaskHeightPx = with(density) { searchMaskHeight.toPx() }
+                val rentsListState = rememberLazyListState()
+                val filtersInteractive by remember {
+                    derivedStateOf {
+                        when (rentsListState.firstVisibleItemIndex) {
+                            0 -> rentsListState.firstVisibleItemScrollOffset < 10
+                            else -> false
                         }
                     }
+                }
 
-                    Spacer(Modifier.height(6.dp))
-
-                    AdminSearchField(
-                        value = search,
-                        onValueChange = { search = it },
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = horizontalInset)
+                ) {
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .testTag("admin_search_field")
-                    )
-
-                    Spacer(Modifier.height(10.dp))
-
-                    AdminFilterRows(
-                        selectedFilter = filter,
-                        counts = filterCounts,
-                        onSelect = { filter = it }
-                    )
-
-                    Spacer(Modifier.height(10.dp))
+                            .height(chipsHeight)
+                            .offset(y = chipsTop)
+                            .zIndex(1f)
+                    ) {
+                        AdminFilterRows(
+                            selectedFilter = filter,
+                            counts = filterCounts,
+                            onSelect = { filter = it }
+                        )
+                    }
 
                     when {
                         isLoading -> {
                             Box(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f),
+                                    .fillMaxSize()
+                                    .zIndex(2f),
                                 contentAlignment = Alignment.Center
                             ) {
                                 CircularProgressIndicator(color = AppDesign.Accent)
@@ -1068,9 +1093,9 @@ private fun AdminHomeScreen(
                         error != null -> {
                             Column(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f)
-                                    .padding(horizontal = 8.dp),
+                                    .fillMaxSize()
+                                    .padding(top = cardsInitialTop)
+                                    .zIndex(2f),
                                 verticalArrangement = Arrangement.Center
                             ) {
                                 Text("Не удалось загрузить аренды", color = AppDesign.Danger, fontWeight = FontWeight.Bold)
@@ -1082,64 +1107,90 @@ private fun AdminHomeScreen(
                         }
 
                         else -> {
-                            val scrollState = rememberScrollState()
-                            Column(
+                            Crossfade(
+                                targetState = filtered,
+                                animationSpec = tween(durationMillis = 180),
+                                label = "admin_rents_crossfade",
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f)
-                                    .verticalScroll(scrollState)
-                                    .padding(bottom = 124.dp)
-                            ) {
-                                if (filtered.isEmpty()) {
-                                    Surface(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(15.dp),
-                                        color = Color(0xFFFAFBFB),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, AppDesign.Accent)
-                                    ) {
-                                        Column(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(vertical = 30.dp),
-                                            horizontalAlignment = Alignment.CenterHorizontally
+                                    .fillMaxSize()
+                                    .drawWithContent {
+                                        clipRect(
+                                            left = 0f,
+                                            top = searchMaskHeightPx,
+                                            right = size.width,
+                                            bottom = size.height
                                         ) {
-                                            Text("Аренд пока нет", color = AppDesign.TitleText, fontWeight = FontWeight.Bold)
-                                            Spacer(Modifier.height(4.dp))
-                                            Text("Клиентов в каталоге: ${rents.size}", color = AppDesign.SubtleText, fontSize = 13.sp)
+                                            this@drawWithContent.drawContent()
                                         }
                                     }
-                                } else {
-                                    Surface(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .animateContentSize(animationSpec = tween(durationMillis = 180))
-                                            .testTag("admin_rents_container"),
-                                        shape = RoundedCornerShape(15.dp),
-                                        color = Color(0xFFFAFBFB),
-                                        shadowElevation = 8.dp,
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, AppDesign.Accent)
-                                    ) {
-                                        Column(modifier = Modifier.padding(vertical = 5.dp)) {
-                                            filtered.forEachIndexed { index, item ->
-                                                AdminRentCard(
-                                                    item = item,
-                                                    onDetails = {
-                                                        isDetailLoading = true
-                                                        detailPayload = null
-                                                        detailClientId = item.clientId
-                                                        appViewModel.fetchAdminClientDetails(session.accessToken, item.clientId) { result ->
-                                                            result.onSuccess {
-                                                                detailPayload = it
-                                                                isDetailLoading = false
-                                                            }.onFailure {
-                                                                adminMessage = "Ошибка загрузки деталей: ${it.message}"
-                                                                isDetailLoading = false
+                                    .zIndex(2f)
+                            ) { visibleRents ->
+                                LazyColumn(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .testTag("admin_rents_list"),
+                                    state = rentsListState,
+                                    contentPadding = PaddingValues(bottom = bottomCardsInset)
+                                ) {
+                                    item("admin_rents_top_spacer") {
+                                        Spacer(Modifier.height(cardsInitialTop))
+                                    }
+                                    if (visibleRents.isEmpty()) {
+                                        item("admin_rents_empty") {
+                                            Surface(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(top = 14.dp),
+                                                shape = RoundedCornerShape(15.dp),
+                                                color = Color(0xFFFAFBFB),
+                                                border = androidx.compose.foundation.BorderStroke(1.dp, AppDesign.Accent)
+                                            ) {
+                                                Column(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .padding(vertical = 30.dp),
+                                                    horizontalAlignment = Alignment.CenterHorizontally
+                                                ) {
+                                                    Text("Аренд пока нет", color = AppDesign.TitleText, fontWeight = FontWeight.Bold)
+                                                    Spacer(Modifier.height(4.dp))
+                                                    Text("Клиентов в каталоге: ${rents.size}", color = AppDesign.SubtleText, fontSize = 13.sp)
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        item("admin_rents_container") {
+                                            Surface(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .testTag("admin_rents_container"),
+                                                shape = RoundedCornerShape(15.dp),
+                                                color = Color(0xFFFAFBFB),
+                                                shadowElevation = 8.dp,
+                                                border = androidx.compose.foundation.BorderStroke(1.dp, AppDesign.Accent)
+                                            ) {
+                                                Column(modifier = Modifier.padding(vertical = 5.dp)) {
+                                                    visibleRents.forEachIndexed { index, item ->
+                                                        AdminRentCard(
+                                                            item = item,
+                                                            onDetails = {
+                                                                isDetailLoading = true
+                                                                detailPayload = null
+                                                                detailClientId = item.clientId
+                                                                appViewModel.fetchAdminClientDetails(session.accessToken, item.clientId) { result ->
+                                                                    result.onSuccess {
+                                                                        detailPayload = it
+                                                                        isDetailLoading = false
+                                                                    }.onFailure {
+                                                                        adminMessage = "Ошибка загрузки деталей: ${it.message}"
+                                                                        isDetailLoading = false
+                                                                    }
+                                                                }
                                                             }
+                                                        )
+                                                        if (index < visibleRents.lastIndex) {
+                                                            HorizontalDivider(color = Color(0xFFEAEAF0), thickness = 1.dp)
                                                         }
                                                     }
-                                                )
-                                                if (index < filtered.lastIndex) {
-                                                    HorizontalDivider(color = Color(0xFFEAEAF0), thickness = 1.dp)
                                                 }
                                             }
                                         }
@@ -1147,6 +1198,74 @@ private fun AdminHomeScreen(
                                 }
                             }
                         }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(chipsHeight)
+                            .offset(y = chipsTop)
+                            .zIndex(3.5f)
+                    ) {
+                        AdminFilterHitRows(
+                            enabled = filtersInteractive,
+                            onSelect = { filter = it }
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(searchMaskHeight)
+                            .background(AppDesign.PageBackground)
+                            .zIndex(3f)
+                    )
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .zIndex(4f)
+                    ) {
+                        Spacer(Modifier.height(statusBarTop))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(topBarHeight),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            AdminSquareTopButton(
+                                iconRes = R.drawable.ic_admin_exit,
+                                testTag = "admin_logout_button",
+                                onClick = onLogout
+                            )
+                            Spacer(Modifier.weight(1f))
+                            Text(
+                                "Все аренды",
+                                color = Color(0xFF141718),
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier
+                                    .testTag("admin_home_title")
+                                    .semantics { contentDescription = "admin_home_title" }
+                            )
+                            Spacer(Modifier.weight(1f))
+                            AdminSquareTopButton(
+                                iconRes = R.drawable.ic_admin_plus,
+                                testTag = "admin_create_button"
+                            ) {
+                                showCreateRental = true
+                            }
+                        }
+
+                        Spacer(Modifier.height(searchTopPadding))
+
+                        AdminSearchField(
+                            value = search,
+                            onValueChange = { search = it },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("admin_search_field")
+                        )
                     }
                 }
             }

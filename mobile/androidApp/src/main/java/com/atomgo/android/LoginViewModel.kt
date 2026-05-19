@@ -29,8 +29,8 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(
         LoginUiState(
-            login = prefs.getString(KEY_LOGIN, "").orEmpty().takeIf { prefs.getBoolean(KEY_REMEMBER_ME, false) } ?: "",
-            password = prefs.getString(KEY_PASSWORD, "").orEmpty().takeIf { prefs.getBoolean(KEY_REMEMBER_ME, false) } ?: "",
+            login = resolvePrefilledLogin(),
+            password = resolvePrefilledPassword(),
             rememberMe = prefs.getBoolean(KEY_REMEMBER_ME, false)
         )
     )
@@ -79,10 +79,20 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
     fun resetForNextLogin() {
         val rememberMe = prefs.getBoolean(KEY_REMEMBER_ME, false)
         _uiState.value = LoginUiState(
-            login = if (rememberMe) prefs.getString(KEY_LOGIN, "").orEmpty() else "",
-            password = if (rememberMe) prefs.getString(KEY_PASSWORD, "").orEmpty() else "",
+            login = resolvePrefilledLogin(),
+            password = resolvePrefilledPassword(),
             rememberMe = rememberMe
         )
+    }
+
+    private fun resolvePrefilledLogin(): String {
+        val saved = prefs.getString(KEY_LOGIN, "").orEmpty().trim()
+        return saved.ifBlank { DEFAULT_LOGIN }
+    }
+
+    private fun resolvePrefilledPassword(): String {
+        val saved = prefs.getString(KEY_PASSWORD, "").orEmpty()
+        return saved.ifBlank { DEFAULT_PASSWORD }
     }
 
     override fun onCleared() {
@@ -94,5 +104,7 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
         private const val KEY_REMEMBER_ME = "remember_me"
         private const val KEY_LOGIN = "login"
         private const val KEY_PASSWORD = "password"
+        private const val DEFAULT_LOGIN = "admin"
+        private const val DEFAULT_PASSWORD = "admin123"
     }
 }

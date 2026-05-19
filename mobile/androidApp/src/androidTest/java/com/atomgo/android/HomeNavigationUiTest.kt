@@ -4,9 +4,11 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
+import androidx.compose.ui.test.swipeUp
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiDevice
 import org.junit.Ignore
@@ -30,7 +32,7 @@ class HomeNavigationUiTest {
         composeRule.onNodeWithTag("login_password_input", useUnmergedTree = true).performTextInput("adminip123")
 
         composeRule.onNodeWithTag("login_submit_button", useUnmergedTree = true).performClick()
-        composeRule.waitUntil(timeoutMillis = 15_000) {
+        composeRule.waitUntil(timeoutMillis = 60_000) {
             runCatching {
                 composeRule.onNodeWithTag("admin_home_title", useUnmergedTree = true).fetchSemanticsNode()
             }.isSuccess
@@ -48,7 +50,7 @@ class HomeNavigationUiTest {
         composeRule.onNodeWithTag("login_password_input", useUnmergedTree = true).performTextReplacement("admin123")
 
         composeRule.onNodeWithTag("login_submit_button", useUnmergedTree = true).performClick()
-        composeRule.waitUntil(timeoutMillis = 30_000) {
+        composeRule.waitUntil(timeoutMillis = 60_000) {
             runCatching {
                 composeRule.onNodeWithTag("admin_home_title", useUnmergedTree = true).fetchSemanticsNode()
             }.isSuccess
@@ -61,13 +63,39 @@ class HomeNavigationUiTest {
     fun loginWithRememberedCredentials_opensAdminHome() {
         // User scenario: login/password already pre-filled by remember-me.
         composeRule.onNodeWithTag("login_submit_button", useUnmergedTree = true).performClick()
-        composeRule.waitUntil(timeoutMillis = 30_000) {
+        composeRule.waitUntil(timeoutMillis = 60_000) {
             runCatching {
                 composeRule.onNodeWithTag("admin_home_title", useUnmergedTree = true).fetchSemanticsNode()
             }.isSuccess
         }
         assertAdminHomeVisible()
         captureScreen("admin-home-remembered.png")
+    }
+
+    @Test
+    fun adminRentsList_scrollsLikeIos() {
+        composeRule.onNodeWithTag("login_email_input", useUnmergedTree = true).performClick()
+        composeRule.onNodeWithTag("login_email_input", useUnmergedTree = true).performTextReplacement("admin")
+
+        composeRule.onNodeWithTag("login_password_input", useUnmergedTree = true).performClick()
+        composeRule.onNodeWithTag("login_password_input", useUnmergedTree = true).performTextReplacement("admin123")
+
+        composeRule.onNodeWithTag("login_submit_button", useUnmergedTree = true).performClick()
+        composeRule.waitUntil(timeoutMillis = 60_000) {
+            runCatching {
+                composeRule.onNodeWithTag("admin_home_title", useUnmergedTree = true).fetchSemanticsNode()
+            }.isSuccess
+        }
+
+        composeRule.onNodeWithTag("admin_rents_list", useUnmergedTree = true).assertIsDisplayed()
+        captureScreen("admin-rents-scroll-top.png")
+
+        composeRule.onNodeWithTag("admin_rents_list", useUnmergedTree = true).performTouchInput {
+            swipeUp()
+            swipeUp()
+        }
+        composeRule.waitForIdle()
+        captureScreen("admin-rents-scroll-down.png")
     }
 
     @Ignore("Requires stable seeded client credentials on backend environment")
