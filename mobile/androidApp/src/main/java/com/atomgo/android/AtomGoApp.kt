@@ -1733,6 +1733,12 @@ private fun AdminHomeScreen(
             isLoading = isDetailLoading,
             onClose = { detailClientId = null },
             onRetry = { detailClientId?.let(::openClientDetails) },
+            onEditProfile = {
+                showUpdateClient = true
+            },
+            onDeleteClient = { clientId ->
+                confirmDeleteClientId = clientId
+            },
             onOpenRental = { preview ->
                 selectedRentalDetails = preview
                 isRentalDetailsLoading = false
@@ -1750,6 +1756,15 @@ private fun AdminHomeScreen(
             details = selectedRentalDetails,
             isLoading = isRentalDetailsLoading,
             onClose = { selectedRentalDetails = null },
+            onOpenClient = {
+                val clientId = selectedRentalDetails?.clientId?.trim().orEmpty()
+                selectedRentalDetails = null
+                if (clientId.isNotEmpty()) {
+                    openClientDetails(clientId)
+                } else {
+                    adminMessage = "Клиент для этой аренды не найден"
+                }
+            },
             onDelete = {
                 val rentalId = selectedRentalDetails?.rentalId ?: return@AdminRentalDetailsScreenAndroid
                 appViewModel.deleteAdminRental(session.accessToken, rentalId) { result ->
@@ -1921,7 +1936,11 @@ private fun AdminClientsCatalogScreen(
                             ) {
                                 Column(modifier = Modifier.padding(vertical = 5.dp)) {
                                     visibleClients.forEachIndexed { index, item ->
-                                        AdminClientCatalogRow(item = item, onClick = { onOpenClient(item) })
+                                        AdminClientCatalogRow(
+                                            item = item,
+                                            isFirst = index == 0,
+                                            onClick = { onOpenClient(item) }
+                                        )
                                         if (index < visibleClients.lastIndex) {
                                             HorizontalDivider(color = Color(0xFFEAEAF0), thickness = 1.dp)
                                         }
@@ -2228,6 +2247,7 @@ private fun AdminBikesCatalogScreen(
 @Composable
 private fun AdminClientCatalogRow(
     item: AdminClientSummaryResponse,
+    isFirst: Boolean = false,
     onClick: () -> Unit
 ) {
     Row(
@@ -2235,7 +2255,8 @@ private fun AdminClientCatalogRow(
             .fillMaxWidth()
             .height(77.dp)
             .clickable(onClick = onClick)
-            .padding(horizontal = 9.dp),
+            .padding(horizontal = 9.dp)
+            .testTag(if (isFirst) "admin_client_row_first" else "admin_client_row_${item.clientId}"),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
@@ -2350,6 +2371,8 @@ private fun AdminClientDetailsScreen(
     isLoading: Boolean,
     onClose: () -> Unit,
     onRetry: () -> Unit,
+    onEditProfile: () -> Unit,
+    onDeleteClient: (String) -> Unit,
     onOpenRental: (AdminRentalPreview) -> Unit
 ) {
     Box(
@@ -2379,12 +2402,49 @@ private fun AdminClientDetailsScreen(
                 Spacer(Modifier.weight(1f))
                 Text("Клиент", color = AppDesign.TitleText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.weight(1f))
-                Spacer(Modifier.size(47.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = onEditProfile,
+                        contentPadding = PaddingValues(0.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, AppDesign.Accent),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color.White,
+                            contentColor = AppDesign.Accent
+                        ),
+                        modifier = Modifier
+                            .size(47.dp)
+                            .testTag("admin_client_details_edit")
+                    ) {
+                        Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(15.dp))
+                    }
+                    val canDelete = details?.rentals?.isEmpty() == true
+                    OutlinedButton(
+                        onClick = { details?.clientId?.let(onDeleteClient) },
+                        enabled = canDelete,
+                        contentPadding = PaddingValues(0.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, AppDesign.Danger),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color.White,
+                            contentColor = AppDesign.Danger
+                        ),
+                        modifier = Modifier
+                            .size(47.dp)
+                            .alpha(if (canDelete) 1f else 0.45f)
+                            .testTag("admin_client_details_delete")
+                    ) {
+                        Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(15.dp))
+                    }
+                }
             }
 
             when {
                 isLoading && details == null -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Box(
+                        modifier = Modifier.fillMaxSize().testTag("admin_client_details_loading"),
+                        contentAlignment = Alignment.Center
+                    ) {
                         CircularProgressIndicator(color = AppDesign.Accent)
                     }
                 }
@@ -2403,15 +2463,19 @@ private fun AdminClientDetailsScreen(
                 }
                 else -> {
                     val d = details
+                    val hasOpenRental = d.rentals.any { it.periodEnd.isNullOrBlank() }
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
                             .verticalScroll(rememberScrollState())
-                            .padding(top = 8.dp, bottom = 120.dp),
+                            .padding(top = 8.dp, bottom = 120.dp)
+                            .testTag("admin_client_details_content"),
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         Surface(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("admin_client_details_card"),
                             shape = RoundedCornerShape(15.dp),
                             color = Color(0xFFFAFBFB),
                             shadowElevation = 8.dp,
@@ -2420,19 +2484,109 @@ private fun AdminClientDetailsScreen(
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(20.dp),
+                                    .padding(horizontal = 20.dp, vertical = 20.dp),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
+                                if (hasOpenRental) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(80.dp)
+                                                .background(Color(0xFFE3E6EB), RoundedCornerShape(14.dp))
+                                                .border(3.dp, Color(0xFF34C759), RoundedCornerShape(14.dp)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.DirectionsBike,
+                                                contentDescription = null,
+                                                tint = AppDesign.IconSoft,
+                                                modifier = Modifier.size(42.dp)
+                                            )
+                                        }
+                                        Spacer(Modifier.width(14.dp))
+                                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Text(
+                                                normalizeCatalogBikeModel(d.bikeModel).ifBlank { "—" },
+                                                color = AppDesign.TitleText,
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 2,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                "${formatRubAmount(d.weeklyRateRub)} ₽/нед",
+                                                color = AppDesign.SubtleText,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Medium
+                                            )
+                                            Box(
+                                                modifier = Modifier
+                                                    .background(Color(0xFF34C759), RoundedCornerShape(999.dp))
+                                                    .padding(horizontal = 10.dp, vertical = 5.dp)
+                                            ) {
+                                                Text(
+                                                    "Активный",
+                                                    color = Color.White,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
+                                        }
+                                    }
+                                    HorizontalDivider(
+                                        modifier = Modifier.padding(top = 4.dp),
+                                        color = Color(0xFFEAEAF0)
+                                    )
+                                } else {
+                                    Box(
+                                        modifier = Modifier
+                                            .background(Color(0xFF141718), RoundedCornerShape(999.dp))
+                                            .padding(horizontal = 10.dp, vertical = 5.dp)
+                                    ) {
+                                        Text(
+                                            "Неактивный",
+                                            color = Color.White,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+
                                 Text(d.fullName, color = AppDesign.TitleText, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                                 Text(clientCatalogSubtitleFromDetails(d), color = AppDesign.SubtleText, fontSize = 14.sp)
-                                Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(20.dp), modifier = Modifier.fillMaxWidth()) {
                                     MetricStack("Оплачено", money(d.totalPaidRub), AppDesign.Success)
                                     MetricStack("Долг", money(d.debtRub), if (d.debtRub > 0) AppDesign.Danger else AppDesign.TitleText)
                                     MetricStack("Коррект.", money(d.totalAdjustmentRub), AppDesign.TitleText)
                                 }
+                                if (d.carriedDebtRub > 0) {
+                                    HorizontalDivider(color = Color(0xFFEAEAF0))
+                                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        Text(
+                                            "ПЕРЕНЕСЁННЫЙ ДОЛГ",
+                                            color = AppDesign.SubtleText,
+                                            fontSize = 9.sp,
+                                            letterSpacing = 0.36.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        Text(
+                                            money(d.carriedDebtRub),
+                                            color = AppDesign.Danger,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
                             }
                         }
 
+                        Text(
+                            "ПРОФИЛЬ",
+                            color = AppDesign.SubtleText,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.88.sp
+                        )
                         AdminDetailsReadonlyField("ФИО", d.fullName)
                         AdminDetailsReadonlyField("Адрес", d.address)
                         AdminDetailsReadonlyField("Паспорт", d.passportData)
@@ -2452,10 +2606,14 @@ private fun AdminClientDetailsScreen(
                             Text("История аренд пока пустая", color = AppDesign.SubtleText, fontSize = 13.sp)
                         } else {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                d.rentals.forEach { rental ->
+                                d.rentals.forEachIndexed { index, rental ->
                                     Surface(
                                         modifier = Modifier
                                             .fillMaxWidth()
+                                            .testTag(
+                                                if (index == 0) "admin_client_history_row_first"
+                                                else "admin_client_history_row_${rental.rentalId}"
+                                            )
                                             .clickable {
                                                 onOpenRental(AdminRentalPreview.fromHistory(client = d, rental = rental))
                                             },
@@ -2513,6 +2671,7 @@ private fun AdminRentalDetailsScreenAndroid(
     details: AdminRentalPreview?,
     isLoading: Boolean,
     onClose: () -> Unit,
+    onOpenClient: () -> Unit,
     onDelete: () -> Unit
 ) {
     Box(
@@ -2560,48 +2719,152 @@ private fun AdminRentalDetailsScreenAndroid(
             }
 
             if (isLoading || details == null) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Box(
+                    modifier = Modifier.fillMaxSize().testTag("admin_rental_details_loading"),
+                    contentAlignment = Alignment.Center
+                ) {
                     CircularProgressIndicator(color = AppDesign.Accent)
                 }
             } else {
-                Surface(
+                Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    shape = RoundedCornerShape(15.dp),
-                    color = Color(0xFFFAFBFB),
-                    shadowElevation = 8.dp,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, AppDesign.Accent)
+                        .fillMaxSize()
+                        .testTag("admin_rental_details_content")
                 ) {
-                    Column(
+                    Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 19.dp, vertical = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                            .padding(top = 8.dp),
+                        shape = RoundedCornerShape(15.dp),
+                        color = Color(0xFFFAFBFB),
+                        shadowElevation = 8.dp,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, AppDesign.Accent)
                     ) {
-                        Text(details.bikeModel, color = AppDesign.TitleText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                        Text(details.clientName, color = AppDesign.SubtleText, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                        Text(
-                            "${formatLongRuDate(details.periodStart)} – ${details.periodEnd?.let(::formatLongRuDate) ?: "н.в."}",
-                            color = AppDesign.SubtleText,
-                            fontSize = 13.sp
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                            MetricStack("Оплата", money(details.totalPaidRub), AppDesign.Success)
-                            MetricStack("Долг", money(details.debtRub), if (details.debtRub > 0) AppDesign.Danger else AppDesign.TitleText)
-                            MetricStack("Коррект.", money(details.totalAdjustmentRub), AppDesign.TitleText)
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 19.dp, vertical = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.Top) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(80.dp)
+                                        .background(Color(0xFFE3E6EB), RoundedCornerShape(18.dp))
+                                        .border(3.dp, rentalPreviewBorderColor(details), RoundedCornerShape(18.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.DirectionsBike,
+                                        contentDescription = null,
+                                        tint = AppDesign.IconSoft,
+                                        modifier = Modifier.size(42.dp)
+                                    )
+                                }
+                                Spacer(Modifier.width(12.dp))
+                                Column(
+                                    modifier = Modifier.weight(1f),
+                                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                                ) {
+                                    Text(details.bikeModel, color = AppDesign.TitleText, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                    Text("${formatRubAmount(details.weeklyRateRub)} ₽/нед", color = AppDesign.SubtleText, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                                    rentalPreviewStatusPill(details)
+                                }
+                            }
+
+                            HorizontalDivider(color = Color(0xFFEAEAF0))
+                            Row(horizontalArrangement = Arrangement.spacedBy(20.dp), modifier = Modifier.fillMaxWidth()) {
+                                MetricStack("Оплачено", money(details.totalPaidRub), AppDesign.Success)
+                                MetricStack("Долг", money(details.debtRub), if (details.debtRub > 0) AppDesign.Danger else AppDesign.TitleText)
+                                MetricStack("Коррект.", money(details.totalAdjustmentRub), AppDesign.TitleText)
+                            }
+                            HorizontalDivider(color = Color(0xFFEAEAF0))
+                            AdminDetailsReadonlyField("Период", "${formatLongRuDate(details.periodStart)} – ${details.periodEnd?.let(::formatLongRuDate) ?: "н.в."}")
+                            AdminDetailsReadonlyField("Арендатор", details.clientName)
+                            AdminDetailsReadonlyField("Логин", if (details.sourceLabel == "lifecycle") "Черновик lifecycle" else "—")
+                            AdminDetailsReadonlyField("Пароль", "—")
+                            if (!details.comment.isNullOrBlank()) {
+                                AdminDetailsReadonlyField("Комментарий", details.comment)
+                            }
+                            AdminDetailsReadonlyField("Тип записи", rentalSourceTitle(details.sourceLabel))
                         }
-                        if (!details.comment.isNullOrBlank()) {
-                            AdminDetailsReadonlyField("Комментарий", details.comment)
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = onOpenClient,
+                            shape = RoundedCornerShape(16.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, AppDesign.Accent),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = Color.White,
+                                contentColor = AppDesign.Accent
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(52.dp)
+                                .testTag("admin_rental_details_secondary_action")
+                        ) {
+                            Text("К арендатору", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                         }
-                        AdminDetailsReadonlyField("Тип записи", details.sourceLabel)
-                        if (details.weeklyRateRub > 0) {
-                            AdminDetailsReadonlyField("Тариф", "${formatRubAmount(details.weeklyRateRub)} ₽/нед")
+                        Button(
+                            onClick = onDelete,
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = AppDesign.Danger,
+                                contentColor = Color.White
+                            ),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(52.dp)
+                                .testTag("admin_rental_details_primary_action")
+                        ) {
+                            Text("Удалить", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun rentalPreviewStatusPill(details: AdminRentalPreview) {
+    val isClosed = !details.periodEnd.isNullOrBlank()
+    val title = when {
+        isClosed -> "Завершена"
+        details.sourceLabel == "lifecycle" -> "В стоке"
+        else -> "Активная"
+    }
+    val color = when {
+        isClosed -> Color(0xFF6B7280)
+        details.sourceLabel == "lifecycle" -> Color(0xFFCB30E0)
+        else -> Color(0xFF34C759)
+    }
+    Box(
+        modifier = Modifier
+            .background(color, RoundedCornerShape(999.dp))
+            .padding(horizontal = 10.dp, vertical = 5.dp)
+    ) {
+        Text(
+            text = title,
+            color = Color.White,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+private fun rentalPreviewBorderColor(details: AdminRentalPreview): Color {
+    if (!details.periodEnd.isNullOrBlank()) return Color(0xFF6B7280)
+    return if (details.sourceLabel == "lifecycle") Color(0xFFCB30E0) else Color(0xFF34C759)
+}
+
+private fun rentalSourceTitle(raw: String): String {
+    return when (raw) {
+        "lifecycle" -> "Lifecycle"
+        "active_client_rental" -> "Активная client_rental"
+        "closed_client_rental" -> "Завершенная client_rental"
+        else -> raw
     }
 }
 

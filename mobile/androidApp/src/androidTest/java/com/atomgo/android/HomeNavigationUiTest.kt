@@ -175,6 +175,53 @@ class HomeNavigationUiTest {
         composeRule.onNodeWithTag("create_bike_cancel_button", useUnmergedTree = true).performClick()
     }
 
+    @Test
+    fun adminDetailsScreens_openAndCapture() {
+        loginAsAdminClassicWithFallback()
+        var rentalCapturedFromRents = false
+
+        if (waitForTag("admin_rent_card_first", timeoutMillis = 8_000)) {
+            composeRule.onNodeWithTag("admin_rent_card_first", useUnmergedTree = true).performClick()
+            composeRule.waitUntil(timeoutMillis = 60_000) {
+                runCatching {
+                    composeRule.onNodeWithTag("admin_rental_details_content", useUnmergedTree = true).fetchSemanticsNode()
+                }.isSuccess
+            }
+            composeRule.onNodeWithTag("admin_rental_details_content", useUnmergedTree = true).assertIsDisplayed()
+            captureScreen("admin-rental-details-screen.png")
+            rentalCapturedFromRents = true
+            composeRule.onNodeWithTag("admin_rental_details_back", useUnmergedTree = true).performClick()
+        }
+
+        composeRule.onNodeWithTag("admin_tab_clients", useUnmergedTree = true).performClick()
+        composeRule.waitUntil(timeoutMillis = 60_000) {
+            runCatching {
+                composeRule.onNodeWithTag("admin_clients_list", useUnmergedTree = true).fetchSemanticsNode()
+            }.isSuccess
+        }
+        composeRule.onNodeWithTag("admin_client_row_first", useUnmergedTree = true).performClick()
+        composeRule.waitUntil(timeoutMillis = 60_000) {
+            runCatching {
+                composeRule.onNodeWithTag("admin_client_details_content", useUnmergedTree = true).fetchSemanticsNode()
+            }.isSuccess
+        }
+        composeRule.onNodeWithTag("admin_client_details_content", useUnmergedTree = true).assertIsDisplayed()
+        captureScreen("admin-client-details-screen.png")
+
+        if (waitForTag("admin_client_history_row_first", timeoutMillis = 8_000)) {
+            composeRule.onNodeWithTag("admin_client_history_row_first", useUnmergedTree = true).performClick()
+            composeRule.waitUntil(timeoutMillis = 60_000) {
+                runCatching {
+                    composeRule.onNodeWithTag("admin_rental_details_content", useUnmergedTree = true).fetchSemanticsNode()
+                }.isSuccess
+            }
+            if (!rentalCapturedFromRents) {
+                captureScreen("admin-rental-details-screen.png")
+            }
+            captureScreen("admin-client-rental-details-screen.png")
+        }
+    }
+
     private fun loginAsAdminClassicWithFallback() {
         composeRule.onNodeWithTag("login_submit_button", useUnmergedTree = true).performClick()
         if (waitForTag("admin_home_title", timeoutMillis = 8_000)) return
