@@ -3,8 +3,8 @@ package com.atomgo.android
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.atomgo.shared.api.AtomGoApiClient
-import com.atomgo.shared.api.UserRole
+import com.atomgo.android.data.repository.DefaultAuthRepository
+import com.atomgo.android.domain.repository.AuthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,16 +24,9 @@ data class LoginUiState(
 }
 
 class LoginViewModel(application: Application) : AndroidViewModel(application) {
-    private val prefs = application.getSharedPreferences("atomgo_login", 0)
-    private val apiClient = AtomGoApiClient(BackendConfig.BASE_URL)
+    private val authRepository: AuthRepository = DefaultAuthRepository(application)
 
-    private val _uiState = MutableStateFlow(
-        LoginUiState(
-            login = resolvePrefilledLogin(),
-            password = resolvePrefilledPassword(),
-            rememberMe = prefs.getBoolean(KEY_REMEMBER_ME, false)
-        )
-    )
+    private val _uiState = MutableStateFlow(initialState())
     val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
 
     fun onLoginChanged(value: String) = _uiState.update { it.copy(login = value) }
@@ -41,10 +34,7 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setRememberMe(enabled: Boolean) {
         _uiState.update { it.copy(rememberMe = enabled) }
-        prefs.edit().putBoolean(KEY_REMEMBER_ME, enabled).apply()
-        if (!enabled) {
-            prefs.edit().remove(KEY_LOGIN).remove(KEY_PASSWORD).apply()
-        }
+        authRepository.setRememberMe(enabled)
     }
 
     fun signIn(onAuthenticated: (AuthSession) -> Unit) {
@@ -59,9 +49,9 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(statusText = "Статус: выполняю вход...", isLoading = true) }
         viewModelScope.launch {
             try {
-                val session = apiClient.login(login, password)
+                val session = authRepository.login(login, password)
                 if (_uiState.value.rememberMe) {
-                    prefs.edit().putString(KEY_LOGIN, login).putString(KEY_PASSWORD, password).apply()
+                    authRepository.saveCredentials(login = login, password = password)
                 }
                 _uiState.update {
                     it.copy(
@@ -77,34 +67,15 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun resetForNextLogin() {
-        val rememberMe = prefs.getBoolean(KEY_REMEMBER_ME, false)
-        _uiState.value = LoginUiState(
-            login = resolvePrefilledLogin(),
-            password = resolvePrefilledPassword(),
-            rememberMe = rememberMe
+        _uiState.value = initialState()
+    }
+
+    private fun initialState(): LoginUiState {
+        val rememberState = authRepository.readRememberState()
+        return LoginUiState(
+            login = rememberState.login,
+            password = rememberState.password,
+            rememberMe = rememberState.rememberMe
         )
-    }
-
-    private fun resolvePrefilledLogin(): String {
-        val saved = prefs.getString(KEY_LOGIN, "").orEmpty().trim()
-        return saved.ifBlank { DEFAULT_LOGIN }
-    }
-
-    private fun resolvePrefilledPassword(): String {
-        val saved = prefs.getString(KEY_PASSWORD, "").orEmpty()
-        return saved.ifBlank { DEFAULT_PASSWORD }
-    }
-
-    override fun onCleared() {
-        apiClient.close()
-        super.onCleared()
-    }
-
-    companion object {
-        private const val KEY_REMEMBER_ME = "remember_me"
-        private const val KEY_LOGIN = "login"
-        private const val KEY_PASSWORD = "password"
-        private const val DEFAULT_LOGIN = "admin"
-        private const val DEFAULT_PASSWORD = "admin123"
     }
 }

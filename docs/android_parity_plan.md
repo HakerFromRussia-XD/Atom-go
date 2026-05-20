@@ -142,3 +142,16 @@ Build Android app behavior, UX, animations, and flows 1:1 with current iOS imple
 - 2026-05-21: Rental pipeline logic parity step: synced Android rent-card pipeline menu behavior with iOS semantics (`long_term` selected for every active non-`soon_return`, `soon_return` selected only for `soon_return`, `mine` selected for inactive rental), and aligned menu caption to iOS wording (`Вернут в течении недели`).
 - 2026-05-21: Rental details action parity step: confirmed bottom actions on Android rental details card are now iOS-equivalent (`+ Корректировка` and `Завершить`) with state-based enablement.
 - 2026-05-21: UI test + screenshot report step: added and passed focused instrumentation scenario `HomeNavigationUiTest#adminRentPipelineModes_switchAndFilterSoonReturn` on `emulator-5554`; captured fresh evidence at `.tmp_screens_step41/admin-rent-pipeline-menu-step41.png` and `.tmp_screens_step41/admin-rent-soon-return-filter-step41.png`.
+- 2026-05-21: Clean Architecture foundation step: introduced explicit `domain` and `data` layers for Android app (`domain/repository/*`, `domain/model/*`, `data/repository/*`) and moved raw API calls out of `ViewModel` classes into repository implementations.
+- 2026-05-21: MVVM boundary hardening step: migrated `LoginViewModel` and `AppViewModel` to repository-driven orchestration (UI state + intents in ViewModel, side effects in data layer), preserving existing auth/client/admin flows.
+- 2026-05-21: Monolith split step: decomposed former `AtomGoApp.kt` (5375 lines) into focused UI files:
+  `AtomGoApp.kt` (app/login/client root),
+  `AdminHomeScreen.kt` (admin home shell/navigation/filters),
+  `AdminCatalogDetails.kt` (catalog rows + details screens),
+  `AdminFormsAndPickers.kt` (create/update dialogs, pickers, shared form components).
+- 2026-05-21: Regression verification step after architecture refactor: `:mobile:androidApp:assembleDebug` is green and focused instrumentation test `HomeNavigationUiTest#loginAsAdminClassic_opensAdminHome` is green on `emulator-5554`.
+- 2026-05-21: Feature-ViewModel split step: extracted `ClientHomeViewModel` and `AdminHomeViewModel` from generic `AppViewModel` so app routing/session state and feature-side effects are separated by responsibility.
+- 2026-05-21: Screen wiring step: switched `ClientHomeScreen` to `ClientHomeViewModel` and `AdminHomeScreen` to `AdminHomeViewModel`; `MainActivity` now provides dedicated ViewModel instances for route/login/client/admin layers.
+- 2026-05-21: Stability verification step after ViewModel split: `:mobile:androidApp:assembleDebug` is green; focused UI login flow test on emulator had one transient timeout run and then passed on immediate rerun (`HomeNavigationUiTest#loginAsAdminClassic_opensAdminHome`).
+- 2026-05-21: Testability hardening step: made `ClientHomeViewModel` and `AdminHomeViewModel` repository-injectable (default production repos + constructor injection for tests), enabling isolated unit tests for feature ViewModel behavior.
+- 2026-05-21: Unit test coverage step: added new local unit tests `ClientHomeViewModelTest` and `AdminHomeViewModelTest` with coroutine main-dispatcher rule (`MainDispatcherRule`), and ran `:mobile:androidApp:testDebugUnitTest` successfully together with `:mobile:androidApp:assembleDebug`.

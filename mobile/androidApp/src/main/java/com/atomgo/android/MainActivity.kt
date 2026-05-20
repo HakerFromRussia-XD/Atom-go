@@ -9,6 +9,8 @@ import androidx.activity.viewModels
 class MainActivity : ComponentActivity() {
     private val appViewModel: AppViewModel by viewModels()
     private val loginViewModel: LoginViewModel by viewModels()
+    private val clientHomeViewModel: ClientHomeViewModel by viewModels()
+    private val adminHomeViewModel: AdminHomeViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -16,7 +18,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             AtomGoApp(
                 appViewModel = appViewModel,
-                loginViewModel = loginViewModel
+                loginViewModel = loginViewModel,
+                clientHomeViewModel = clientHomeViewModel,
+                adminHomeViewModel = adminHomeViewModel
             )
         }
     }
