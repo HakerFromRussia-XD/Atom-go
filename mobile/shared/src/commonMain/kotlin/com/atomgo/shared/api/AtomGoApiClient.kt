@@ -273,6 +273,59 @@ class AtomGoApiClient private constructor(
     }
 
     @Throws(AtomGoApiException::class, CancellationException::class)
+    suspend fun adjustAdminClientRentalDebt(
+        accessToken: String,
+        clientRentalId: String,
+        amountRub: Int,
+        sign: String,
+        comment: String?
+    ): AdminDebtAdjustmentResponse {
+        val response = executeRequest {
+            httpClient.post("$apiBaseUrl/admin/client-rentals/$clientRentalId/adjustments") {
+                header(HttpHeaders.Authorization, "Bearer $accessToken")
+                header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                setBody(
+                    AdminDebtAdjustmentRequest(
+                        amountRub = amountRub,
+                        sign = sign,
+                        comment = comment
+                    )
+                )
+            }
+        }
+        return decodeResponse(response)
+    }
+
+    @Throws(AtomGoApiException::class, CancellationException::class)
+    suspend fun updateAdminRentalPipelineStatus(
+        accessToken: String,
+        rentalId: String,
+        pipelineStatus: String
+    ): AdminRentalPipelineStatusResponse {
+        val response = executeRequest {
+            httpClient.post("$apiBaseUrl/admin/rentals/$rentalId/pipeline-status") {
+                header(HttpHeaders.Authorization, "Bearer $accessToken")
+                header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                setBody(AdminRentalPipelineStatusRequest(pipelineStatus = pipelineStatus))
+            }
+        }
+        return decodeResponse(response)
+    }
+
+    @Throws(AtomGoApiException::class, CancellationException::class)
+    suspend fun finishAdminRental(
+        accessToken: String,
+        rentalId: String
+    ): AdminFinishRentalResponse {
+        val response = executeRequest {
+            httpClient.post("$apiBaseUrl/admin/rentals/$rentalId/finish") {
+                header(HttpHeaders.Authorization, "Bearer $accessToken")
+            }
+        }
+        return decodeResponse(response)
+    }
+
+    @Throws(AtomGoApiException::class, CancellationException::class)
     suspend fun updateAdminRentalComment(
         accessToken: String,
         rentalId: String,

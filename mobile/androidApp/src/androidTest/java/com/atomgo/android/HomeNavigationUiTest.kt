@@ -201,11 +201,20 @@ class HomeNavigationUiTest {
         }
         composeRule.onNodeWithTag("admin_client_row_first", useUnmergedTree = true).performClick()
         composeRule.waitUntil(timeoutMillis = 60_000) {
-            runCatching {
-                composeRule.onNodeWithTag("admin_client_details_content", useUnmergedTree = true).fetchSemanticsNode()
+            val hasCard = runCatching {
+                composeRule.onNodeWithTag("admin_client_details_card", useUnmergedTree = true).fetchSemanticsNode()
             }.isSuccess
+            val hasProfileSection = runCatching {
+                composeRule.onNodeWithTag("admin_client_profile_section", useUnmergedTree = true).fetchSemanticsNode()
+            }.isSuccess
+            val hasLoading = runCatching {
+                composeRule.onNodeWithTag("admin_client_details_loading", useUnmergedTree = true).fetchSemanticsNode()
+            }.isSuccess
+            hasCard && hasProfileSection && !hasLoading
         }
-        composeRule.onNodeWithTag("admin_client_details_content", useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNodeWithTag("admin_client_details_card", useUnmergedTree = true).assertIsDisplayed()
+        composeRule.waitForIdle()
+        Thread.sleep(250)
         captureScreen("admin-client-details-screen.png")
 
         if (waitForTag("admin_client_history_row_first", timeoutMillis = 8_000)) {
@@ -219,7 +228,62 @@ class HomeNavigationUiTest {
                 captureScreen("admin-rental-details-screen.png")
             }
             captureScreen("admin-client-rental-details-screen.png")
+            composeRule.onNodeWithTag("admin_rental_details_renter_row", useUnmergedTree = true).performClick()
+            composeRule.waitUntil(timeoutMillis = 60_000) {
+                val hasCard = runCatching {
+                    composeRule.onNodeWithTag("admin_client_details_card", useUnmergedTree = true).fetchSemanticsNode()
+                }.isSuccess
+                val hasProfileSection = runCatching {
+                    composeRule.onNodeWithTag("admin_client_profile_section", useUnmergedTree = true).fetchSemanticsNode()
+                }.isSuccess
+                val hasLoading = runCatching {
+                    composeRule.onNodeWithTag("admin_client_details_loading", useUnmergedTree = true).fetchSemanticsNode()
+                }.isSuccess
+                hasCard && hasProfileSection && !hasLoading
+            }
+            composeRule.waitForIdle()
+            Thread.sleep(250)
+            captureScreen("admin-rental-open-client-screen.png")
         }
+    }
+
+    @Test
+    fun adminRentPipelineModes_switchAndFilterSoonReturn() {
+        loginAsAdminClassicWithFallback()
+
+        composeRule.waitUntil(timeoutMillis = 60_000) {
+            runCatching {
+                composeRule.onNodeWithTag("admin_rent_card_avatar_first", useUnmergedTree = true).fetchSemanticsNode()
+            }.isSuccess
+        }
+
+        composeRule.onNodeWithTag("admin_rent_card_avatar_first", useUnmergedTree = true).performClick()
+        composeRule.onNodeWithTag("admin_pipeline_mode_long_term", useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNodeWithTag("admin_pipeline_mode_soon_return", useUnmergedTree = true).assertIsDisplayed()
+        composeRule.onNodeWithTag("admin_pipeline_mode_mine", useUnmergedTree = true).assertIsDisplayed()
+        captureScreen("admin-rent-pipeline-menu.png")
+
+        val switched = clickFirstAvailableMode(
+            "admin_pipeline_mode_soon_return",
+            "admin_pipeline_mode_long_term"
+        )
+        if (!switched) {
+            composeRule.onNodeWithTag("admin_pipeline_mode_mine", useUnmergedTree = true).performClick()
+            composeRule.waitForIdle()
+        }
+
+        composeRule.waitUntil(timeoutMillis = 60_000) {
+            runCatching {
+                composeRule.onNodeWithTag("admin_filter_soon_return", useUnmergedTree = true).fetchSemanticsNode()
+            }.isSuccess
+        }
+        composeRule.onNodeWithTag("admin_filter_soon_return", useUnmergedTree = true).performClick()
+        composeRule.waitUntil(timeoutMillis = 60_000) {
+            runCatching {
+                composeRule.onNodeWithTag("admin_rents_container", useUnmergedTree = true).fetchSemanticsNode()
+            }.isSuccess
+        }
+        captureScreen("admin-rent-soon-return-filter.png")
     }
 
     private fun loginAsAdminClassicWithFallback() {
@@ -251,6 +315,17 @@ class HomeNavigationUiTest {
             }
             true
         }.getOrDefault(false)
+    }
+
+    private fun clickFirstAvailableMode(vararg tags: String): Boolean {
+        tags.forEach { tag ->
+            val clicked = runCatching {
+                composeRule.onNodeWithTag(tag, useUnmergedTree = true).performClick()
+                true
+            }.getOrElse { false }
+            if (clicked) return true
+        }
+        return false
     }
 
     @Ignore("Requires stable seeded client credentials on backend environment")

@@ -334,6 +334,28 @@ data class AdminDebtAdjustmentResponse(
 )
 
 @Serializable
+data class AdminRentalPipelineStatusRequest(
+    @SerialName("pipeline_status")
+    val pipelineStatus: String
+)
+
+@Serializable
+data class AdminRentalPipelineStatusResponse(
+    @SerialName("rental_id")
+    val rentalId: String,
+    @SerialName("pipeline_status")
+    val pipelineStatus: String
+)
+
+@Serializable
+data class AdminFinishRentalResponse(
+    @SerialName("rental_id")
+    val rentalId: String,
+    @SerialName("period_end")
+    val periodEnd: String
+)
+
+@Serializable
 data class AdminRentalCommentUpdateRequest(
     val comment: String
 )

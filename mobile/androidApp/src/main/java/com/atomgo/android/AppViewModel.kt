@@ -345,6 +345,84 @@ class AppViewModel : ViewModel() {
         )
     }
 
+    fun updateAdminRentalPipelineStatus(
+        accessToken: String,
+        rentalId: String,
+        pipelineStatus: String,
+        onResult: (Result<Unit>) -> Unit
+    ) {
+        viewModelScope.launch {
+            runCatching {
+                apiClient.updateAdminRentalPipelineStatus(
+                    accessToken = accessToken,
+                    rentalId = rentalId,
+                    pipelineStatus = pipelineStatus
+                )
+                Unit
+            }.also(onResult)
+        }
+    }
+
+    fun finishAdminRentalByLifecycle(
+        accessToken: String,
+        rentalId: String,
+        onResult: (Result<Unit>) -> Unit
+    ) {
+        viewModelScope.launch {
+            runCatching {
+                apiClient.finishAdminRental(
+                    accessToken = accessToken,
+                    rentalId = rentalId
+                )
+                Unit
+            }.also(onResult)
+        }
+    }
+
+    fun adjustAdminClientRentalDebt(
+        accessToken: String,
+        clientRentalId: String,
+        amountRub: Int,
+        sign: String,
+        comment: String?,
+        onResult: (Result<Unit>) -> Unit
+    ) {
+        viewModelScope.launch {
+            runCatching {
+                apiClient.adjustAdminClientRentalDebt(
+                    accessToken = accessToken,
+                    clientRentalId = clientRentalId,
+                    amountRub = amountRub,
+                    sign = sign,
+                    comment = comment
+                )
+                Unit
+            }.also(onResult)
+        }
+    }
+
+    fun adjustAdminClientDebt(
+        accessToken: String,
+        clientId: String,
+        amountRub: Int,
+        sign: String,
+        comment: String?,
+        onResult: (Result<Unit>) -> Unit
+    ) {
+        viewModelScope.launch {
+            runCatching {
+                apiClient.adjustAdminClientDebt(
+                    accessToken = accessToken,
+                    clientId = clientId,
+                    amountRub = amountRub,
+                    sign = sign,
+                    comment = comment
+                )
+                Unit
+            }.also(onResult)
+        }
+    }
+
     override fun onCleared() {
         apiClient.close()
         super.onCleared()
