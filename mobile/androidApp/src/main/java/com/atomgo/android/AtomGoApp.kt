@@ -23,12 +23,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.ime
@@ -44,9 +46,20 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DirectionsBike
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.DirectionsBike
+import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Search
@@ -74,17 +87,24 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.Font
@@ -99,9 +119,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.atomgo.shared.api.AdminBikeResponse
 import com.atomgo.shared.api.AdminClientSummaryResponse
 import com.atomgo.shared.api.AdminClientDetailsResponse
+import com.atomgo.shared.api.AdminRentalHistoryItemResponse
 import com.atomgo.shared.api.ClientDashboardResponse
 import kotlinx.coroutines.delay
 import java.text.DecimalFormat
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 @Composable
 fun AtomGoApp(
@@ -388,6 +411,7 @@ private fun AppToast(
                 text = message.orEmpty(),
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                 fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
                 color = Color.Black
             )
         }
@@ -1010,6 +1034,8 @@ private fun AdminHomeScreen(
     var detailClientId by remember { mutableStateOf<String?>(null) }
     var detailPayload by remember { mutableStateOf<AdminClientDetailsResponse?>(null) }
     var isDetailLoading by remember { mutableStateOf(false) }
+    var selectedRentalDetails by remember { mutableStateOf<AdminRentalPreview?>(null) }
+    var isRentalDetailsLoading by remember { mutableStateOf(false) }
     var toastMessage by remember { mutableStateOf<String?>(null) }
 
     fun refreshRents() {
@@ -1055,6 +1081,44 @@ private fun AdminHomeScreen(
         refreshRents()
         refreshClients()
         refreshBikes()
+    }
+    fun openClientDetails(clientId: String) {
+        isDetailLoading = true
+        detailPayload = null
+        detailClientId = clientId
+        appViewModel.fetchAdminClientDetails(session.accessToken, clientId) { result ->
+            result.onSuccess {
+                detailPayload = it
+                isDetailLoading = false
+            }.onFailure {
+                adminMessage = "Ошибка загрузки деталей клиента: ${it.message}"
+                isDetailLoading = false
+            }
+        }
+    }
+    fun openRentalDetailsFromSummary(summary: AdminClientSummaryResponse) {
+        selectedRentalDetails = summary.rentalId?.let { rentalId ->
+            AdminRentalPreview.fromSummary(summary = summary, rentalId = rentalId)
+        }
+        isRentalDetailsLoading = true
+        if (summary.clientId.isNotBlank()) {
+            appViewModel.fetchAdminClientDetails(session.accessToken, summary.clientId) { result ->
+                result.onSuccess { client ->
+                    val matching = client.rentals.firstOrNull { it.rentalId == summary.rentalId }
+                    selectedRentalDetails = if (matching != null) {
+                        AdminRentalPreview.fromHistory(client = client, rental = matching)
+                    } else {
+                        selectedRentalDetails ?: AdminRentalPreview.fromSummary(summary = summary, rentalId = summary.rentalId.orEmpty())
+                    }
+                    isRentalDetailsLoading = false
+                }.onFailure {
+                    adminMessage = "Ошибка загрузки аренды: ${it.message}"
+                    isRentalDetailsLoading = false
+                }
+            }
+        } else {
+            isRentalDetailsLoading = false
+        }
     }
     LaunchedEffect(Unit) { refreshAllCatalogs() }
     LaunchedEffect(selectedTab) {
@@ -1277,20 +1341,8 @@ private fun AdminHomeScreen(
                                                     visibleRents.forEachIndexed { index, item ->
                                                         AdminRentCard(
                                                             item = item,
-                                                            onDetails = {
-                                                                isDetailLoading = true
-                                                                detailPayload = null
-                                                                detailClientId = item.clientId
-                                                                appViewModel.fetchAdminClientDetails(session.accessToken, item.clientId) { result ->
-                                                                    result.onSuccess {
-                                                                        detailPayload = it
-                                                                        isDetailLoading = false
-                                                                    }.onFailure {
-                                                                        adminMessage = "Ошибка загрузки деталей: ${it.message}"
-                                                                        isDetailLoading = false
-                                                                    }
-                                                                }
-                                                            }
+                                                            isFirst = index == 0,
+                                                            onDetails = { openRentalDetailsFromSummary(item) }
                                                         )
                                                         if (index < visibleRents.lastIndex) {
                                                             HorizontalDivider(color = Color(0xFFEAEAF0), thickness = 1.dp)
@@ -1390,20 +1442,7 @@ private fun AdminHomeScreen(
                     onRetry = ::refreshClients,
                     onLogout = onLogout,
                     onCreate = { showCreateClient = true },
-                    onOpenClient = { client ->
-                        isDetailLoading = true
-                        detailPayload = null
-                        detailClientId = client.clientId
-                        appViewModel.fetchAdminClientDetails(session.accessToken, client.clientId) { result ->
-                            result.onSuccess {
-                                detailPayload = it
-                                isDetailLoading = false
-                            }.onFailure {
-                                adminMessage = "Ошибка загрузки деталей: ${it.message}"
-                                isDetailLoading = false
-                            }
-                        }
-                    },
+                    onOpenClient = { client -> openClientDetails(client.clientId) },
                     visibleClients = filteredClients
                 )
             }
@@ -1412,6 +1451,7 @@ private fun AdminHomeScreen(
                 AdminBikesCatalogScreen(
                     statusBarTop = statusBarTop,
                     bikes = bikesCatalog,
+                    rentals = clientsCatalog,
                     isLoading = isBikesLoading,
                     error = bikesError,
                     search = bikesSearch,
@@ -1440,7 +1480,12 @@ private fun AdminHomeScreen(
         )
     }
 
-    if (showCreateClient) {
+    AnimatedVisibility(
+        visible = showCreateClient,
+        enter = fadeIn(animationSpec = tween(220)) + slideInVertically(initialOffsetY = { it }, animationSpec = tween(220)),
+        exit = fadeOut(animationSpec = tween(180)) + slideOutVertically(targetOffsetY = { it }, animationSpec = tween(180)),
+        modifier = Modifier.fillMaxSize().zIndex(12f)
+    ) {
         AdminCreateClientDialog(
             onDismiss = { showCreateClient = false },
             onCreate = { fullName, address, passport, phoneLabel, phoneNumber ->
@@ -1462,7 +1507,12 @@ private fun AdminHomeScreen(
         )
     }
 
-    if (showCreateBike) {
+    AnimatedVisibility(
+        visible = showCreateBike,
+        enter = fadeIn(animationSpec = tween(220)) + slideInVertically(initialOffsetY = { it }, animationSpec = tween(220)),
+        exit = fadeOut(animationSpec = tween(180)) + slideOutVertically(targetOffsetY = { it }, animationSpec = tween(180)),
+        modifier = Modifier.fillMaxSize().zIndex(12f)
+    ) {
         AdminCreateBikeDialog(
             onDismiss = { showCreateBike = false },
             onCreate = { model, rate, frame, motor, battery1, battery2 ->
@@ -1485,8 +1535,15 @@ private fun AdminHomeScreen(
         )
     }
 
-    if (showCreateRental) {
+    AnimatedVisibility(
+        visible = showCreateRental,
+        enter = fadeIn(animationSpec = tween(220)) + slideInVertically(initialOffsetY = { it }, animationSpec = tween(220)),
+        exit = fadeOut(animationSpec = tween(180)) + slideOutVertically(targetOffsetY = { it }, animationSpec = tween(180)),
+        modifier = Modifier.fillMaxSize().zIndex(12f)
+    ) {
         AdminCreateRentalDialog(
+            clients = clientsCatalog,
+            bikes = bikesCatalog,
             onDismiss = { showCreateRental = false },
             onCreate = { clientId, bikeId, login, password, periodStart ->
                 appViewModel.createAdminRental(
@@ -1665,30 +1722,44 @@ private fun AdminHomeScreen(
         )
     }
 
-    if (detailClientId != null) {
-        AlertDialog(
-            onDismissRequest = { detailClientId = null },
-            title = { Text("Детали клиента") },
-            text = {
-                if (isDetailLoading) {
-                    CircularProgressIndicator(color = AppDesign.Accent)
-                } else if (detailPayload != null) {
-                    val d = detailPayload!!
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("ФИО: ${d.fullName}")
-                        Text("Адрес: ${d.address}")
-                        Text("Паспорт: ${d.passportData}")
-                        Text("Велосипед: ${d.bikeModel}")
-                        Text("Долг: ${money(d.debtRub)}")
-                        Text("Оплачено до: ${d.paidUntil}")
-                        Text("Телефонов: ${d.phones.size}")
-                        Text("Аренд в истории: ${d.rentals.size}")
-                    }
-                } else {
-                    Text("Нет данных")
+    AnimatedVisibility(
+        visible = detailClientId != null,
+        enter = fadeIn(animationSpec = tween(220)) + slideInVertically(initialOffsetY = { it }, animationSpec = tween(220)),
+        exit = fadeOut(animationSpec = tween(180)) + slideOutVertically(targetOffsetY = { it }, animationSpec = tween(180)),
+        modifier = Modifier.fillMaxSize().zIndex(21f)
+    ) {
+        AdminClientDetailsScreen(
+            details = detailPayload,
+            isLoading = isDetailLoading,
+            onClose = { detailClientId = null },
+            onRetry = { detailClientId?.let(::openClientDetails) },
+            onOpenRental = { preview ->
+                selectedRentalDetails = preview
+                isRentalDetailsLoading = false
+            }
+        )
+    }
+
+    AnimatedVisibility(
+        visible = selectedRentalDetails != null,
+        enter = fadeIn(animationSpec = tween(220)) + slideInVertically(initialOffsetY = { it }, animationSpec = tween(220)),
+        exit = fadeOut(animationSpec = tween(180)) + slideOutVertically(targetOffsetY = { it }, animationSpec = tween(180)),
+        modifier = Modifier.fillMaxSize().zIndex(22f)
+    ) {
+        AdminRentalDetailsScreenAndroid(
+            details = selectedRentalDetails,
+            isLoading = isRentalDetailsLoading,
+            onClose = { selectedRentalDetails = null },
+            onDelete = {
+                val rentalId = selectedRentalDetails?.rentalId ?: return@AdminRentalDetailsScreenAndroid
+                appViewModel.deleteAdminRental(session.accessToken, rentalId) { result ->
+                    result.onSuccess {
+                        adminMessage = "Аренда удалена"
+                        selectedRentalDetails = null
+                        refreshAllCatalogs()
+                    }.onFailure { adminMessage = "Ошибка удаления аренды: ${it.message}" }
                 }
-            },
-            confirmButton = { OutlinedButton(onClick = { detailClientId = null }) { Text("Закрыть") } }
+            }
         )
     }
 }
@@ -1846,7 +1917,7 @@ private fun AdminClientsCatalogScreen(
                                 shape = RoundedCornerShape(15.dp),
                                 color = Color(0xFFFAFBFB),
                                 shadowElevation = 8.dp,
-                                border = androidx.compose.foundation.BorderStroke(1.dp, AppDesign.Accent)
+                                border = androidx.compose.foundation.BorderStroke(1.5.dp, AppDesign.Accent)
                             ) {
                                 Column(modifier = Modifier.padding(vertical = 5.dp)) {
                                     visibleClients.forEachIndexed { index, item ->
@@ -1926,6 +1997,7 @@ private fun AdminClientsCatalogScreen(
 private fun AdminBikesCatalogScreen(
     statusBarTop: androidx.compose.ui.unit.Dp,
     bikes: List<AdminBikeResponse>,
+    rentals: List<AdminClientSummaryResponse>,
     isLoading: Boolean,
     error: String?,
     search: String,
@@ -2078,7 +2150,10 @@ private fun AdminBikesCatalogScreen(
                             ) {
                                 Column(modifier = Modifier.padding(vertical = 5.dp)) {
                                     visibleBikes.forEachIndexed { index, bike ->
-                                        AdminBikeCatalogRow(bike = bike)
+                                        AdminBikeCatalogRow(
+                                            bike = bike,
+                                            runtime = bikeCatalogRuntimeSnapshot(bike = bike, rentals = rentals)
+                                        )
                                         if (index < visibleBikes.lastIndex) {
                                             HorizontalDivider(color = Color(0xFFEAEAF0), thickness = 1.dp)
                                         }
@@ -2165,25 +2240,22 @@ private fun AdminClientCatalogRow(
     ) {
         Box(
             modifier = Modifier
-                .size(59.dp)
-                .background(Color(0xFFE3E6EB), RoundedCornerShape(12.dp))
-                .border(
-                    width = 3.dp,
-                    color = avatarBorderColor(item),
-                    shape = RoundedCornerShape(12.dp)
-                )
+                .size(36.dp)
+                .background(Color.White, RoundedCornerShape(12.dp))
+                .border(1.5.dp, Color(0xFF34C759), RoundedCornerShape(12.dp)),
+            contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Outlined.Group,
+                imageVector = Icons.Filled.Phone,
                 contentDescription = null,
-                tint = AppDesign.IconSoft,
-                modifier = Modifier.align(Alignment.Center).size(30.dp)
+                tint = Color(0xFF34C759),
+                modifier = Modifier.size(18.dp)
             )
         }
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(12.dp))
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
+            verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
             Text(
                 text = item.fullName,
@@ -2194,36 +2266,389 @@ private fun AdminClientCatalogRow(
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = if (item.bikeModel.isBlank()) "Без велосипеда" else item.bikeModel,
-                color = Color(0x80111827),
+                text = clientCatalogSubtitle(item),
+                color = Color(0xFF6B7280),
                 fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
-        val status = if (item.debtRub > 0) {
-            RentStatusPill("Долг", money(item.debtRub), Color(0xFFD63034), 108)
-        } else if (item.rentalIsActive) {
-            RentStatusPill("Активен", "Да", Color(0xFF238F47), 108)
-        } else {
-            RentStatusPill("Активен", "Нет", Color(0xFF141718), 108)
+        val totalDebt = clientTotalDebtRub(item)
+        if (totalDebt > 0) {
+            Text(
+                text = money(totalDebt),
+                color = Color(0xFFD63034),
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.width(10.dp))
         }
-        Column(
-            modifier = Modifier
-                .width(status.widthDp.dp)
-                .height(44.dp)
-                .background(status.color, RoundedCornerShape(15.dp)),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(status.title, color = Color.White.copy(alpha = 0.85f), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            Text(status.value, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        Icon(
+            imageVector = Icons.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = Color(0xFFA7A7AB),
+            modifier = Modifier.size(18.dp)
+        )
+    }
+}
+
+private data class AdminRentalPreview(
+    val rentalId: String,
+    val clientId: String,
+    val clientName: String,
+    val bikeModel: String,
+    val periodStart: String,
+    val periodEnd: String?,
+    val debtRub: Int,
+    val totalPaidRub: Int,
+    val totalAdjustmentRub: Int,
+    val weeklyRateRub: Int,
+    val comment: String?,
+    val sourceLabel: String
+) {
+    companion object {
+        fun fromSummary(summary: AdminClientSummaryResponse, rentalId: String): AdminRentalPreview {
+            return AdminRentalPreview(
+                rentalId = rentalId,
+                clientId = summary.clientId,
+                clientName = summary.fullName,
+                bikeModel = summary.bikeModel,
+                periodStart = summary.paidUntil.orEmpty(),
+                periodEnd = null,
+                debtRub = summary.debtRub,
+                totalPaidRub = summary.profitRub,
+                totalAdjustmentRub = summary.totalAdjustmentRub,
+                weeklyRateRub = 0,
+                comment = null,
+                sourceLabel = "lifecycle"
+            )
+        }
+
+        fun fromHistory(client: AdminClientDetailsResponse, rental: AdminRentalHistoryItemResponse): AdminRentalPreview {
+            return AdminRentalPreview(
+                rentalId = rental.rentalId,
+                clientId = client.clientId,
+                clientName = client.fullName,
+                bikeModel = rental.bikeModel,
+                periodStart = rental.periodStart,
+                periodEnd = rental.periodEnd,
+                debtRub = rental.debtRub,
+                totalPaidRub = rental.totalPaidRub,
+                totalAdjustmentRub = rental.totalAdjustmentRub,
+                weeklyRateRub = rental.weeklyRateRub,
+                comment = rental.comment,
+                sourceLabel = if (rental.periodEnd.isNullOrBlank()) "active_client_rental" else "closed_client_rental"
+            )
         }
     }
 }
 
 @Composable
-private fun AdminBikeCatalogRow(bike: AdminBikeResponse) {
+private fun AdminClientDetailsScreen(
+    details: AdminClientDetailsResponse?,
+    isLoading: Boolean,
+    onClose: () -> Unit,
+    onRetry: () -> Unit,
+    onOpenRental: (AdminRentalPreview) -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AppDesign.PageBackground)
+            .testTag("admin_client_details_screen")
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(horizontal = 8.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(62.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                AdminSquareTopButton(
+                    iconRes = R.drawable.ic_back,
+                    testTag = "admin_client_details_back",
+                    onClick = onClose
+                )
+                Spacer(Modifier.weight(1f))
+                Text("Клиент", color = AppDesign.TitleText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.weight(1f))
+                Spacer(Modifier.size(47.dp))
+            }
+
+            when {
+                isLoading && details == null -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = AppDesign.Accent)
+                    }
+                }
+                details == null -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text("Не удалось загрузить клиента", color = AppDesign.TitleText, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(10.dp))
+                        OutlinedButton(onClick = onRetry) { Text("Повторить") }
+                    }
+                }
+                else -> {
+                    val d = details
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(top = 8.dp, bottom = 120.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(15.dp),
+                            color = Color(0xFFFAFBFB),
+                            shadowElevation = 8.dp,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, AppDesign.Accent)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(20.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Text(d.fullName, color = AppDesign.TitleText, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                Text(clientCatalogSubtitleFromDetails(d), color = AppDesign.SubtleText, fontSize = 14.sp)
+                                Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                                    MetricStack("Оплачено", money(d.totalPaidRub), AppDesign.Success)
+                                    MetricStack("Долг", money(d.debtRub), if (d.debtRub > 0) AppDesign.Danger else AppDesign.TitleText)
+                                    MetricStack("Коррект.", money(d.totalAdjustmentRub), AppDesign.TitleText)
+                                }
+                            }
+                        }
+
+                        AdminDetailsReadonlyField("ФИО", d.fullName)
+                        AdminDetailsReadonlyField("Адрес", d.address)
+                        AdminDetailsReadonlyField("Паспорт", d.passportData)
+                        d.phones.forEach { phone ->
+                            AdminDetailsReadonlyField(phone.label, phone.number)
+                        }
+
+                        Text(
+                            "ИСТОРИЯ АРЕНД",
+                            color = AppDesign.SubtleText,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.88.sp
+                        )
+
+                        if (d.rentals.isEmpty()) {
+                            Text("История аренд пока пустая", color = AppDesign.SubtleText, fontSize = 13.sp)
+                        } else {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                d.rentals.forEach { rental ->
+                                    Surface(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                onOpenRental(AdminRentalPreview.fromHistory(client = d, rental = rental))
+                                            },
+                                        shape = RoundedCornerShape(15.dp),
+                                        color = Color(0xFFFAFBFB),
+                                        shadowElevation = 8.dp,
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEAEAF0))
+                                    ) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 15.dp, vertical = 13.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(36.dp)
+                                                    .background(Color(0xFFE3E6EB), RoundedCornerShape(10.dp)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(Icons.Outlined.DirectionsBike, contentDescription = null, tint = AppDesign.IconSoft, modifier = Modifier.size(20.dp))
+                                            }
+                                            Spacer(Modifier.width(12.dp))
+                                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                                Text(
+                                                    "${formatShortRuDate(rental.periodStart)} – ${rental.periodEnd?.let(::formatLongRuDate) ?: "н.в."}",
+                                                    color = AppDesign.TitleText,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                                Text(rental.bikeModel, color = AppDesign.SubtleText, fontSize = 10.sp, fontWeight = FontWeight.Medium)
+                                            }
+                                            Text(
+                                                if (rental.debtRub > 0) "- ${money(rental.debtRub)}" else "+${money(rental.totalPaidRub)}",
+                                                color = if (rental.debtRub > 0) AppDesign.Danger else AppDesign.Success,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Spacer(Modifier.width(8.dp))
+                                            Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = AppDesign.SubtleText, modifier = Modifier.size(16.dp))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AdminRentalDetailsScreenAndroid(
+    details: AdminRentalPreview?,
+    isLoading: Boolean,
+    onClose: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AppDesign.PageBackground)
+            .testTag("admin_rental_details_screen")
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(horizontal = 23.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(62.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                AdminSquareTopButton(
+                    iconRes = R.drawable.ic_back,
+                    testTag = "admin_rental_details_back",
+                    onClick = onClose
+                )
+                Spacer(Modifier.weight(1f))
+                Text("Аренда", color = AppDesign.TitleText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.weight(1f))
+                OutlinedButton(
+                    onClick = onDelete,
+                    contentPadding = PaddingValues(0.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, AppDesign.Danger),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = Color.White,
+                        contentColor = AppDesign.Danger
+                    ),
+                    modifier = Modifier
+                        .size(47.dp)
+                        .testTag("admin_rental_details_delete")
+                ) {
+                    Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                }
+            }
+
+            if (isLoading || details == null) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = AppDesign.Accent)
+                }
+            } else {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    shape = RoundedCornerShape(15.dp),
+                    color = Color(0xFFFAFBFB),
+                    shadowElevation = 8.dp,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, AppDesign.Accent)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 19.dp, vertical = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(details.bikeModel, color = AppDesign.TitleText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text(details.clientName, color = AppDesign.SubtleText, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text(
+                            "${formatLongRuDate(details.periodStart)} – ${details.periodEnd?.let(::formatLongRuDate) ?: "н.в."}",
+                            color = AppDesign.SubtleText,
+                            fontSize = 13.sp
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                            MetricStack("Оплата", money(details.totalPaidRub), AppDesign.Success)
+                            MetricStack("Долг", money(details.debtRub), if (details.debtRub > 0) AppDesign.Danger else AppDesign.TitleText)
+                            MetricStack("Коррект.", money(details.totalAdjustmentRub), AppDesign.TitleText)
+                        }
+                        if (!details.comment.isNullOrBlank()) {
+                            AdminDetailsReadonlyField("Комментарий", details.comment)
+                        }
+                        AdminDetailsReadonlyField("Тип записи", details.sourceLabel)
+                        if (details.weeklyRateRub > 0) {
+                            AdminDetailsReadonlyField("Тариф", "${formatRubAmount(details.weeklyRateRub)} ₽/нед")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MetricStack(title: String, value: String, valueColor: Color) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(title, color = AppDesign.SubtleText, fontSize = 9.sp, fontWeight = FontWeight.Medium)
+        Text(value, color = valueColor, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun AdminDetailsReadonlyField(label: String, value: String?) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = label.uppercase(),
+            color = AppDesign.SubtleText,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Normal,
+            letterSpacing = 0.66.sp
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(60.dp)
+                .background(Color.White, RoundedCornerShape(12.84.dp))
+                .border(1.dp, AppDesign.Accent, RoundedCornerShape(12.84.dp))
+                .padding(horizontal = 19.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Text(
+                text = value?.ifBlank { "—" } ?: "—",
+                color = AppDesign.TitleText,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun AdminBikeCatalogRow(
+    bike: AdminBikeResponse,
+    runtime: BikeCatalogRuntimeSnapshot
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -2237,7 +2662,7 @@ private fun AdminBikeCatalogRow(bike: AdminBikeResponse) {
                 .background(Color(0xFFE3E6EB), RoundedCornerShape(12.dp))
                 .border(
                     width = 3.dp,
-                    color = if (bike.bikeIsInRental) Color(0xFF34C759) else Color(0xFFCB30E0),
+                    color = runtime.borderColor,
                     shape = RoundedCornerShape(12.dp)
                 )
         ) {
@@ -2262,35 +2687,146 @@ private fun AdminBikeCatalogRow(bike: AdminBikeResponse) {
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = bike.frameSerialNumber,
-                color = Color(0x80111827),
+                text = runtime.subtitle,
+                color = Color(0xFF6B7280),
                 fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
-        val status = if (bike.bikeIsInRental) {
-            RentStatusPill("Статус", "В аренде", Color(0xFF238F47), 108)
-        } else {
-            RentStatusPill("Статус", "Свободен", Color(0xFF141718), 108)
-        }
-        Column(
-            modifier = Modifier
-                .width(status.widthDp.dp)
-                .height(44.dp)
-                .background(status.color, RoundedCornerShape(15.dp)),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(status.title, color = Color.White.copy(alpha = 0.85f), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            Text(status.value, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        Text(
+            text = "${formatRubAmount(bike.weeklyRateRub)} ₽/нед",
+            color = Color(0xFF1F2937),
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(Modifier.width(10.dp))
+        Icon(
+            imageVector = Icons.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = Color(0xFFA7A7AB),
+            modifier = Modifier.size(18.dp)
+        )
+    }
+}
+
+private data class BikeCatalogRuntimeSnapshot(
+    val borderColor: Color,
+    val subtitle: String
+)
+
+private fun bikeCatalogRuntimeSnapshot(
+    bike: AdminBikeResponse,
+    rentals: List<AdminClientSummaryResponse>
+): BikeCatalogRuntimeSnapshot {
+    val normalizedBikeModel = normalizeCatalogSearchText(bike.bikeModel)
+    val activeRentals = rentals.filter {
+        it.rentalIsActive && normalizeCatalogSearchText(it.bikeModel) == normalizedBikeModel
+    }
+    if (activeRentals.isEmpty()) {
+        return BikeCatalogRuntimeSnapshot(
+            borderColor = Color(0xFFCB30E0),
+            subtitle = "-"
+        )
+    }
+
+    val hasSoonReturn = activeRentals.any { it.rentalPipelineStatus == "soon_return" }
+    val borderColor = if (hasSoonReturn) Color(0xFFFFCC00) else Color(0xFF34C759)
+    val activeRental = activeRentals.first()
+    val clientName = activeRental.fullName.trim().ifEmpty { "Клиент" }
+    val subtitle = if (activeRental.rentalPipelineStatus == "soon_return") {
+        "$clientName · вернут в течении нед."
+    } else {
+        val paidUntil = shortPaidUntilText(activeRental.paidUntil)
+        if (paidUntil != null) "$clientName · до $paidUntil" else "$clientName · долгосрочно"
+    }
+
+    return BikeCatalogRuntimeSnapshot(
+        borderColor = borderColor,
+        subtitle = subtitle
+    )
+}
+
+private fun clientCatalogSubtitle(client: AdminClientSummaryResponse): String {
+    if (client.rentalIsActive) {
+        val model = normalizeCatalogBikeModel(client.bikeModel)
+        val paidUntil = shortPaidUntilText(client.paidUntil)
+        return when {
+            paidUntil != null && model.isNotEmpty() -> "$model · до $paidUntil"
+            paidUntil != null -> "до $paidUntil"
+            model.isNotEmpty() -> model
+            else -> "Активная аренда"
         }
     }
+    val model = normalizeCatalogBikeModel(client.bikeModel)
+    return if (model.isEmpty()) "-" else model
+}
+
+private fun clientCatalogSubtitleFromDetails(details: AdminClientDetailsResponse): String {
+    val model = normalizeCatalogBikeModel(details.bikeModel)
+    val paidUntil = shortPaidUntilText(details.paidUntil)
+    return when {
+        paidUntil != null && model.isNotEmpty() -> "$model · до $paidUntil"
+        paidUntil != null -> "до $paidUntil"
+        model.isNotEmpty() -> model
+        else -> "—"
+    }
+}
+
+private fun clientTotalDebtRub(client: AdminClientSummaryResponse): Int {
+    return client.debtRub.coerceAtLeast(0) + client.carriedDebtRub.coerceAtLeast(0)
+}
+
+private fun normalizeCatalogBikeModel(rawValue: String): String {
+    val value = rawValue.trim()
+    return if (value.isEmpty() || value == "-") "" else value
+}
+
+private fun normalizeCatalogSearchText(value: String): String = value.trim().lowercase()
+
+private fun shortPaidUntilText(paidUntilRaw: String?): String? {
+    val value = paidUntilRaw?.trim().orEmpty()
+    if (value.isEmpty()) return null
+    val parts = value.split("-")
+    if (parts.size != 3) return null
+    val day = parts[2].toIntOrNull() ?: return null
+    val monthIndex = (parts[1].toIntOrNull() ?: return null) - 1
+    val month = ruShortMonths.getOrNull(monthIndex) ?: return null
+    return "$day $month"
+}
+
+private fun formatRubAmount(value: Int): String {
+    return DecimalFormat("#,###").format(value).replace(',', ' ')
+}
+
+private val ruShortMonths = listOf("янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек")
+
+private fun formatShortRuDate(value: String): String {
+    return runCatching {
+        val parts = value.trim().split("-")
+        if (parts.size != 3) return value
+        val day = parts[2].toInt()
+        val month = ruShortMonths[parts[1].toInt() - 1]
+        "${if (day < 10) "0$day" else "$day"} $month"
+    }.getOrDefault(value)
+}
+
+private fun formatLongRuDate(value: String): String {
+    return runCatching {
+        val parts = value.trim().split("-")
+        if (parts.size != 3) return value
+        val day = parts[2].toInt()
+        val month = ruShortMonths[parts[1].toInt() - 1]
+        val year = parts[0]
+        "${if (day < 10) "0$day" else "$day"} $month $year"
+    }.getOrDefault(value)
 }
 
 @Composable
 private fun AdminRentCard(
     item: AdminClientSummaryResponse,
+    isFirst: Boolean = false,
     onDetails: () -> Unit
 ) {
     val displayName = if (item.rentalIsActive) item.fullName else "Клиент не выбран"
@@ -2302,7 +2838,7 @@ private fun AdminRentCard(
             .height(77.dp)
             .clickable { onDetails() }
             .padding(horizontal = 9.dp)
-            .testTag("admin_rent_card_${item.rentalId ?: item.clientId}"),
+            .testTag(if (isFirst) "admin_rent_card_first" else "admin_rent_card_${item.rentalId ?: item.clientId}"),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
@@ -2450,23 +2986,168 @@ private fun AdminCreateClientDialog(
     var fullName by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
     var passport by remember { mutableStateOf("") }
-    var phoneLabel by remember { mutableStateOf("main") }
+    var phoneLabel by remember { mutableStateOf("Рабочий (TG)") }
     var phoneNumber by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Создать клиента") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(fullName, { fullName = it }, label = { Text("ФИО") })
-                OutlinedTextField(address, { address = it }, label = { Text("Адрес") })
-                OutlinedTextField(passport, { passport = it }, label = { Text("Паспорт") })
-                OutlinedTextField(phoneLabel, { phoneLabel = it }, label = { Text("Метка телефона") })
-                OutlinedTextField(phoneNumber, { phoneNumber = it }, label = { Text("Телефон") })
+    var extraPhoneLabel by remember { mutableStateOf("") }
+    var extraPhoneNumber by remember { mutableStateOf("") }
+    var showExtraPhone by remember { mutableStateOf(false) }
+    var showComment by remember { mutableStateOf(false) }
+    var comment by remember { mutableStateOf("") }
+    var toastMessage by remember { mutableStateOf<String?>(null) }
+
+    fun fail(message: String) {
+        toastMessage = message
+    }
+
+    LaunchedEffect(toastMessage) {
+        if (!toastMessage.isNullOrEmpty()) {
+            delay(2200)
+            toastMessage = null
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AppDesign.PageBackground)
+            .testTag("create_client_sheet")
+    ) {
+        AdminFormSheetScaffold(
+            title = "Новый клиент",
+            onBack = onDismiss,
+            onSubmit = {
+                if (fullName.trim().isEmpty()) {
+                    fail("Укажите ФИО")
+                    return@AdminFormSheetScaffold
+                }
+                if (address.trim().isEmpty()) {
+                    fail("Укажите адрес")
+                    return@AdminFormSheetScaffold
+                }
+                if (passport.trim().isEmpty()) {
+                    fail("Укажите паспортные данные")
+                    return@AdminFormSheetScaffold
+                }
+                if (phoneLabel.trim().isEmpty() || phoneNumber.trim().isEmpty()) {
+                    fail("Заполните подпись и номер телефона")
+                    return@AdminFormSheetScaffold
+                }
+                onCreate(
+                    fullName.trim(),
+                    address.trim(),
+                    passport.trim(),
+                    phoneLabel.trim(),
+                    phoneNumber.trim()
+                )
+            },
+            backTag = "create_client_cancel_button",
+            submitTag = "create_client_submit_button",
+            horizontalPadding = 8.dp,
+            topBarHeight = 62.dp,
+            topBarTopPadding = 0.dp,
+            contentTopPadding = 16.dp,
+            contentBottomPadding = 24.dp,
+            contentSpacing = 18.dp
+        ) {
+            AdminFormSectionTitle("ПРОФИЛЬ")
+            AdminSheetInputField(
+                label = "ФИО",
+                placeholder = "введите...",
+                value = fullName,
+                onValueChange = { fullName = it },
+                testTag = "create_client_full_name_input",
+                keyboardType = KeyboardType.Text,
+                capitalization = KeyboardCapitalization.Words
+            )
+            AdminSheetInputField(
+                label = "Адрес",
+                placeholder = "введите...",
+                value = address,
+                onValueChange = { address = it },
+                testTag = "create_client_address_input",
+                keyboardType = KeyboardType.Text
+            )
+            AdminSheetInputField(
+                label = "Паспортные данные",
+                placeholder = "введите...",
+                value = passport,
+                onValueChange = { passport = it },
+                testTag = "create_client_passport_input",
+                keyboardType = KeyboardType.Text
+            )
+
+            AdminFormSectionTitle("ТЕЛЕФОНЫ", topPadding = 6.dp)
+            AdminSheetInputField(
+                label = "Подпись",
+                placeholder = "введите...",
+                value = phoneLabel,
+                onValueChange = { phoneLabel = it },
+                testTag = "create_client_phone_label_input",
+                keyboardType = KeyboardType.Text,
+                valueWeight = FontWeight.Bold,
+                capitalization = KeyboardCapitalization.Sentences
+            )
+            AdminSheetInputField(
+                label = "Телефон",
+                placeholder = "+7 …",
+                value = phoneNumber,
+                onValueChange = { phoneNumber = it },
+                testTag = "create_client_phone_number_input",
+                keyboardType = KeyboardType.Phone
+            )
+
+            if (showExtraPhone) {
+                AdminSheetInputField(
+                    label = "Подпись",
+                    placeholder = "введите...",
+                    value = extraPhoneLabel,
+                    onValueChange = { extraPhoneLabel = it },
+                    testTag = "create_client_phone_label2_input",
+                    keyboardType = KeyboardType.Text
+                )
+                AdminSheetInputField(
+                    label = "Телефон",
+                    placeholder = "+7 …",
+                    value = extraPhoneNumber,
+                    onValueChange = { extraPhoneNumber = it },
+                    testTag = "create_client_phone_number2_input",
+                    keyboardType = KeyboardType.Phone
+                )
             }
-        },
-        confirmButton = { OutlinedButton(onClick = { onCreate(fullName, address, passport, phoneLabel, phoneNumber) }) { Text("Создать") } },
-        dismissButton = { OutlinedButton(onClick = onDismiss) { Text("Отмена") } }
-    )
+
+            AdminDashedActionButton(
+                text = "+ Добавить телефон",
+                enabled = !showExtraPhone,
+                onClick = { showExtraPhone = true },
+                testTag = "create_client_add_phone_button"
+            )
+
+            if (showComment) {
+                AdminSheetInputField(
+                    label = "Комментарий",
+                    placeholder = "введите...",
+                    value = comment,
+                    onValueChange = { comment = it },
+                    testTag = "create_client_comment_input",
+                    keyboardType = KeyboardType.Text,
+                    capitalization = KeyboardCapitalization.Sentences
+                )
+            }
+
+            AdminDashedActionButton(
+                text = "+ Добавить комментарий",
+                enabled = !showComment,
+                onClick = { showComment = true },
+                testTag = "create_client_add_comment_button"
+            )
+        }
+
+        AppToast(
+            message = toastMessage,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            bottomPadding = 96
+        )
+    }
 }
 
 @Composable
@@ -2475,31 +3156,143 @@ private fun AdminCreateBikeDialog(
     onCreate: (String, String, String, String, String, String) -> Unit
 ) {
     var model by remember { mutableStateOf("") }
-    var rate by remember { mutableStateOf("") }
+    var rate by remember { mutableStateOf("3000") }
     var frame by remember { mutableStateOf("") }
     var motor by remember { mutableStateOf("") }
     var battery1 by remember { mutableStateOf("") }
     var battery2 by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Создать велосипед") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(model, { model = it }, label = { Text("Модель") })
-                OutlinedTextField(rate, { rate = it }, label = { Text("Ставка/нед (₽)") })
-                OutlinedTextField(frame, { frame = it }, label = { Text("Frame SN") })
-                OutlinedTextField(motor, { motor = it }, label = { Text("Motor SN") })
-                OutlinedTextField(battery1, { battery1 = it }, label = { Text("Battery 1 SN") })
-                OutlinedTextField(battery2, { battery2 = it }, label = { Text("Battery 2 SN") })
-            }
-        },
-        confirmButton = { OutlinedButton(onClick = { onCreate(model, rate, frame, motor, battery1, battery2) }) { Text("Создать") } },
-        dismissButton = { OutlinedButton(onClick = onDismiss) { Text("Отмена") } }
-    )
+    var toastMessage by remember { mutableStateOf<String?>(null) }
+
+    fun fail(message: String) {
+        toastMessage = message
+    }
+
+    LaunchedEffect(toastMessage) {
+        if (!toastMessage.isNullOrEmpty()) {
+            delay(2200)
+            toastMessage = null
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AppDesign.PageBackground)
+            .testTag("create_bike_sheet")
+    ) {
+        AdminFormSheetScaffold(
+            title = "Новый велосипед",
+            onBack = onDismiss,
+            onSubmit = {
+                if (model.trim().isEmpty()) {
+                    fail("Укажите модель велосипеда")
+                    return@AdminFormSheetScaffold
+                }
+                val numericRate = rate.trim().toIntOrNull()
+                if (numericRate == null || numericRate <= 0) {
+                    fail("Стоимость недели должна быть положительным числом")
+                    return@AdminFormSheetScaffold
+                }
+                if (frame.trim().isEmpty()) {
+                    fail("Укажите серийный номер рамы")
+                    return@AdminFormSheetScaffold
+                }
+                if (motor.trim().isEmpty()) {
+                    fail("Укажите серийный номер мотора")
+                    return@AdminFormSheetScaffold
+                }
+                if (battery1.trim().isEmpty()) {
+                    fail("Укажите серийный номер аккумулятора 1")
+                    return@AdminFormSheetScaffold
+                }
+
+                onCreate(
+                    model.trim(),
+                    numericRate.toString(),
+                    frame.trim(),
+                    motor.trim(),
+                    battery1.trim(),
+                    battery2.trim()
+                )
+            },
+            backTag = "create_bike_cancel_button",
+            submitTag = "create_bike_submit_button",
+            horizontalPadding = 8.dp,
+            topBarHeight = 47.dp,
+            topBarTopPadding = 8.dp,
+            contentTopPadding = 14.dp,
+            contentBottomPadding = 24.dp,
+            contentSpacing = 14.dp
+        ) {
+            AdminBikePhotoCard(testTag = "create_bike_photo_picker")
+            AdminFormSectionTitle("ОБЯЗАТЕЛЬНЫЕ")
+            AdminSheetInputField(
+                label = "Название/модель",
+                placeholder = "введите...",
+                value = model,
+                onValueChange = { model = it },
+                testTag = "create_bike_model_input",
+                keyboardType = KeyboardType.Text,
+                capitalization = KeyboardCapitalization.Words
+            )
+            AdminSheetInputField(
+                label = "Серийный номер / VIN",
+                placeholder = "введите...",
+                value = frame,
+                onValueChange = { frame = it },
+                testTag = "create_bike_frame_input",
+                keyboardType = KeyboardType.Text
+            )
+            AdminSheetInputField(
+                label = "Серийный номер мотора",
+                placeholder = "введите...",
+                value = motor,
+                onValueChange = { motor = it },
+                testTag = "create_bike_motor_input",
+                keyboardType = KeyboardType.Text
+            )
+            AdminSheetInputField(
+                label = "Недельная ставка W (₽)",
+                placeholder = "введите...",
+                value = rate,
+                onValueChange = { rate = it },
+                testTag = "create_bike_rate_input",
+                keyboardType = KeyboardType.Number
+            )
+
+            AdminFormSectionTitle("ОПЦИОНАЛЬНО", topPadding = 6.dp)
+            AdminSheetInputField(
+                label = "Серийный номер АКБ 1",
+                placeholder = "не обязательно",
+                value = battery1,
+                onValueChange = { battery1 = it },
+                testTag = "create_bike_battery1_input",
+                keyboardType = KeyboardType.Text,
+                isDashed = true
+            )
+            AdminSheetInputField(
+                label = "Серийный номер АКБ 2",
+                placeholder = "не обязательно",
+                value = battery2,
+                onValueChange = { battery2 = it },
+                testTag = "create_bike_battery2_input",
+                keyboardType = KeyboardType.Text,
+                isDashed = true
+            )
+        }
+
+        AppToast(
+            message = toastMessage,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            bottomPadding = 96
+        )
+    }
 }
 
 @Composable
 private fun AdminCreateRentalDialog(
+    clients: List<AdminClientSummaryResponse>,
+    bikes: List<AdminBikeResponse>,
     onDismiss: () -> Unit,
     onCreate: (String, String, String, String, String) -> Unit
 ) {
@@ -2507,22 +3300,1045 @@ private fun AdminCreateRentalDialog(
     var bikeId by remember { mutableStateOf("") }
     var login by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
-    var periodStart by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Создать аренду") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(clientId, { clientId = it }, label = { Text("Client ID (optional)") })
-                OutlinedTextField(bikeId, { bikeId = it }, label = { Text("Bike ID") })
-                OutlinedTextField(login, { login = it }, label = { Text("Логин клиента") })
-                OutlinedTextField(password, { password = it }, label = { Text("Пароль клиента") })
-                OutlinedTextField(periodStart, { periodStart = it }, label = { Text("Дата начала YYYY-MM-DD") })
+    var periodStart by remember { mutableStateOf(LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)) }
+    var periodEnd by remember { mutableStateOf("") }
+    var videoUrl by remember { mutableStateOf("") }
+    var contractUrl by remember { mutableStateOf("") }
+    var comment by remember { mutableStateOf("") }
+    var toastMessage by remember { mutableStateOf<String?>(null) }
+    var isClientPickerPresented by remember { mutableStateOf(false) }
+    var isBikePickerPresented by remember { mutableStateOf(false) }
+    var draftClientId by remember { mutableStateOf("") }
+    var draftBikeId by remember { mutableStateOf("") }
+    val clipboardManager = LocalClipboardManager.current
+
+    fun fail(message: String) {
+        toastMessage = message
+    }
+
+    fun generateCredentials() {
+        val symbols = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%"
+        password = buildString {
+            repeat(12) {
+                append(symbols.random())
             }
-        },
-        confirmButton = { OutlinedButton(onClick = { onCreate(clientId, bikeId, login, password, periodStart) }) { Text("Создать") } },
-        dismissButton = { OutlinedButton(onClick = onDismiss) { Text("Отмена") } }
+        }
+        if (login.trim().isEmpty()) {
+            val fromClient = clients.firstOrNull { it.clientId == clientId }?.clientLogin.orEmpty()
+            login = if (fromClient.isNotBlank()) {
+                fromClient
+            } else {
+                "client${(1000..9999).random()}"
+            }
+        }
+    }
+
+    fun copyCredentials() {
+        val normalizedLogin = login.trim()
+        val normalizedPassword = password.trim()
+        if (normalizedLogin.isEmpty() || normalizedPassword.isEmpty()) {
+            fail("Заполните логин и пароль")
+            return
+        }
+        clipboardManager.setText(AnnotatedString("Логин: $normalizedLogin\nПароль: $normalizedPassword"))
+        toastMessage = "Скопировано"
+    }
+
+    LaunchedEffect(toastMessage) {
+        if (!toastMessage.isNullOrEmpty()) {
+            delay(2200)
+            toastMessage = null
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AppDesign.PageBackground)
+            .testTag("create_rental_sheet")
+    ) {
+        AdminFormSheetScaffold(
+            title = "Новая аренда",
+            onBack = onDismiss,
+            onSubmit = {
+                if (clientId.isBlank()) {
+                    fail("Выберите клиента")
+                    return@AdminFormSheetScaffold
+                }
+                if (bikeId.isBlank()) {
+                    fail("Выберите велосипед")
+                    return@AdminFormSheetScaffold
+                }
+                if (login.trim().isBlank() || password.trim().isBlank()) {
+                    fail("Укажите логин и пароль клиента")
+                    return@AdminFormSheetScaffold
+                }
+                val start = periodStart.trim()
+                val validDate = runCatching { LocalDate.parse(start, DateTimeFormatter.ISO_LOCAL_DATE) }.isSuccess
+                if (!validDate) {
+                    fail("Дата начала должна быть в формате YYYY-MM-DD")
+                    return@AdminFormSheetScaffold
+                }
+                val endTrimmed = periodEnd.trim()
+                if (endTrimmed.isNotEmpty()) {
+                    val validEndDate = runCatching { LocalDate.parse(endTrimmed, DateTimeFormatter.ISO_LOCAL_DATE) }.isSuccess
+                    if (!validEndDate) {
+                        fail("Дата окончания должна быть в формате YYYY-MM-DD")
+                        return@AdminFormSheetScaffold
+                    }
+                    if (endTrimmed < start) {
+                        fail("Дата окончания не может быть раньше даты начала")
+                        return@AdminFormSheetScaffold
+                    }
+                }
+                onCreate(clientId, bikeId, login.trim(), password.trim(), start)
+            },
+            backTag = "create_rental_cancel_button",
+            submitTag = "create_rental_submit_button",
+            horizontalPadding = 23.dp,
+            topBarHeight = 47.dp,
+            topBarTopPadding = 8.dp,
+            contentTopPadding = 14.dp,
+            contentBottomPadding = 26.dp,
+            contentSpacing = 14.dp,
+            titleColor = AppDesign.TitleText
+        ) {
+            AdminFormSectionTitle("КЛИЕНТ И ВЕЛОСИПЕД")
+            AdminSelectorField(
+                label = "КЛИЕНТ",
+                value = clients.firstOrNull { it.clientId == clientId }?.fullName,
+                placeholder = "выбрать клаента",
+                testTag = "create_rental_client_selector",
+                leadingMarkerColor = Color(0xFFD3D7DD),
+                onClick = {
+                    draftClientId = clientId
+                    isClientPickerPresented = true
+                }
+            )
+
+            AdminSelectorField(
+                label = "ВЕЛОСИПЕД",
+                value = bikes.firstOrNull { it.bikeId == bikeId }?.let { "${it.bikeModel} · ${it.weeklyRateRub} ₽/нед" },
+                placeholder = "выбрать · покажет ставку",
+                testTag = "create_rental_bike_selector",
+                leadingMarkerColor = Color(0xFFCDD1D9),
+                onClick = {
+                    draftBikeId = bikeId
+                    isBikePickerPresented = true
+                }
+            )
+
+            AdminSheetInputField(
+                label = "ДАТА НАЧАЛА",
+                placeholder = "YYYY-MM-DD",
+                value = periodStart,
+                onValueChange = { periodStart = it },
+                testTag = "create_rental_start_date_input",
+                keyboardType = KeyboardType.Text
+            )
+            AdminSheetInputField(
+                label = "ДАТА ОКОНЧАНИЯ",
+                placeholder = "не обязательно",
+                value = periodEnd,
+                onValueChange = { periodEnd = it },
+                testTag = "create_rental_end_date_input",
+                keyboardType = KeyboardType.Text,
+                isDashed = true
+            )
+
+            AdminFormSectionTitle("ДОСТУП КЛИЕНТА", topPadding = 6.dp)
+            AdminSheetInputField(
+                label = "ЛОГИН КЛИЕНТА",
+                placeholder = "введите...",
+                value = login,
+                onValueChange = { login = it },
+                testTag = "create_rental_login_input",
+                keyboardType = KeyboardType.Text
+            )
+            AdminSheetInputField(
+                label = "ПАРОЛЬ КЛИЕНТА",
+                placeholder = "введите...",
+                value = password,
+                onValueChange = { password = it },
+                testTag = "create_rental_password_input",
+                keyboardType = KeyboardType.Password
+            )
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = { generateCredentials() },
+                    modifier = Modifier
+                        .width(179.dp)
+                        .height(44.dp)
+                        .testTag("create_rental_generate_credentials_button"),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AppDesign.Accent,
+                        contentColor = Color.White
+                    )
+                ) {
+                    Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Сгенерировать", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+                OutlinedButton(
+                    onClick = { copyCredentials() },
+                    modifier = Modifier
+                        .width(181.dp)
+                        .height(46.dp)
+                        .testTag("create_rental_copy_credentials_button"),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.5.dp, AppDesign.Accent),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = Color.White,
+                        contentColor = AppDesign.Accent
+                    )
+                ) {
+                    Icon(Icons.Filled.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Скопировать", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
+
+            AdminFormSectionTitle("ДОКУМЕНТЫ И КОММЕНТАРИЙ", topPadding = 6.dp)
+            AdminSheetInputField(
+                label = "ССЫЛКА НА ВИДЕО",
+                placeholder = "не обязательно",
+                value = videoUrl,
+                onValueChange = { videoUrl = it },
+                testTag = "create_rental_video_url_input",
+                keyboardType = KeyboardType.Uri,
+                isDashed = true
+            )
+            AdminSheetInputField(
+                label = "ССЫЛКА НА ДОГОВОР",
+                placeholder = "не обязательно",
+                value = contractUrl,
+                onValueChange = { contractUrl = it },
+                testTag = "create_rental_contract_url_input",
+                keyboardType = KeyboardType.Uri,
+                isDashed = true
+            )
+            AdminSheetInputField(
+                label = "КОММЕНТАРИЙ",
+                placeholder = "не обязательно",
+                value = comment,
+                onValueChange = { comment = it },
+                testTag = "create_rental_comment_input",
+                keyboardType = KeyboardType.Text,
+                isDashed = true
+            )
+        }
+
+        AppToast(
+            message = toastMessage,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            bottomPadding = 96
+        )
+
+        AnimatedVisibility(
+            visible = isClientPickerPresented,
+            enter = fadeIn(animationSpec = tween(220)) + slideInVertically(initialOffsetY = { it }, animationSpec = tween(220)),
+            exit = fadeOut(animationSpec = tween(180)) + slideOutVertically(targetOffsetY = { it }, animationSpec = tween(180)),
+            modifier = Modifier.fillMaxSize().zIndex(15f)
+        ) {
+            RentalClientPickerSheet(
+                clients = clients,
+                selectedId = draftClientId,
+                onSelect = { draftClientId = it },
+                onClose = { isClientPickerPresented = false },
+                onConfirm = {
+                    clientId = draftClientId
+                    val suggestedLogin = clients.firstOrNull { it.clientId == draftClientId }?.clientLogin.orEmpty()
+                    if (login.trim().isEmpty() && suggestedLogin.isNotBlank()) {
+                        login = suggestedLogin
+                    }
+                    isClientPickerPresented = false
+                },
+                listTag = "create_rental_client_picker_list"
+            )
+        }
+
+        AnimatedVisibility(
+            visible = isBikePickerPresented,
+            enter = fadeIn(animationSpec = tween(220)) + slideInVertically(initialOffsetY = { it }, animationSpec = tween(220)),
+            exit = fadeOut(animationSpec = tween(180)) + slideOutVertically(targetOffsetY = { it }, animationSpec = tween(180)),
+            modifier = Modifier.fillMaxSize().zIndex(15f)
+        ) {
+            RentalBikePickerSheet(
+                bikes = bikes,
+                selectedId = draftBikeId,
+                onSelect = { draftBikeId = it },
+                onClose = { isBikePickerPresented = false },
+                onConfirm = {
+                    bikeId = draftBikeId
+                    isBikePickerPresented = false
+                },
+                listTag = "create_rental_bike_picker_list"
+            )
+        }
+    }
+}
+
+@Composable
+private fun AdminFormSheetScaffold(
+    title: String,
+    onBack: () -> Unit,
+    onSubmit: () -> Unit,
+    backTag: String,
+    submitTag: String,
+    horizontalPadding: androidx.compose.ui.unit.Dp,
+    topBarHeight: androidx.compose.ui.unit.Dp,
+    topBarTopPadding: androidx.compose.ui.unit.Dp,
+    contentTopPadding: androidx.compose.ui.unit.Dp,
+    contentBottomPadding: androidx.compose.ui.unit.Dp,
+    contentSpacing: androidx.compose.ui.unit.Dp,
+    titleColor: Color = AppDesign.Accent,
+    content: @Composable () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding()
+    ) {
+        if (topBarTopPadding > 0.dp) {
+            Spacer(Modifier.height(topBarTopPadding))
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = horizontalPadding)
+                .height(topBarHeight),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AdminSheetTopButton(
+                onClick = onBack,
+                dark = false,
+                testTag = backTag,
+                iconRes = R.drawable.ic_back,
+                iconSize = 14.dp
+            )
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = title,
+                color = titleColor,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                maxLines = 1
+            )
+            Spacer(Modifier.weight(1f))
+            AdminSheetTopButton(
+                onClick = onSubmit,
+                dark = true,
+                testTag = submitTag,
+                iconRes = R.drawable.ic_ok,
+                iconSize = 16.dp
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = horizontalPadding)
+                .padding(top = contentTopPadding, bottom = contentBottomPadding),
+            verticalArrangement = Arrangement.spacedBy(contentSpacing)
+        ) {
+            content()
+        }
+    }
+}
+
+@Composable
+private fun AdminSheetTopButton(
+    onClick: () -> Unit,
+    dark: Boolean,
+    testTag: String,
+    iconRes: Int,
+    iconSize: androidx.compose.ui.unit.Dp
+) {
+    Box(
+        modifier = Modifier
+            .size(47.dp)
+            .background(if (dark) AppDesign.Accent else Color.White, RoundedCornerShape(14.dp))
+            .border(
+                width = 1.5.dp,
+                color = AppDesign.Accent,
+                shape = RoundedCornerShape(14.dp)
+            )
+            .clickable(onClick = onClick)
+            .testTag(testTag),
+        contentAlignment = Alignment.Center
+    ) {
+        Image(
+            painter = painterResource(iconRes),
+            contentDescription = null,
+            modifier = Modifier.size(iconSize)
+        )
+    }
+}
+
+@Composable
+private fun AdminFormSectionTitle(
+    text: String,
+    topPadding: androidx.compose.ui.unit.Dp = 0.dp
+) {
+    Text(
+        text = text,
+        color = Color(0xFF6B7280),
+        fontSize = 11.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 0.88.sp,
+        modifier = Modifier.padding(top = topPadding)
     )
+}
+
+@Composable
+private fun AdminSheetInputField(
+    label: String,
+    placeholder: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    testTag: String,
+    keyboardType: KeyboardType,
+    valueWeight: FontWeight = FontWeight.Normal,
+    capitalization: KeyboardCapitalization = KeyboardCapitalization.Sentences,
+    isDashed: Boolean = false,
+    accentBorder: Boolean = false
+) {
+    val dashedColor = Color(0xFF98A1AD)
+    val borderColor = if (accentBorder) AppDesign.Accent else AppDesign.Accent
+
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = label.uppercase(),
+            color = Color(0xFF6B7280),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Normal,
+            letterSpacing = 0.66.sp
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(58.dp)
+                .background(Color.White, RoundedCornerShape(12.84.dp))
+                .drawWithContent {
+                    drawContent()
+                    val corner = CornerRadius(12.84.dp.toPx(), 12.84.dp.toPx())
+                    if (isDashed) {
+                        drawRoundRect(
+                            color = dashedColor,
+                            cornerRadius = corner,
+                            style = Stroke(
+                                width = 1.5.dp.toPx(),
+                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 2.5.dp.toPx()))
+                            )
+                        )
+                    } else {
+                        drawRoundRect(
+                            color = borderColor,
+                            cornerRadius = corner,
+                            style = Stroke(width = 1.5.dp.toPx())
+                        )
+                    }
+                }
+                .padding(horizontal = 19.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag(testTag),
+                singleLine = true,
+                textStyle = TextStyle(
+                    color = AppDesign.Accent,
+                    fontSize = 13.sp,
+                    fontWeight = valueWeight
+                ),
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = keyboardType,
+                    capitalization = capitalization
+                ),
+                cursorBrush = SolidColor(AppDesign.TitleText),
+                decorationBox = { inner ->
+                    if (value.isEmpty()) {
+                        Text(
+                            placeholder,
+                            color = Color(0xFFC9CCD2),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Normal
+                        )
+                    }
+                    inner()
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun AdminSelectorField(
+    label: String,
+    value: String?,
+    placeholder: String,
+    testTag: String,
+    leadingMarkerColor: Color = Color.Transparent,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(58.dp)
+            .background(Color.White, RoundedCornerShape(12.84.dp))
+            .border(1.5.dp, AppDesign.Accent, RoundedCornerShape(12.84.dp))
+            .testTag(testTag)
+            .clickable(onClick = onClick)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(start = 19.dp, end = 15.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    text = label,
+                    color = Color(0xFF6B7280),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.8.sp
+                )
+                Text(
+                    text = value ?: placeholder,
+                    color = if (value == null) Color(0xFFC9CCD2) else AppDesign.TitleText,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .background(Color(0xFFEAEAF0), RoundedCornerShape(8.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = Color(0xFF6B7280),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+        if (leadingMarkerColor != Color.Transparent) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(vertical = 8.dp)
+                    .width(4.dp)
+                    .fillMaxHeight()
+                    .background(leadingMarkerColor, RoundedCornerShape(4.dp))
+            )
+        }
+    }
+}
+
+@Composable
+private fun AdminDashedActionButton(
+    text: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    testTag: String
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp)
+            .background(Color.White, RoundedCornerShape(16.dp))
+            .drawWithContent {
+                drawContent()
+                drawRoundRect(
+                    color = Color(0xFF98A1AD),
+                    cornerRadius = CornerRadius(16.dp.toPx(), 16.dp.toPx()),
+                    style = Stroke(
+                        width = 1.5.dp.toPx(),
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 3.dp.toPx()))
+                    )
+                )
+            }
+            .clickable(enabled = enabled, onClick = onClick)
+            .testTag(testTag),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            color = if (enabled) AppDesign.Accent else AppDesign.Accent.copy(alpha = 0.5f),
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.28.sp
+        )
+    }
+}
+
+@Composable
+private fun AdminBikePhotoCard(testTag: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(202.dp)
+            .background(Color(0xFFEEF0F3), RoundedCornerShape(14.dp))
+            .drawWithContent {
+                drawContent()
+                drawRoundRect(
+                    color = AppDesign.Accent,
+                    cornerRadius = CornerRadius(14.dp.toPx(), 14.dp.toPx()),
+                    style = Stroke(
+                        width = 1.5.dp.toPx(),
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 2.5.dp.toPx()))
+                    )
+                )
+            }
+            .testTag(testTag),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(
+                modifier = Modifier
+                    .size(58.dp)
+                    .background(Color.White, RoundedCornerShape(14.dp))
+                    .border(1.5.dp, AppDesign.Accent, RoundedCornerShape(14.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.DirectionsBike,
+                    contentDescription = null,
+                    tint = AppDesign.Accent,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            Text("Загрузить фото", color = AppDesign.Accent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "Нажмите, чтобы выбрать из галереи",
+                color = Color(0xFF6B7280),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+
+private enum class RentalClientPickerFilter(val title: String) {
+    All("Все"),
+    Debtors("Должники"),
+    Active("Активные")
+}
+
+@Composable
+private fun RentalClientPickerSheet(
+    clients: List<AdminClientSummaryResponse>,
+    selectedId: String,
+    onSelect: (String) -> Unit,
+    onClose: () -> Unit,
+    onConfirm: () -> Unit,
+    listTag: String
+) {
+    var searchText by remember { mutableStateOf("") }
+    var selectedFilter by remember { mutableStateOf(RentalClientPickerFilter.All) }
+    val baseClients = remember(clients) { clients.filter { !it.rentalIsActive } }
+    val visibleClients = remember(baseClients, searchText, selectedFilter) {
+        val query = searchText.trim().lowercase()
+        val searched = baseClients.filter { client ->
+            query.isEmpty() ||
+                client.fullName.lowercase().contains(query) ||
+                client.bikeModel.lowercase().contains(query) ||
+                client.clientLogin.orEmpty().lowercase().contains(query)
+        }
+        when (selectedFilter) {
+            RentalClientPickerFilter.All -> searched
+            RentalClientPickerFilter.Debtors -> searched.filter { it.debtRub > 0 }
+            RentalClientPickerFilter.Active -> emptyList()
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AppDesign.PageBackground)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+        ) {
+            RentalPickerHeader(
+                title = "Клиенты",
+                onClose = onClose,
+                onConfirm = onConfirm,
+                confirmEnabled = selectedId.isNotBlank()
+            )
+            RentalPickerSearchField(
+                value = searchText,
+                placeholder = "Поиск: ФИО, телефон, паспорт",
+                onValueChange = { searchText = it },
+                modifier = Modifier.padding(horizontal = 8.dp).padding(top = 6.dp)
+            )
+            Row(
+                modifier = Modifier.padding(horizontal = 8.dp).padding(top = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                RentalPickerFilterChip(
+                    title = RentalClientPickerFilter.All.title,
+                    count = baseClients.size,
+                    selected = selectedFilter == RentalClientPickerFilter.All,
+                    onClick = { selectedFilter = RentalClientPickerFilter.All }
+                )
+                RentalPickerFilterChip(
+                    title = RentalClientPickerFilter.Debtors.title,
+                    count = baseClients.count { it.debtRub > 0 },
+                    selected = selectedFilter == RentalClientPickerFilter.Debtors,
+                    onClick = { selectedFilter = RentalClientPickerFilter.Debtors }
+                )
+                RentalPickerFilterChip(
+                    title = RentalClientPickerFilter.Active.title,
+                    count = 0,
+                    selected = selectedFilter == RentalClientPickerFilter.Active,
+                    onClick = { selectedFilter = RentalClientPickerFilter.Active }
+                )
+            }
+
+            if (visibleClients.isEmpty()) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 14.dp),
+                    shape = RoundedCornerShape(15.dp),
+                    color = Color.White
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(Icons.Filled.Person, contentDescription = null, tint = AppDesign.IconSoft, modifier = Modifier.size(30.dp))
+                        Spacer(Modifier.height(12.dp))
+                        Text("Нет свободных клиентов", color = AppDesign.TitleText, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "В списке выбора скрыты клиенты, которые уже участвуют в активных арендах.",
+                            color = AppDesign.SubtleText,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = 10.dp)
+                        .background(Color.White)
+                        .testTag(listTag),
+                    contentPadding = PaddingValues(bottom = 20.dp)
+                ) {
+                    items(visibleClients.size) { index ->
+                        val client = visibleClients[index]
+                        val isSelected = selectedId == client.clientId
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onSelect(client.clientId) }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .background(AppDesign.PageBackground, RoundedCornerShape(12.dp))
+                                    .border(1.dp, Color(0xFFE0E5EC), RoundedCornerShape(12.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Outlined.AccountCircle,
+                                    contentDescription = null,
+                                    tint = AppDesign.IconSoft,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(client.fullName, color = AppDesign.TitleText, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                                val login = client.clientLogin.orEmpty()
+                                Text(
+                                    if (login.isNotBlank()) "Логин: $login" else "Свободный клиент",
+                                    color = AppDesign.SubtleText,
+                                    fontSize = 14.sp
+                                )
+                                Text(client.bikeModel, color = AppDesign.SubtleText, fontSize = 12.sp)
+                            }
+                            Icon(
+                                imageVector = if (isSelected) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
+                                contentDescription = null,
+                                tint = if (isSelected) AppDesign.Success else AppDesign.IconSoft,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        if (index < visibleClients.lastIndex) {
+                            HorizontalDivider(color = Color(0xFFEAEAF0), thickness = 1.dp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RentalBikePickerSheet(
+    bikes: List<AdminBikeResponse>,
+    selectedId: String,
+    onSelect: (String) -> Unit,
+    onClose: () -> Unit,
+    onConfirm: () -> Unit,
+    listTag: String
+) {
+    var searchText by remember { mutableStateOf("") }
+    val availableBikes = remember(bikes) { bikes.filter { !it.bikeIsInRental } }
+    val visibleBikes = remember(availableBikes, searchText) {
+        val query = searchText.trim().lowercase()
+        availableBikes.filter { bike ->
+            query.isEmpty() ||
+                bike.bikeModel.lowercase().contains(query) ||
+                bike.frameSerialNumber.lowercase().contains(query) ||
+                bike.motorSerialNumber.lowercase().contains(query) ||
+                bike.batterySerialNumber1.lowercase().contains(query) ||
+                bike.batterySerialNumber2.orEmpty().lowercase().contains(query)
+        }.sortedBy { it.bikeModel.lowercase() }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AppDesign.PageBackground)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+        ) {
+            RentalPickerHeader(
+                title = "Велосипеды",
+                onClose = onClose,
+                onConfirm = onConfirm,
+                confirmEnabled = selectedId.isNotBlank()
+            )
+            RentalPickerSearchField(
+                value = searchText,
+                placeholder = "Поиск: модель, серийный номер",
+                onValueChange = { searchText = it },
+                modifier = Modifier.padding(horizontal = 8.dp).padding(top = 6.dp)
+            )
+
+            if (visibleBikes.isEmpty()) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 14.dp),
+                    shape = RoundedCornerShape(15.dp),
+                    color = Color.White
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(Icons.Outlined.DirectionsBike, contentDescription = null, tint = AppDesign.IconSoft, modifier = Modifier.size(30.dp))
+                        Spacer(Modifier.height(12.dp))
+                        Text("Нет велосипедов", color = AppDesign.TitleText, fontWeight = FontWeight.Bold)
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = 10.dp)
+                        .background(Color.White)
+                        .testTag(listTag),
+                    contentPadding = PaddingValues(bottom = 20.dp)
+                ) {
+                    items(visibleBikes.size) { index ->
+                        val bike = visibleBikes[index]
+                        val isSelected = selectedId == bike.bikeId
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onSelect(bike.bikeId) }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .background(AppDesign.PageBackground, RoundedCornerShape(12.dp))
+                                    .border(1.dp, Color(0xFFE0E5EC), RoundedCornerShape(12.dp)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Outlined.DirectionsBike,
+                                    contentDescription = null,
+                                    tint = AppDesign.IconSoft,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(bike.bikeModel, color = AppDesign.TitleText, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                                Text("${bike.weeklyRateRub} ₽ / неделя", color = AppDesign.SubtleText, fontSize = 14.sp)
+                            }
+                            Icon(
+                                imageVector = if (isSelected) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
+                                contentDescription = null,
+                                tint = if (isSelected) AppDesign.Success else AppDesign.IconSoft,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        if (index < visibleBikes.lastIndex) {
+                            HorizontalDivider(color = Color(0xFFEAEAF0), thickness = 1.dp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RentalPickerHeader(
+    title: String,
+    onClose: () -> Unit,
+    onConfirm: () -> Unit,
+    confirmEnabled: Boolean
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp)
+            .height(62.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(47.dp)
+                .background(Color.White, RoundedCornerShape(14.dp))
+                .border(1.5.dp, AppDesign.Accent, RoundedCornerShape(14.dp))
+                .clickable(onClick = onClose)
+                .testTag("selection_picker_close_button"),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Filled.Close, contentDescription = null, tint = AppDesign.Accent, modifier = Modifier.size(16.dp))
+        }
+        Spacer(Modifier.weight(1f))
+        Text(title, color = Color(0xFF141718), fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        Spacer(Modifier.weight(1f))
+        Box(
+            modifier = Modifier
+                .size(47.dp)
+                .background(AppDesign.Accent, RoundedCornerShape(14.dp))
+                .border(1.5.dp, AppDesign.Accent, RoundedCornerShape(14.dp))
+                .clickable(enabled = confirmEnabled, onClick = onConfirm)
+                .testTag("selection_picker_confirm_button")
+                .alpha(if (confirmEnabled) 1f else 0.45f),
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = painterResource(R.drawable.ic_ok),
+                contentDescription = null,
+                modifier = Modifier.size(16.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun RentalPickerSearchField(
+    value: String,
+    placeholder: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(46.dp)
+            .background(Color.White, RoundedCornerShape(12.84.dp))
+            .border(1.5.dp, AppDesign.Accent, RoundedCornerShape(12.84.dp))
+            .padding(horizontal = 15.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.Outlined.Search, contentDescription = null, tint = AppDesign.TitleText, modifier = Modifier.size(14.dp))
+        Spacer(Modifier.width(10.dp))
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            textStyle = TextStyle(color = AppDesign.TitleText, fontSize = 13.sp, fontWeight = FontWeight.Normal),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Text,
+                capitalization = KeyboardCapitalization.None
+            ),
+            cursorBrush = SolidColor(AppDesign.TitleText),
+            decorationBox = { inner ->
+                if (value.isEmpty()) {
+                    Text(placeholder, color = Color(0xFFC9CCD2), fontSize = 13.sp)
+                }
+                inner()
+            }
+        )
+    }
+}
+
+@Composable
+private fun RentalPickerFilterChip(
+    title: String,
+    count: Int,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val bg = if (selected) AppDesign.Accent else Color.White
+    val textColor = if (selected) Color.White else AppDesign.Accent
+    val countBg = if (selected) Color.White.copy(alpha = 0.2f) else Color.Black.copy(alpha = 0.08f)
+
+    Row(
+        modifier = Modifier
+            .height(36.dp)
+            .background(bg, RoundedCornerShape(999.dp))
+            .border(1.5.dp, AppDesign.Accent, RoundedCornerShape(999.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 15.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Text(title, color = textColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Box(
+            modifier = Modifier
+                .background(countBg, RoundedCornerShape(999.dp))
+                .padding(horizontal = 6.dp, vertical = 2.dp)
+        ) {
+            Text("$count", color = textColor, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        }
+    }
 }
 
 @Composable
