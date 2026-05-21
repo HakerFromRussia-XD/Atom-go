@@ -1,6 +1,7 @@
 package com.atomgo.android.presentation.ui
 
 import androidx.compose.ui.graphics.Color
+import com.atomgo.android.AppDesign
 import com.atomgo.shared.api.AdminBikeResponse
 import com.atomgo.shared.api.AdminClientDetailsResponse
 import com.atomgo.shared.api.AdminClientSummaryResponse
@@ -23,13 +24,13 @@ internal fun bikeCatalogRuntimeSnapshot(
     }
     if (activeRentals.isEmpty()) {
         return BikeCatalogRuntimeSnapshot(
-            borderColor = Color(0xFFCB30E0),
+            borderColor = AppDesign.IdlePurple,
             subtitle = "-"
         )
     }
 
     val hasSoonReturn = activeRentals.any { it.rentalPipelineStatus == "soon_return" }
-    val borderColor = if (hasSoonReturn) Color(0xFFFFCC00) else Color(0xFF34C759)
+    val borderColor = if (hasSoonReturn) AppDesign.WarningYellow else AppDesign.PaidGreen
     val activeRental = activeRentals.first()
     val clientName = activeRental.fullName.trim().ifEmpty { "Клиент" }
     val subtitle = if (activeRental.rentalPipelineStatus == "soon_return") {
@@ -133,7 +134,7 @@ internal fun rentStatus(item: AdminClientSummaryResponse): RentStatusPill {
         return RentStatusPill(
             title = "У меня",
             value = "—",
-            color = Color(0xFF141718),
+            color = AppDesign.DarkControl,
             widthDp = 108
         )
     }
@@ -142,7 +143,7 @@ internal fun rentStatus(item: AdminClientSummaryResponse): RentStatusPill {
         return RentStatusPill(
             title = "Долг",
             value = money(item.debtRub),
-            color = Color(red = 214f / 255f, green = 48f / 255f, blue = 52f / 255f),
+            color = AppDesign.DangerRed,
             widthDp = 108
         )
     }
@@ -150,20 +151,20 @@ internal fun rentStatus(item: AdminClientSummaryResponse): RentStatusPill {
     return RentStatusPill(
         title = "Оплачено на",
         value = paidDaysText(item),
-        color = Color(red = 35f / 255f, green = 143f / 255f, blue = 71f / 255f),
+        color = AppDesign.PaidGreen,
         widthDp = 108
     )
 }
 
 internal fun avatarBorderColor(item: AdminClientSummaryResponse): Color {
     return when (item.rentalPipelineStatus.orEmpty().trim().lowercase()) {
-        "in_stock", "mine" -> Color(red = 203f / 255f, green = 48f / 255f, blue = 224f / 255f)
-        "soon_return" -> Color(red = 255f / 255f, green = 204f / 255f, blue = 0f)
-        "long_term" -> Color(red = 52f / 255f, green = 199f / 255f, blue = 89f / 255f)
+        "in_stock", "mine" -> AppDesign.IdlePurple
+        "soon_return" -> AppDesign.WarningYellow
+        "long_term" -> AppDesign.PaidGreen
         else -> if (item.rentalIsActive) {
-            Color(red = 52f / 255f, green = 199f / 255f, blue = 89f / 255f)
+            AppDesign.PaidGreen
         } else {
-            Color(red = 203f / 255f, green = 48f / 255f, blue = 224f / 255f)
+            AppDesign.IdlePurple
         }
     }
 }

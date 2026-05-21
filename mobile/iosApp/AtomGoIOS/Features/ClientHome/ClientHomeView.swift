@@ -258,7 +258,7 @@ struct ClientHomeView: View {
             } label: {
                 ZStack {
                     RoundedRectangle(cornerRadius: 14 * scale, style: .continuous)
-                        .fill(Color.white)
+                        .fill(AppDesign.surfaceBackground)
                         .overlay(
                             RoundedRectangle(cornerRadius: 14 * scale, style: .continuous)
                                 .stroke(ClientColors.mainText, lineWidth: 1)
@@ -288,7 +288,7 @@ struct ClientHomeView: View {
                 } label: {
                     ZStack {
                         RoundedRectangle(cornerRadius: 14 * scale, style: .continuous)
-                            .fill(Color.white)
+                            .fill(AppDesign.surfaceBackground)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 14 * scale, style: .continuous)
                                     .stroke(ClientColors.mainText, lineWidth: 1)
@@ -408,7 +408,7 @@ struct ClientHomeView: View {
                 .stroke(ClientColors.mainText, lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: 15 * scale, style: .continuous))
-        .shadow(color: Color.black.opacity(0.08), radius: 15 * scale, x: 0, y: 20 * scale)
+        .shadow(color: AppDesign.black.opacity(0.08), radius: 15 * scale, x: 0, y: 20 * scale)
     }
 
     private func debtDisplay(for dashboard: ClientDashboardResponse) -> (title: String, amountRub: Int, color: Color) {
@@ -474,7 +474,7 @@ struct ClientHomeView: View {
                         Text("Оплатить весь долг · \(moneyText(max(0, dashboard.debtRub)))")
                             .font(.system(size: 14 * scale, weight: .bold))
                             .tracking(0.28 * scale)
-                            .foregroundStyle(Color.white)
+                            .foregroundStyle(AppDesign.surfaceBackground)
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -498,7 +498,7 @@ struct ClientHomeView: View {
                     Text("Выбрать тариф ↑")
                         .font(.system(size: 14 * scale, weight: .bold))
                         .tracking(0.28 * scale)
-                        .foregroundStyle(Color.white)
+                        .foregroundStyle(AppDesign.surfaceBackground)
                 }
                 .contentShape(RoundedRectangle(cornerRadius: 16 * scale, style: .continuous))
                 .frame(maxWidth: .infinity)
@@ -561,7 +561,7 @@ struct ClientHomeView: View {
             } label: {
                 ZStack {
                     RoundedRectangle(cornerRadius: 16 * scale, style: .continuous)
-                        .fill(Color.white)
+                        .fill(AppDesign.surfaceBackground)
                         .overlay(
                             RoundedRectangle(cornerRadius: 16 * scale, style: .continuous)
                                 .stroke(ClientColors.mainText, lineWidth: 1)
@@ -589,7 +589,7 @@ struct ClientHomeView: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: 429 * scale, alignment: .top)
-        .background(Color.white)
+        .background(AppDesign.surfaceBackground)
         .overlay(alignment: .top) {
             Rectangle()
                 .fill(ClientColors.mainText)
@@ -597,7 +597,7 @@ struct ClientHomeView: View {
                 .opacity(0.2)
         }
         .clipShape(RoundedRectangle(cornerRadius: 24 * scale, style: .continuous))
-        .shadow(color: Color.black.opacity(0.12), radius: 15 * scale, x: 0, y: -10 * scale)
+        .shadow(color: AppDesign.black.opacity(0.12), radius: 15 * scale, x: 0, y: -10 * scale)
         .padding(.horizontal, 0)
     }
 
@@ -766,19 +766,19 @@ struct ClientHomeView: View {
 }
 
 private enum ClientColors {
-    static let mainText = Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255)
-    static let subtleText = Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255)
-    static let card = Color(red: 250 / 255, green: 251 / 255, blue: 251 / 255)
-    static let borderSoft = Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255)
-    static let placeholder = Color(red: 227 / 255, green: 230 / 255, blue: 235 / 255)
-    static let placeholderStroke = Color(red: 152 / 255, green: 161 / 255, blue: 173 / 255)
-    static let primaryButton = Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255)
-    static let debt = Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255)
-    static let success = Color(red: 35 / 255, green: 143 / 255, blue: 71 / 255)
-    static let sheetHandle = Color(red: 211 / 255, green: 215 / 255, blue: 221 / 255)
-    static let iconFill = Color(red: 190 / 255, green: 192 / 255, blue: 198 / 255)
-    static let iconStroke = Color(red: 198 / 255, green: 201 / 255, blue: 208 / 255)
-    static let iconCanvas = Color(red: 235 / 255, green: 236 / 255, blue: 239 / 255)
+    static let mainText = AppDesign.darkControl
+    static let subtleText = AppDesign.paleSky
+    static let card = AppDesign.blackHaze
+    static let borderSoft = AppDesign.athensGray
+    static let placeholder = AppDesign.placeholder
+    static let placeholderStroke = AppDesign.placeholderStroke
+    static let primaryButton = AppDesign.darkControl
+    static let debt = AppDesign.danger
+    static let success = AppDesign.success
+    static let sheetHandle = AppDesign.sheetHandle
+    static let iconFill = AppDesign.iconFill
+    static let iconStroke = AppDesign.iconStroke
+    static let iconCanvas = AppDesign.iconCanvas
 }
 
 private struct BikePlaceholderView: View {
@@ -902,7 +902,7 @@ private struct TariffIllustrationView: View {
                 Image(systemName: "circle")
             }
             .font(.system(size: 18 * scale, weight: .regular))
-            .foregroundStyle(Color(red: 201 / 255, green: 203 / 255, blue: 208 / 255))
+            .foregroundStyle(AppDesign.disabledText)
 
         case .month:
             CalendarMiniIcon(scale: scale, accentClock: true)

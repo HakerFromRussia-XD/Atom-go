@@ -11,14 +11,14 @@ struct AtomGoInputField: View {
     var textInputAutocapitalization: TextInputAutocapitalization = .sentences
     var accessibilityIdentifier: String = ""
     var valueWeight: Font.Weight = .regular
-    var borderColor: Color = Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255)
+    var borderColor: Color = AppDesign.darkControl
     var accentBorder: Bool = false   // true — синяя рамка AppDesign.accent
     var autoFocus: Bool = false
 
     @FocusState private var isFocused: Bool
 
-    private let paleSky = Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255)
-    private let ghost   = Color(red: 201 / 255, green: 204 / 255, blue: 210 / 255)
+    private let paleSky = AppDesign.paleSky
+    private let ghost   = AppDesign.ghost
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -31,7 +31,7 @@ struct AtomGoInputField: View {
 
             TextField("", text: $text, prompt: Text(placeholder).foregroundColor(ghost))
                 .font(.system(size: 13, weight: valueWeight))
-                .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                .foregroundStyle(AppDesign.darkControl)
                 .keyboardType(keyboardType)
                 .textInputAutocapitalization(textInputAutocapitalization)
                 .autocorrectionDisabled()
@@ -42,7 +42,7 @@ struct AtomGoInputField: View {
         .padding(.horizontal, 19)
         .frame(height: 58)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white)
+        .background(AppDesign.surfaceBackground)
         .contentShape(Rectangle())
         .onTapGesture { isFocused = true }
         .onAppear {
@@ -55,7 +55,7 @@ struct AtomGoInputField: View {
             if isDashed {
                 RoundedRectangle(cornerRadius: 12.84, style: .continuous)
                     .stroke(
-                        Color(red: 152 / 255, green: 161 / 255, blue: 173 / 255),
+                        AppDesign.placeholderStroke,
                         style: StrokeStyle(lineWidth: 1.5, dash: [3, 2.5])
                     )
             } else if accentBorder {

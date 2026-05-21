@@ -133,7 +133,7 @@ struct CreateRentalSheet: View {
                             title: "КЛИЕНТ",
                             value: selectedClientName,
                             placeholder: "выбрать клаента",
-                            leadingMarkerColor: Color(red: 211 / 255, green: 215 / 255, blue: 221 / 255),
+                            leadingMarkerColor: AppDesign.sheetHandle,
                             action: { isClientPickerPresented = true }
                         )
                         .accessibilityIdentifier("createRental.clientPicker")
@@ -142,7 +142,7 @@ struct CreateRentalSheet: View {
                             title: "ВЕЛОСИПЕД",
                             value: selectedBikeName,
                             placeholder: "выбрать · покажет ставку",
-                            leadingMarkerColor: Color(red: 205 / 255, green: 209 / 255, blue: 217 / 255),
+                            leadingMarkerColor: AppDesign.markerSoft,
                             action: { isBikePickerPresented = true }
                         )
                         .accessibilityIdentifier("createRental.bikePicker")
@@ -296,7 +296,7 @@ struct CreateRentalSheet: View {
     ) -> some View {
         Button(action: action) {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(isDark ? AppDesign.accent : Color.white)
+                .fill(isDark ? AppDesign.accent : AppDesign.surfaceBackground)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .stroke(AppDesign.accent, lineWidth: 1.5)
@@ -304,7 +304,7 @@ struct CreateRentalSheet: View {
                 .overlay(
                     Image(systemName: imageName)
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(isDark ? Color.white : AppDesign.accent)
+                        .foregroundStyle(isDark ? AppDesign.surfaceBackground : AppDesign.accent)
                 )
                 .frame(width: 47, height: 47)
         }
@@ -321,7 +321,7 @@ struct CreateRentalSheet: View {
     ) -> some View {
         Button(action: action) {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(isDark ? AppDesign.accent : Color.white)
+                .fill(isDark ? AppDesign.accent : AppDesign.surfaceBackground)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .stroke(AppDesign.accent, lineWidth: 1.5)
@@ -343,7 +343,7 @@ struct CreateRentalSheet: View {
         Text(text)
             .font(.system(size: 11, weight: .bold))
             .tracking(0.88)
-            .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+            .foregroundStyle(AppDesign.paleSky)
             .padding(.top, topPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -361,26 +361,26 @@ struct CreateRentalSheet: View {
                     Text(title)
                         .font(.system(size: 10, weight: .bold))
                         .tracking(0.8)
-                        .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                        .foregroundStyle(AppDesign.paleSky)
                     Text(value ?? placeholder)
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(value == nil ? Color(red: 201 / 255, green: 204 / 255, blue: 210 / 255) : AppDesign.titleText)
+                        .foregroundStyle(value == nil ? AppDesign.ghost : AppDesign.titleText)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 0)
                 ZStack {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255))
+                        .fill(AppDesign.athensGray)
                     Image(systemName: "chevron.down")
                         .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                        .foregroundStyle(AppDesign.paleSky)
                 }
                 .frame(width: 28, height: 28)
             }
             .padding(.leading, 19)
             .padding(.trailing, 15)
             .frame(minHeight: 58)
-            .background(Color.white)
+            .background(AppDesign.surfaceBackground)
             .overlay(
                 RoundedRectangle(cornerRadius: 12.84, style: .continuous)
                     .stroke(AppDesign.accent, lineWidth: 1.5)
@@ -405,7 +405,7 @@ struct CreateRentalSheet: View {
                     Text("Сгенерировать")
                         .font(.system(size: 13, weight: .bold))
                 }
-                .foregroundStyle(Color.white)
+                .foregroundStyle(AppDesign.surfaceBackground)
                 .frame(width: 179, height: 44)
                 .background(AppDesign.accent)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -422,7 +422,7 @@ struct CreateRentalSheet: View {
                 }
                 .foregroundStyle(AppDesign.accent)
                 .frame(width: 181, height: 46)
-                .background(Color.white)
+                .background(AppDesign.surfaceBackground)
                 .overlay(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .stroke(AppDesign.accent, lineWidth: 1.5)

@@ -10,7 +10,7 @@ struct RentalStartBikePickerSheet: View {
 
     @State private var searchText = ""
 
-    private let athensGray = Color(red: 247 / 255, green: 248 / 255, blue: 250 / 255)
+    private let athensGray = AppDesign.pageBackground
     private let horizontalInset: CGFloat = 8
 
     var body: some View {
@@ -76,7 +76,7 @@ struct RentalStartBikePickerSheet: View {
 
                 Text("Велосипеды")
                     .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
+                    .foregroundStyle(AppDesign.darkText)
 
                 Spacer()
 
@@ -115,7 +115,7 @@ struct RentalStartBikePickerSheet: View {
         }
         .padding(.horizontal, 15)
         .frame(height: 46)
-        .background(Color.white)
+        .background(AppDesign.surfaceBackground)
         .overlay(
             RoundedRectangle(cornerRadius: 12.84, style: .continuous)
                 .stroke(AppDesign.accent, lineWidth: 1.5)
@@ -132,7 +132,7 @@ struct RentalStartBikePickerSheet: View {
     ) -> some View {
         Button(action: action) {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(isDark ? AppDesign.accent : Color.white)
+                .fill(isDark ? AppDesign.accent : AppDesign.surfaceBackground)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .stroke(AppDesign.accent, lineWidth: 1.5)
@@ -140,7 +140,7 @@ struct RentalStartBikePickerSheet: View {
                 .overlay(
                     Image(systemName: systemName)
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(isDark ? Color.white : AppDesign.accent)
+                        .foregroundStyle(isDark ? AppDesign.surfaceBackground : AppDesign.accent)
                 )
                 .frame(width: 47, height: 47)
         }
@@ -157,7 +157,7 @@ struct RentalStartBikePickerSheet: View {
     ) -> some View {
         Button(action: action) {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(isDark ? AppDesign.accent : Color.white)
+                .fill(isDark ? AppDesign.accent : AppDesign.surfaceBackground)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .stroke(AppDesign.accent, lineWidth: 1.5)
@@ -170,7 +170,7 @@ struct RentalStartBikePickerSheet: View {
                                 .resizable()
                                 .scaledToFit()
                                 .frame(width: assetSize, height: assetSize)
-                                .foregroundStyle(Color.white)
+                                .foregroundStyle(AppDesign.surfaceBackground)
                         } else {
                             Image(assetName)
                                 .renderingMode(.original)
@@ -197,7 +197,7 @@ struct RentalStartBikePickerSheet: View {
         }
         .frame(maxWidth: .infinity)
         .padding(24)
-        .background(Color.white)
+        .background(AppDesign.surfaceBackground)
         .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
     }
 

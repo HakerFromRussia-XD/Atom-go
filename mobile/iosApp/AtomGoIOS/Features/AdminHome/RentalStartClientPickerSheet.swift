@@ -11,7 +11,7 @@ struct RentalStartClientPickerSheet: View {
     @State private var searchText = ""
     @State private var selectedFilter: ClientCatalogFilter = .all
 
-    private let athensGray = Color(red: 247 / 255, green: 248 / 255, blue: 250 / 255)
+    private let athensGray = AppDesign.pageBackground
     private let horizontalInset: CGFloat = 8
 
     var body: some View {
@@ -78,7 +78,7 @@ struct RentalStartClientPickerSheet: View {
 
                 Text("Клиенты")
                     .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
+                    .foregroundStyle(AppDesign.darkText)
 
                 Spacer()
 
@@ -125,7 +125,7 @@ struct RentalStartClientPickerSheet: View {
         }
         .padding(.horizontal, 15)
         .frame(height: 46)
-        .background(Color.white)
+        .background(AppDesign.surfaceBackground)
         .overlay(
             RoundedRectangle(cornerRadius: 12.84, style: .continuous)
                 .stroke(AppDesign.accent, lineWidth: 1.5)
@@ -151,13 +151,13 @@ struct RentalStartClientPickerSheet: View {
                     .font(.system(size: 10, weight: .bold))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(isSelected ? Color.white.opacity(0.2) : Color.black.opacity(0.08))
+                    .background(isSelected ? AppDesign.surfaceBackground.opacity(0.2) : AppDesign.black.opacity(0.08))
                     .clipShape(Capsule())
             }
-            .foregroundStyle(isSelected ? Color.white : AppDesign.accent)
+            .foregroundStyle(isSelected ? AppDesign.surfaceBackground : AppDesign.accent)
             .padding(.horizontal, 15)
             .frame(height: 36)
-            .background(isSelected ? AppDesign.accent : Color.white)
+            .background(isSelected ? AppDesign.accent : AppDesign.surfaceBackground)
             .overlay(
                 RoundedRectangle(cornerRadius: 999, style: .continuous)
                     .stroke(AppDesign.accent, lineWidth: 1.5)
@@ -178,7 +178,7 @@ struct RentalStartClientPickerSheet: View {
     ) -> some View {
         Button(action: action) {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(isDark ? AppDesign.accent : Color.white)
+                .fill(isDark ? AppDesign.accent : AppDesign.surfaceBackground)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .stroke(AppDesign.accent, lineWidth: 1.5)
@@ -186,7 +186,7 @@ struct RentalStartClientPickerSheet: View {
                 .overlay(
                     Image(systemName: systemName)
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(isDark ? Color.white : AppDesign.accent)
+                        .foregroundStyle(isDark ? AppDesign.surfaceBackground : AppDesign.accent)
                 )
                 .frame(width: 47, height: 47)
         }
@@ -203,7 +203,7 @@ struct RentalStartClientPickerSheet: View {
     ) -> some View {
         Button(action: action) {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(isDark ? AppDesign.accent : Color.white)
+                .fill(isDark ? AppDesign.accent : AppDesign.surfaceBackground)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .stroke(AppDesign.accent, lineWidth: 1.5)
@@ -216,7 +216,7 @@ struct RentalStartClientPickerSheet: View {
                                 .resizable()
                                 .scaledToFit()
                                 .frame(width: assetSize, height: assetSize)
-                                .foregroundStyle(Color.white)
+                                .foregroundStyle(AppDesign.surfaceBackground)
                         } else {
                             Image(assetName)
                                 .renderingMode(.original)
@@ -247,7 +247,7 @@ struct RentalStartClientPickerSheet: View {
         }
         .frame(maxWidth: .infinity)
         .padding(24)
-        .background(Color.white)
+        .background(AppDesign.surfaceBackground)
         .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
     }
 

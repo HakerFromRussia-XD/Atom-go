@@ -23,9 +23,9 @@ struct BikeCatalogSheet: View {
     @State private var toastMessage: String?
     @State private var toastDismissTask: Task<Void, Never>?
 
-    private let athensGray = Color(red: 247 / 255, green: 248 / 255, blue: 250 / 255)
-    private let blackHaze = Color(red: 250 / 255, green: 251 / 255, blue: 251 / 255)
-    private let alto = Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255)
+    private let athensGray = AppDesign.pageBackground
+    private let blackHaze = AppDesign.blackHaze
+    private let alto = AppDesign.athensGray
     private let horizontalInset: CGFloat = 8
     private let topBarHeight: CGFloat = 62
     private let searchTopPadding: CGFloat = 6
@@ -51,7 +51,7 @@ struct BikeCatalogSheet: View {
             hasActiveRental: false,
             activeCount: 0,
             totalDebtRub: 0,
-            borderColor: Color(red: 203 / 255, green: 48 / 255, blue: 224 / 255),
+            borderColor: AppDesign.idlePurple,
             activeRental: nil
         )
     }
@@ -98,19 +98,19 @@ struct BikeCatalogSheet: View {
                                     bikeRow(bike, runtime: projection.snapshot(for: bike))
                                     if index < projection.visibleBikes.count - 1 {
                                         Divider()
-                                            .overlay(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255))
+                                            .overlay(AppDesign.athensGray)
                                     }
                                 }
                             }
                             .padding(.vertical, 5)
-                            .background(Color(red: 250 / 255, green: 251 / 255, blue: 251 / 255))
+                            .background(AppDesign.blackHaze)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 15, style: .continuous)
                                     .stroke(AppDesign.accent, lineWidth: 1)
                             )
                             .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
                             .shadow(
-                                color: Color(red: 25 / 255, green: 28 / 255, blue: 50 / 255).opacity(0.08),
+                                color: AppDesign.shadow.opacity(0.08),
                                 radius: 15,
                                 x: 0,
                                 y: 20
@@ -127,7 +127,7 @@ struct BikeCatalogSheet: View {
                 VStack(spacing: 0) {
                     Color.clear
                         .frame(height: searchMaskHeight)
-                    Color.white
+                    AppDesign.surfaceBackground
                 }
             }
             .onPreferenceChange(AdminCardsTopKey.self) { cardsTopY in
@@ -257,7 +257,7 @@ struct BikeCatalogSheet: View {
         Button {
             selectedFilter = filter
         } label: {
-            Color.white.opacity(0.001)
+            AppDesign.surfaceBackground.opacity(0.001)
                 .frame(width: width, height: 36)
                 .contentShape(Capsule())
         }
@@ -287,7 +287,7 @@ struct BikeCatalogSheet: View {
 
             Text("Велосипеды")
                 .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
+                .foregroundStyle(AppDesign.darkText)
 
             Spacer()
 
@@ -315,7 +315,7 @@ struct BikeCatalogSheet: View {
         }
         .padding(.horizontal, 15)
         .frame(height: 46)
-        .background(Color.white)
+        .background(AppDesign.surfaceBackground)
         .overlay(
             RoundedRectangle(cornerRadius: 12.84, style: .continuous)
                 .stroke(AppDesign.accent, lineWidth: 1)
@@ -384,13 +384,13 @@ struct BikeCatalogSheet: View {
                     .font(.system(size: 10, weight: .bold))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(isSelected ? Color.white.opacity(0.2) : Color.black.opacity(0.08))
+                    .background(isSelected ? AppDesign.surfaceBackground.opacity(0.2) : AppDesign.black.opacity(0.08))
                     .clipShape(Capsule())
             }
-            .foregroundStyle(isSelected ? Color.white : AppDesign.accent)
+            .foregroundStyle(isSelected ? AppDesign.surfaceBackground : AppDesign.accent)
             .padding(.horizontal, 15)
             .frame(height: 36)
-            .background(isSelected ? AppDesign.accent : Color.white)
+            .background(isSelected ? AppDesign.accent : AppDesign.surfaceBackground)
             .overlay(
                 RoundedRectangle(cornerRadius: 999, style: .continuous)
                     .stroke(AppDesign.accent, lineWidth: 1)
@@ -410,7 +410,7 @@ struct BikeCatalogSheet: View {
     ) -> some View {
         Button(action: action) {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white)
+                .fill(AppDesign.surfaceBackground)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .stroke(AppDesign.accent, lineWidth: 1)
@@ -434,7 +434,7 @@ struct BikeCatalogSheet: View {
     ) -> some View {
         Button(action: action) {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white)
+                .fill(AppDesign.surfaceBackground)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .stroke(AppDesign.accent, lineWidth: 1)
@@ -481,7 +481,7 @@ struct BikeCatalogSheet: View {
         }
         .frame(maxWidth: .infinity)
         .padding(24)
-        .background(Color.white)
+        .background(AppDesign.surfaceBackground)
         .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
     }
 
@@ -495,12 +495,12 @@ struct BikeCatalogSheet: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(bike.bikeModel)
                         .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(Color(red: 17 / 255, green: 24 / 255, blue: 39 / 255))
+                        .foregroundStyle(AppDesign.textPrimary)
                         .lineLimit(1)
 
                     Text(bikeSubtitle(for: bike, runtime: runtime))
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Color(red: 17 / 255, green: 24 / 255, blue: 39 / 255).opacity(0.5))
+                        .foregroundStyle(AppDesign.textPrimary.opacity(0.5))
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -509,12 +509,12 @@ struct BikeCatalogSheet: View {
 
                 Text("\(formattedCompactRub(bike.weeklyRateRub)) ₽/нед")
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                    .foregroundStyle(AppDesign.darkControl)
                     .fixedSize(horizontal: true, vertical: false)
 
                 Image(systemName: "chevron.right")
                     .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(Color(red: 167 / 255, green: 167 / 255, blue: 171 / 255))
+                    .foregroundStyle(AppDesign.chevron)
             }
             .padding(.horizontal, 9)
             .frame(minHeight: 67)
@@ -552,7 +552,7 @@ struct BikeCatalogSheet: View {
             placeholder
         }
             .frame(width: 59, height: 59)
-            .background(Color(red: 227 / 255, green: 230 / 255, blue: 235 / 255))
+            .background(AppDesign.placeholder)
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .stroke(borderColor, lineWidth: 3)
@@ -570,10 +570,10 @@ struct BikeCatalogSheet: View {
         let borderColor: Color
         if hasActiveRental {
             borderColor = hasSoonReturn
-                ? Color(red: 255 / 255, green: 204 / 255, blue: 0)
-                : Color(red: 52 / 255, green: 199 / 255, blue: 89 / 255)
+                ? AppDesign.warningYellow
+                : AppDesign.success
         } else {
-            borderColor = Color(red: 203 / 255, green: 48 / 255, blue: 224 / 255)
+            borderColor = AppDesign.idlePurple
         }
 
         return BikeCatalogRuntimeSnapshot(

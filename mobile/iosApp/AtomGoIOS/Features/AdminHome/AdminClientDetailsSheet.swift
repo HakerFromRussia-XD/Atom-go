@@ -228,7 +228,7 @@ struct AdminClientDetailsSheet: View {
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(color)
                 .frame(width: 47, height: 47)
-                .background(Color.white)
+                .background(AppDesign.surfaceBackground)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -251,7 +251,7 @@ struct AdminClientDetailsSheet: View {
                 .scaledToFit()
                 .frame(width: assetSize, height: assetSize)
                 .frame(width: 47, height: 47)
-                .background(Color.white)
+                .background(AppDesign.surfaceBackground)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -283,9 +283,9 @@ struct AdminClientDetailsSheet: View {
                     Spacer(minLength: 0)
                 }
 
-                Divider().background(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255))
+                Divider().background(AppDesign.athensGray)
             } else {
-                statusPill(title: "Неактивный", color: Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
+                statusPill(title: "Неактивный", color: AppDesign.darkText)
             }
 
             financeMetrics(details)
@@ -296,12 +296,12 @@ struct AdminClientDetailsSheet: View {
             // и «Списать» — открывают модал CarriedDebtOperationSheet.
             // См. docs/14_rental_lifecycle.md §7.
             if details.carriedDebtRub > 0 {
-                Divider().background(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255))
+                Divider().background(AppDesign.athensGray)
                 carriedDebtBlock(details)
             }
 
             if let comment = latestComment(details), !comment.isEmpty {
-                Divider().background(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255))
+                Divider().background(AppDesign.athensGray)
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Комментарий")
                         .font(.system(size: 9, weight: .medium))
@@ -317,13 +317,13 @@ struct AdminClientDetailsSheet: View {
         }
         .padding(isActive ? EdgeInsets(top: 21, leading: 23, bottom: 21, trailing: 23) : EdgeInsets(top: 20, leading: 20, bottom: 20, trailing: 20))
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(red: 250 / 255, green: 251 / 255, blue: 251 / 255))
+        .background(AppDesign.blackHaze)
         .overlay {
             RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .stroke(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255), lineWidth: 1)
+                .stroke(AppDesign.darkControl, lineWidth: 1)
         }
         .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-        .shadow(color: Color(red: 25 / 255, green: 28 / 255, blue: 50 / 255).opacity(0.08), radius: 15, x: 0, y: 20)
+        .shadow(color: AppDesign.shadow.opacity(0.08), radius: 15, x: 0, y: 20)
     }
 
     private func clientBikeAvatar(_ details: AdminClientDetailsResponse, size: CGFloat, cornerRadius: CGFloat) -> some View {
@@ -331,7 +331,7 @@ struct AdminClientDetailsSheet: View {
             PlaceholderBikeAvatar(cornerRadius: cornerRadius)
         }
         .frame(width: size, height: size)
-        .background(Color(red: 227 / 255, green: 230 / 255, blue: 235 / 255))
+        .background(AppDesign.placeholder)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -342,7 +342,7 @@ struct AdminClientDetailsSheet: View {
     private func statusPill(title: String, color: Color) -> some View {
         Text(title)
             .font(.system(size: 11, weight: .bold))
-            .foregroundStyle(Color.white)
+            .foregroundStyle(AppDesign.surfaceBackground)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
             .background(color)
@@ -450,7 +450,7 @@ struct AdminClientDetailsSheet: View {
         }
         .padding(.horizontal, 19)
         .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
-        .background(Color.white)
+        .background(AppDesign.surfaceBackground)
         .clipShape(RoundedRectangle(cornerRadius: 12.84, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 12.84, style: .continuous)
@@ -514,13 +514,13 @@ struct AdminClientDetailsSheet: View {
             .padding(.horizontal, 15)
             .padding(.vertical, 13)
             .frame(maxWidth: .infinity)
-            .background(Color(red: 250 / 255, green: 251 / 255, blue: 251 / 255))
+            .background(AppDesign.blackHaze)
             .overlay {
                 RoundedRectangle(cornerRadius: 15, style: .continuous)
-                    .stroke(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255), lineWidth: 1)
+                    .stroke(AppDesign.athensGray, lineWidth: 1)
             }
             .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-            .shadow(color: Color(red: 25 / 255, green: 28 / 255, blue: 50 / 255).opacity(0.08), radius: 15, x: 0, y: 20)
+            .shadow(color: AppDesign.shadow.opacity(0.08), radius: 15, x: 0, y: 20)
         }
         .buttonStyle(.plain)
     }
@@ -530,7 +530,7 @@ struct AdminClientDetailsSheet: View {
             PlaceholderBikeAvatar(cornerRadius: 10)
         }
         .frame(width: 36, height: 36)
-        .background(Color(red: 227 / 255, green: 230 / 255, blue: 235 / 255))
+        .background(AppDesign.placeholder)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 

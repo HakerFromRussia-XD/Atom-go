@@ -37,11 +37,11 @@ struct ContentView: View {
                 VStack(spacing: 0) {
                     Text(" Welcome to ")
                         .font(AppDesign.urbanistBold(size: 40 * textScale))
-                        .foregroundStyle(Color(red: 0.13, green: 0.13, blue: 0.13))
+                        .foregroundStyle(AppDesign.titleBlack)
                         .lineSpacing(0)
                     Text("AtomGo")
                         .font(AppDesign.urbanistBold(size: 40 * textScale))
-                        .foregroundStyle(Color(red: 0.13, green: 0.13, blue: 0.13))
+                        .foregroundStyle(AppDesign.titleBlack)
                         .lineSpacing(0)
                 }
                 .frame(width: 382 * xScale)

@@ -65,7 +65,7 @@ struct AdminRentalDetailsScreen: View {
                         Text("ЖУРНАЛ")
                             .font(.system(size: 11, weight: .bold))
                             .tracking(0.88)
-                            .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                            .foregroundStyle(AppDesign.paleSky)
                             .padding(.horizontal, 1)
                             .padding(.top, 8)
 
@@ -215,7 +215,7 @@ struct AdminRentalDetailsScreen: View {
             iconButton(
                 assetName: "back",
                 assetSize: 14,
-                borderColor: Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255),
+                borderColor: AppDesign.darkControl,
                 action: onClose
             )
 
@@ -223,7 +223,7 @@ struct AdminRentalDetailsScreen: View {
 
             Text("Аренда")
                 .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                .foregroundStyle(AppDesign.darkControl)
 
             Spacer()
 
@@ -231,7 +231,7 @@ struct AdminRentalDetailsScreen: View {
                 if runningRentalIsActive {
                     iconButton(
                         assetName: "refaktoring",
-                        borderColor: Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255),
+                        borderColor: AppDesign.darkControl,
                         action: { isEditRentalPresented = true }
                     )
                     .accessibilityIdentifier("rentalDetails.editButton")
@@ -241,8 +241,8 @@ struct AdminRentalDetailsScreen: View {
 
                 iconButton(
                     systemName: "trash",
-                    borderColor: Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255),
-                    iconColor: Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255),
+                    borderColor: AppDesign.danger,
+                    iconColor: AppDesign.danger,
                     action: { isDeleteDialogPresented = true }
                 )
             }
@@ -258,7 +258,7 @@ struct AdminRentalDetailsScreen: View {
     ) -> some View {
         Button(action: action) {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white)
+                .fill(AppDesign.surfaceBackground)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .stroke(borderColor, lineWidth: 1)
@@ -281,7 +281,7 @@ struct AdminRentalDetailsScreen: View {
     ) -> some View {
         Button(action: action) {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white)
+                .fill(AppDesign.surfaceBackground)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .stroke(borderColor, lineWidth: 1)
@@ -306,10 +306,10 @@ struct AdminRentalDetailsScreen: View {
                         .resizable()
                         .scaledToFit()
                         .padding(18)
-                        .foregroundStyle(Color(red: 152 / 255, green: 161 / 255, blue: 173 / 255))
+                        .foregroundStyle(AppDesign.placeholderStroke)
                 }
                 .frame(width: 80, height: 80)
-                .background(Color(red: 227 / 255, green: 230 / 255, blue: 235 / 255))
+                .background(AppDesign.placeholder)
                 .overlay(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
                         .stroke(avatarBorderColor, lineWidth: 3)
@@ -321,10 +321,10 @@ struct AdminRentalDetailsScreen: View {
                         .font(.system(size: 16, weight: .bold))
                         .lineLimit(1)
                         .minimumScaleFactor(0.85)
-                        .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                        .foregroundStyle(AppDesign.darkControl)
                     Text("\(formattedRub(weeklyRateRub))/нед")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                        .foregroundStyle(AppDesign.paleSky)
                     rentalStatusBadge
                 }
                 .padding(.top, 16)
@@ -354,32 +354,32 @@ struct AdminRentalDetailsScreen: View {
             .padding(.bottom, 14)
 
             Divider()
-                .overlay(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255))
+                .overlay(AppDesign.athensGray)
                 .padding(.horizontal, 18)
 
             HStack(alignment: .top, spacing: 0) {
                 metricColumn(
                     title: "ОПЛАЧЕНО",
                     value: displayPolicy.metricText(activeValue: "+\(formattedRub(totalPaidRub))"),
-                    color: displayPolicy.metricColor(activeColor: Color(red: 35 / 255, green: 143 / 255, blue: 71 / 255))
+                    color: displayPolicy.metricColor(activeColor: AppDesign.success)
                 )
                 Spacer(minLength: 0)
                 metricColumn(
                     title: "ДОЛГ",
                     value: displayPolicy.metricText(activeValue: formattedRub(debtRub)),
-                    color: displayPolicy.metricColor(activeColor: Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255))
+                    color: displayPolicy.metricColor(activeColor: AppDesign.danger)
                 )
                 Spacer(minLength: 0)
                 metricColumn(
                     title: "КОРРЕКТ.",
                     value: displayPolicy.metricText(activeValue: formattedRub(totalAdjustmentRub)),
-                    color: displayPolicy.metricColor(activeColor: Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                    color: displayPolicy.metricColor(activeColor: AppDesign.darkControl)
                 )
                 Spacer(minLength: 0)
                 metricColumn(
                     title: runningRentalIsActive ? "ОПЛАЧ. ДО" : "ЗАВЕРШЕНА",
                     value: displayPolicy.metricText(activeValue: runningRentalIsActive ? paidUntilText : completedAtText),
-                    color: displayPolicy.metricColor(activeColor: Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                    color: displayPolicy.metricColor(activeColor: AppDesign.darkControl)
                 )
             }
             .frame(width: 330, alignment: .leading)
@@ -388,7 +388,7 @@ struct AdminRentalDetailsScreen: View {
             .padding(.bottom, 8)
 
             Divider()
-                .overlay(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255))
+                .overlay(AppDesign.athensGray)
                 .padding(.horizontal, 18)
 
             loginPasswordBlock
@@ -397,7 +397,7 @@ struct AdminRentalDetailsScreen: View {
                 .padding(.bottom, 8)
 
             Divider()
-                .overlay(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255))
+                .overlay(AppDesign.athensGray)
                 .padding(.horizontal, 18)
 
             if isInStockState {
@@ -418,16 +418,16 @@ struct AdminRentalDetailsScreen: View {
                             Text("АРЕНДАТОР")
                                 .font(.system(size: 10, weight: .bold))
                                 .tracking(0.6)
-                                .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                                .foregroundStyle(AppDesign.paleSky)
                             Text(clientName)
                                 .font(.system(size: 13, weight: .medium))
-                                .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                                .foregroundStyle(AppDesign.darkControl)
                                 .lineLimit(1)
                         }
                         Spacer(minLength: 8)
                         Image(systemName: "chevron.right")
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                            .foregroundStyle(AppDesign.paleSky)
                     }
                     .padding(.horizontal, 19)
                     .frame(height: 68, alignment: .center)
@@ -440,16 +440,16 @@ struct AdminRentalDetailsScreen: View {
                             Text("АРЕНДАТОР")
                                 .font(.system(size: 10, weight: .bold))
                                 .tracking(0.6)
-                                .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                                .foregroundStyle(AppDesign.paleSky)
                             Text(clientName)
                                 .font(.system(size: 13, weight: .medium))
-                                .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                                .foregroundStyle(AppDesign.darkControl)
                                 .lineLimit(1)
                         }
                         Spacer(minLength: 8)
                         Image(systemName: "chevron.right")
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                            .foregroundStyle(AppDesign.paleSky)
                     }
                     .padding(.horizontal, 19)
                     .frame(height: 68, alignment: .center)
@@ -458,13 +458,13 @@ struct AdminRentalDetailsScreen: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white)
+        .background(AppDesign.surfaceBackground)
         .overlay(
             RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .stroke(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255), lineWidth: 1)
+                .stroke(AppDesign.darkControl, lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-        .shadow(color: Color(red: 25 / 255, green: 28 / 255, blue: 50 / 255).opacity(0.08), radius: 15, x: 0, y: 20)
+        .shadow(color: AppDesign.shadow.opacity(0.08), radius: 15, x: 0, y: 20)
     }
 
     private func metricColumn(title: String, value: String, color: Color) -> some View {
@@ -472,7 +472,7 @@ struct AdminRentalDetailsScreen: View {
             Text(title)
                 .font(.system(size: 9, weight: .medium))
                 .tracking(0.36)
-                .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                .foregroundStyle(AppDesign.paleSky)
             Text(value)
                 .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(color)
@@ -525,7 +525,7 @@ struct AdminRentalDetailsScreen: View {
                             .font(.system(size: 11, weight: .bold))
                             .foregroundStyle(.white)
                             .frame(width: 110, height: 47)
-                            .background(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
+                            .background(AppDesign.darkText)
                             .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
                     }
                     .buttonStyle(.plain)
@@ -541,7 +541,7 @@ struct AdminRentalDetailsScreen: View {
                 Button(action: copyCredentialsToClipboard) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 15, style: .continuous)
-                            .fill(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
+                            .fill(AppDesign.darkText)
                         Image("copy icon")
                             .renderingMode(.original)
                     }
@@ -565,25 +565,25 @@ struct AdminRentalDetailsScreen: View {
             Text(title)
                 .font(.system(size: 10, weight: .bold))
                 .tracking(0.6)
-                .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                .foregroundStyle(AppDesign.paleSky)
             if isEditable {
                 TextField(
                     "",
                     text: text,
                     prompt: Text("—")
-                        .foregroundColor(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                        .foregroundColor(AppDesign.paleSky)
                 )
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled(true)
                 .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                .foregroundStyle(AppDesign.darkControl)
                 .frame(width: 150, height: 13, alignment: .leading)
                 .accessibilityIdentifier(accessibilityIdentifier)
             } else {
                 let value = readOnlyText ?? text.wrappedValue
                 Text(value.isEmpty ? "—" : value)
                     .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                    .foregroundStyle(AppDesign.darkControl)
                     .lineLimit(1)
                     .frame(width: 150, height: 13, alignment: .leading)
             }
@@ -595,7 +595,7 @@ struct AdminRentalDetailsScreen: View {
             Text(row.type.uppercased())
                 .font(.system(size: 10, weight: .bold))
                 .tracking(0.6)
-                .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                .foregroundStyle(AppDesign.paleSky)
                 .frame(width: 90, alignment: .leading)
 
             Text(signedRub(row.amountRub))
@@ -605,14 +605,14 @@ struct AdminRentalDetailsScreen: View {
 
             Text(journalDateLabel(row.createdAt))
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                .foregroundStyle(AppDesign.paleSky)
         }
         .padding(.horizontal, 15)
         .frame(height: 35)
-        .background(Color.white)
+        .background(AppDesign.surfaceBackground)
         .overlay(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255), lineWidth: 1)
+                .stroke(AppDesign.athensGray, lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
@@ -627,18 +627,18 @@ struct AdminRentalDetailsScreen: View {
                         .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(
                             displayPolicy.adjustmentButtonEnabled
-                                ? Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255)
-                                : Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255).opacity(0.45)
+                                ? AppDesign.darkControl
+                                : AppDesign.darkControl.opacity(0.45)
                         )
                         .frame(maxWidth: .infinity)
                         .frame(height: 52)
-                        .background(Color.white)
+                        .background(AppDesign.surfaceBackground)
                         .overlay(
                             RoundedRectangle(cornerRadius: 16, style: .continuous)
                                 .stroke(
                                     displayPolicy.adjustmentButtonEnabled
-                                        ? Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255)
-                                        : Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255).opacity(0.35),
+                                        ? AppDesign.darkControl
+                                        : AppDesign.darkControl.opacity(0.35),
                                     lineWidth: 1
                                 )
                         )
@@ -658,7 +658,7 @@ struct AdminRentalDetailsScreen: View {
                             .foregroundStyle(.white)
                             .frame(maxWidth: .infinity)
                             .frame(height: 52)
-                            .background(Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255))
+                            .background(AppDesign.danger)
                             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
                     .buttonStyle(.plain)
@@ -788,15 +788,15 @@ struct AdminRentalDetailsScreen: View {
                 Text("КЛИЕНТ")
                     .font(.system(size: 10, weight: .bold))
                     .tracking(0.8)
-                    .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                    .foregroundStyle(AppDesign.paleSky)
                     .textCase(.uppercase)
 
                 Text(selectedStartClientName ?? "выбрать клиента")
                     .font(.system(size: 13, weight: hasSelectedClient ? .bold : .medium))
                     .foregroundStyle(
                         hasSelectedClient
-                            ? Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255)
-                            : Color(red: 201 / 255, green: 204 / 255, blue: 210 / 255)
+                            ? AppDesign.darkControl
+                            : AppDesign.ghost
                     )
                     .lineLimit(1)
             }
@@ -804,10 +804,10 @@ struct AdminRentalDetailsScreen: View {
 
             ZStack {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255))
+                    .fill(AppDesign.athensGray)
                 Image(systemName: "chevron.down")
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                    .foregroundStyle(AppDesign.paleSky)
             }
             .frame(width: 28, height: 28)
         }
@@ -815,17 +815,17 @@ struct AdminRentalDetailsScreen: View {
         .padding(.trailing, 15)
         .padding(.vertical, 15)
         .frame(height: 58)
-        .background(Color.white)
+        .background(AppDesign.surfaceBackground)
         .overlay(
             RoundedRectangle(cornerRadius: 12.84, style: .continuous)
-                .stroke(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255), lineWidth: 1)
+                .stroke(AppDesign.darkControl, lineWidth: 1)
         )
         .overlay(alignment: .leading) {
             RoundedRectangle(cornerRadius: 4, style: .continuous)
                 .fill(
                     hasSelectedClient
-                        ? Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255)
-                        : Color(red: 211 / 255, green: 215 / 255, blue: 221 / 255)
+                        ? AppDesign.darkControl
+                        : AppDesign.sheetHandle
                 )
                 .frame(width: 4)
                 .padding(.vertical, 8)
@@ -849,10 +849,10 @@ struct AdminRentalDetailsScreen: View {
                 HStack(spacing: 10) {
                     Image(systemName: "person.slash")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                        .foregroundStyle(AppDesign.paleSky)
                     Text("Нет свободных клиентов")
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                        .foregroundStyle(AppDesign.paleSky)
                     Spacer(minLength: 0)
                 }
                 .padding(.horizontal, 12)
@@ -866,13 +866,13 @@ struct AdminRentalDetailsScreen: View {
         }
         .padding(7)
         .frame(width: 340, alignment: .leading)
-        .background(Color.white)
+        .background(AppDesign.surfaceBackground)
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255), lineWidth: 1)
+                .stroke(AppDesign.darkControl, lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .shadow(color: Color(red: 25 / 255, green: 28 / 255, blue: 50 / 255).opacity(0.22), radius: 15, x: 0, y: 16)
+        .shadow(color: AppDesign.shadow.opacity(0.22), radius: 15, x: 0, y: 16)
     }
 
     private func startClientPickerRow(_ client: AdminClientSummaryResponse) -> some View {
@@ -884,27 +884,27 @@ struct AdminRentalDetailsScreen: View {
         } label: {
             HStack(spacing: 12) {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color(red: 227 / 255, green: 230 / 255, blue: 235 / 255))
+                    .fill(AppDesign.placeholder)
                     .overlay(
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(Color(red: 52 / 255, green: 199 / 255, blue: 89 / 255), lineWidth: 3)
+                            .stroke(AppDesign.success, lineWidth: 3)
                     )
                     .overlay(
                         Image(systemName: "person.fill")
                             .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(Color(red: 152 / 255, green: 161 / 255, blue: 173 / 255))
+                            .foregroundStyle(AppDesign.placeholderStroke)
                     )
                     .frame(width: 34, height: 34)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(client.fullName)
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                        .foregroundStyle(AppDesign.darkControl)
                         .lineLimit(1)
 
                     Text(client.clientLogin?.isEmpty == false ? (client.clientLogin ?? "") : "Свободный клиент")
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                        .foregroundStyle(AppDesign.paleSky)
                         .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -912,13 +912,13 @@ struct AdminRentalDetailsScreen: View {
                 if isSelected {
                     Image(systemName: "checkmark")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                        .foregroundStyle(AppDesign.darkControl)
                 }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isSelected ? Color(red: 240 / 255, green: 242 / 255, blue: 245 / 255) : Color.white)
+            .background(isSelected ? AppDesign.selectedMuted : AppDesign.surfaceBackground)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -937,8 +937,8 @@ struct AdminRentalDetailsScreen: View {
 
     private var startButtonColor: Color {
         canStartRental
-            ? Color(red: 35 / 255, green: 143 / 255, blue: 71 / 255)
-            : Color(red: 35 / 255, green: 143 / 255, blue: 71 / 255).opacity(0.65)
+            ? AppDesign.success
+            : AppDesign.success.opacity(0.65)
     }
 
     private var rentalVideoUrl: URL? {
@@ -967,7 +967,7 @@ struct AdminRentalDetailsScreen: View {
         } label: {
             ZStack {
                 RoundedRectangle(cornerRadius: 15, style: .continuous)
-                    .fill(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255)
+                    .fill(AppDesign.darkText
                         .opacity(hasUrl ? 1 : 0.25))
                 Image(assetName)
                     .renderingMode(.original)
@@ -990,7 +990,7 @@ struct AdminRentalDetailsScreen: View {
         } else if runningRentalIsActive {
             Text("Активная")
                 .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(Color.white)
+                .foregroundStyle(AppDesign.surfaceBackground)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
                 .background(AppDesign.success)
@@ -998,10 +998,10 @@ struct AdminRentalDetailsScreen: View {
         } else {
             Text("Завершённая")
                 .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(Color.white)
+                .foregroundStyle(AppDesign.surfaceBackground)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
-                .background(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
+                .background(AppDesign.darkText)
                 .clipShape(Capsule())
         }
     }
@@ -1013,18 +1013,18 @@ struct AdminRentalDetailsScreen: View {
         // относятся к lifecycle-аренде, а не к закрытой client_rental.
         let isCompletedClientRental = !(details?.completedAt?.isEmpty ?? true) || completedAtFallback != nil
         if isCompletedClientRental {
-            return Color(red: 152 / 255, green: 161 / 255, blue: 173 / 255)
+            return AppDesign.placeholderStroke
         }
         if let details {
             if !details.rentalIsActive {
-                return Color(red: 203 / 255, green: 48 / 255, blue: 224 / 255)
+                return AppDesign.idlePurple
             }
             if details.rentalPipelineStatus == "soon_return" {
-                return Color(red: 255 / 255, green: 204 / 255, blue: 0)
+                return AppDesign.warningYellow
             }
-            return Color(red: 52 / 255, green: 199 / 255, blue: 89 / 255)
+            return AppDesign.success
         }
-        return Color(red: 152 / 255, green: 161 / 255, blue: 173 / 255)
+        return AppDesign.placeholderStroke
     }
 
     private func startRentalForSelectedClient() {
@@ -1139,12 +1139,12 @@ struct AdminRentalDetailsScreen: View {
 
     private func journalAmountColor(_ amount: Int) -> Color {
         if amount > 0 {
-            return Color(red: 35 / 255, green: 143 / 255, blue: 71 / 255)
+            return AppDesign.success
         }
         if amount < 0 {
-            return Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255)
+            return AppDesign.danger
         }
-        return Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255)
+        return AppDesign.darkControl
     }
 
     private func prettyDate(_ value: String?) -> String {

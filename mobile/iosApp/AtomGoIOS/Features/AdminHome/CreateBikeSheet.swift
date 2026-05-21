@@ -22,11 +22,11 @@ struct CreateBikeSheet: View {
     @State private var toastMessage: String?
     @State private var toastDismissTask: Task<Void, Never>?
 
-    private let ebonyClay = Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255)
-    private let paleSky = Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255)
-    private let ghost = Color(red: 201 / 255, green: 204 / 255, blue: 210 / 255)
-    private let grayChateau = Color(red: 152 / 255, green: 161 / 255, blue: 173 / 255)
-    private let athensGray = Color(red: 247 / 255, green: 248 / 255, blue: 250 / 255)
+    private let ebonyClay = AppDesign.darkControl
+    private let paleSky = AppDesign.paleSky
+    private let ghost = AppDesign.ghost
+    private let grayChateau = AppDesign.placeholderStroke
+    private let athensGray = AppDesign.pageBackground
     private let horizontalPadding: CGFloat = 8
 
     var body: some View {
@@ -153,7 +153,7 @@ struct CreateBikeSheet: View {
     ) -> some View {
         Button(action: action) {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(isDark ? ebonyClay : Color.white)
+                .fill(isDark ? ebonyClay : AppDesign.surfaceBackground)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .stroke(ebonyClay, lineWidth: 1.5)
@@ -162,11 +162,11 @@ struct CreateBikeSheet: View {
                     Group {
                         if isDark && isSaving && accessibilityIdentifier == "createBike.submitButton" {
                             ProgressView()
-                                .tint(Color.white)
+                                .tint(AppDesign.surfaceBackground)
                         } else {
                             Image(systemName: imageName)
                                 .font(.system(size: 14, weight: .bold))
-                                .foregroundStyle(isDark ? Color.white : ebonyClay)
+                                .foregroundStyle(isDark ? AppDesign.surfaceBackground : ebonyClay)
                         }
                     }
                 )
@@ -185,7 +185,7 @@ struct CreateBikeSheet: View {
     ) -> some View {
         Button(action: action) {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(isDark ? ebonyClay : Color.white)
+                .fill(isDark ? ebonyClay : AppDesign.surfaceBackground)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .stroke(ebonyClay, lineWidth: 1.5)
@@ -207,7 +207,7 @@ struct CreateBikeSheet: View {
         PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
             ZStack {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color(red: 238 / 255, green: 240 / 255, blue: 243 / 255))
+                    .fill(AppDesign.inputFill)
 
                 if let selectedPhotoPreview {
                     selectedPhotoPreview
@@ -216,14 +216,14 @@ struct CreateBikeSheet: View {
                         .frame(width: width, height: 202)
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                         .overlay {
-                            Color.black.opacity(0.2)
+                            AppDesign.black.opacity(0.2)
                                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                         }
                 }
 
                 VStack(spacing: 12) {
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color.white)
+                        .fill(AppDesign.surfaceBackground)
                         .overlay(
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
                                 .stroke(ebonyClay, lineWidth: 1.5)

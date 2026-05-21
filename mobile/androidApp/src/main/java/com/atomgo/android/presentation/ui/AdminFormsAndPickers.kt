@@ -1455,7 +1455,7 @@ internal fun RentalPickerHeader(
             Icon(Icons.Filled.Close, contentDescription = null, tint = AppDesign.Accent, modifier = Modifier.size(16.dp))
         }
         Spacer(Modifier.weight(1f))
-        Text(title, color = Color(0xFF141718), fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        Text(title, color = AppDesign.DarkText, fontWeight = FontWeight.Bold, fontSize = 18.sp)
         Spacer(Modifier.weight(1f))
         Box(
             modifier = Modifier

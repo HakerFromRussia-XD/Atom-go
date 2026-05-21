@@ -9,7 +9,7 @@ struct PlaceholderBikeAvatar: View {
         GeometryReader { proxy in
             let size = proxy.size
             ZStack {
-                Color(red: 227 / 255, green: 230 / 255, blue: 235 / 255)
+                AppDesign.placeholder
 
                 Path { path in
                     path.move(to: CGPoint(x: 0, y: 0))
@@ -17,11 +17,11 @@ struct PlaceholderBikeAvatar: View {
                     path.move(to: CGPoint(x: size.width, y: 0))
                     path.addLine(to: CGPoint(x: 0, y: size.height))
                 }
-                .stroke(Color(red: 156 / 255, green: 166 / 255, blue: 179 / 255).opacity(0.45), lineWidth: 1.5)
+                .stroke(AppDesign.bikeStroke.opacity(0.45), lineWidth: 1.5)
 
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .stroke(
-                        Color(red: 156 / 255, green: 166 / 255, blue: 179 / 255),
+                        AppDesign.bikeStroke,
                         style: StrokeStyle(lineWidth: 1.5, dash: [4, 4])
                     )
             }

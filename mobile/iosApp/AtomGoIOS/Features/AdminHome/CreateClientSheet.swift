@@ -8,11 +8,11 @@ struct CreateClientSheet: View {
     let onCancel: () -> Void
     let onCreate: (CreateClientPayload) -> Void
 
-    private let ebonyClay = Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255)
-    private let paleSky = Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255)
-    private let ghost = Color(red: 201 / 255, green: 204 / 255, blue: 210 / 255)
-    private let grayChateau = Color(red: 152 / 255, green: 161 / 255, blue: 173 / 255)
-    private let athensGray = Color(red: 247 / 255, green: 248 / 255, blue: 250 / 255)
+    private let ebonyClay = AppDesign.darkControl
+    private let paleSky = AppDesign.paleSky
+    private let ghost = AppDesign.ghost
+    private let grayChateau = AppDesign.placeholderStroke
+    private let athensGray = AppDesign.pageBackground
 
     @State private var fullName = ""
     @State private var address = ""
@@ -154,7 +154,7 @@ struct CreateClientSheet: View {
                     .scaledToFit()
                     .frame(width: 14, height: 14)
                     .frame(width: 47, height: 47)
-                    .background(Color.white)
+                    .background(AppDesign.surfaceBackground)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     .overlay {
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -180,7 +180,7 @@ struct CreateClientSheet: View {
                 Group {
                     if isSaving {
                         ProgressView()
-                            .tint(Color.white)
+                            .tint(AppDesign.surfaceBackground)
                     } else {
                         Image("ok")
                             .renderingMode(.original)
@@ -246,7 +246,7 @@ struct CreateClientSheet: View {
                 .foregroundStyle(ebonyClay)
                 .frame(maxWidth: .infinity)
                 .frame(height: 52)
-                .background(Color.white)
+                .background(AppDesign.surfaceBackground)
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)

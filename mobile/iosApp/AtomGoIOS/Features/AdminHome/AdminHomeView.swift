@@ -184,7 +184,7 @@ struct RentalDetailsDisplayPolicy {
     let isInStockState: Bool
 
     private static let dash = "—"
-    private static let inactiveMetricColor = Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255)
+    private static let inactiveMetricColor = AppDesign.darkControl
 
     var showsJournalHistory: Bool { !isInStockState }
     var adjustmentButtonEnabled: Bool { !isInStockState }
@@ -650,19 +650,19 @@ struct AdminHomeView: View {
                                     clientCard(client)
                                     if index < visibleClients.count - 1 {
                                         Divider()
-                                            .overlay(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255))
+                                            .overlay(AppDesign.athensGray)
                                     }
                                 }
                             }
                             .padding(.vertical, 5)
-                            .background(Color(red: 250 / 255, green: 251 / 255, blue: 251 / 255))
+                            .background(AppDesign.blackHaze)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 15, style: .continuous)
                                     .stroke(AppDesign.accent, lineWidth: 1)
                             )
                             .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
                             .shadow(
-                                color: Color(red: 25 / 255, green: 28 / 255, blue: 50 / 255).opacity(0.08),
+                                color: AppDesign.shadow.opacity(0.08),
                                 radius: 15,
                                 x: 0,
                                 y: 20
@@ -680,7 +680,7 @@ struct AdminHomeView: View {
                 VStack(spacing: 0) {
                     Color.clear
                         .frame(height: searchMaskHeight)
-                    Color.white
+                    AppDesign.surfaceBackground
                 }
             }
             .onPreferenceChange(AdminCardsTopKey.self) { cardsTopY in
@@ -780,7 +780,7 @@ struct AdminHomeView: View {
         }
         .padding(.horizontal, 15)
         .frame(height: 46)
-        .background(Color.white)
+        .background(AppDesign.surfaceBackground)
         .overlay(
             RoundedRectangle(cornerRadius: 12.84, style: .continuous)
                 .stroke(AppDesign.accent, lineWidth: 1)
@@ -815,7 +815,7 @@ struct AdminHomeView: View {
         Button {
             selectedFilter = filter
         } label: {
-            Color.white.opacity(0.001)
+            AppDesign.surfaceBackground.opacity(0.001)
                 .frame(width: width, height: 36)
                 .contentShape(Capsule())
         }
@@ -842,13 +842,13 @@ struct AdminHomeView: View {
                     .font(.system(size: 10, weight: .bold))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background((dark ? Color.white.opacity(0.2) : Color.black.opacity(0.08)))
+                    .background((dark ? AppDesign.surfaceBackground.opacity(0.2) : AppDesign.black.opacity(0.08)))
                     .clipShape(Capsule())
             }
-            .foregroundStyle(dark ? Color.white : AppDesign.accent)
+            .foregroundStyle(dark ? AppDesign.surfaceBackground : AppDesign.accent)
             .padding(.horizontal, 15)
             .frame(height: 36)
-            .background(dark ? AppDesign.accent : Color.white)
+            .background(dark ? AppDesign.accent : AppDesign.surfaceBackground)
             .overlay(
                 RoundedRectangle(cornerRadius: 999, style: .continuous)
                     .stroke(AppDesign.accent, lineWidth: 1)
@@ -868,7 +868,7 @@ struct AdminHomeView: View {
             Spacer()
             Text("Все аренды")
                 .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
+                .foregroundStyle(AppDesign.darkText)
             Spacer()
             topIconButton(
                 assetName: "plus",
@@ -886,7 +886,7 @@ struct AdminHomeView: View {
     ) -> some View {
         Button(action: action) {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white)
+                .fill(AppDesign.surfaceBackground)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .stroke(AppDesign.accent, lineWidth: 1)
@@ -909,7 +909,7 @@ struct AdminHomeView: View {
     ) -> some View {
         Button(action: action) {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white)
+                .fill(AppDesign.surfaceBackground)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .stroke(AppDesign.accent, lineWidth: 1)
@@ -942,7 +942,7 @@ struct AdminHomeView: View {
             .background(.ultraThinMaterial)
             .overlay(alignment: .top) {
                 Rectangle()
-                    .fill(Color(red: 218 / 255, green: 218 / 255, blue: 218 / 255))
+                    .fill(AppDesign.separator)
                     .frame(height: 1)
             }
         }
@@ -958,16 +958,16 @@ struct AdminHomeView: View {
             VStack(spacing: 6) {
                 Image(systemName: tab.systemImage)
                     .font(.system(size: tab == .bikes ? 24 : 22, weight: isSelected ? .bold : .regular))
-                    .foregroundStyle(isSelected ? Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255) : AppDesign.iconSoft)
+                    .foregroundStyle(isSelected ? AppDesign.darkText : AppDesign.iconSoft)
                     .frame(height: 25)
 
                 Text(tab.title)
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(isSelected ? Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255) : AppDesign.iconSoft)
+                    .foregroundStyle(isSelected ? AppDesign.darkText : AppDesign.iconSoft)
                     .lineLimit(1)
 
                 Circle()
-                    .fill(isSelected ? Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255) : Color.clear)
+                    .fill(isSelected ? AppDesign.darkText : Color.clear)
                     .frame(width: 6, height: 6)
             }
             .frame(width: 96, height: 54)
@@ -1043,19 +1043,19 @@ struct AdminHomeView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(displayName)
                     .font(.system(size: 15, weight: .bold))
-                    .foregroundStyle(Color(red: 17 / 255, green: 24 / 255, blue: 39 / 255))
+                    .foregroundStyle(AppDesign.textPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.9)
                     .allowsTightening(true)
                 Text(client.bikeModel)
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Color(red: 17 / 255, green: 24 / 255, blue: 39 / 255).opacity(0.5))
+                    .foregroundStyle(AppDesign.textPrimary.opacity(0.5))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     .allowsTightening(true)
                 Text("Корректировка: \(formattedRub(client.totalAdjustmentRub))")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Color(red: 17 / 255, green: 24 / 255, blue: 39 / 255).opacity(0.5))
+                    .foregroundStyle(AppDesign.textPrimary.opacity(0.5))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     .allowsTightening(true)
@@ -1105,7 +1105,7 @@ struct AdminHomeView: View {
             placeholderBikeAvatar
         }
         .frame(width: 59, height: 59)
-        .background(Color(red: 227 / 255, green: 230 / 255, blue: 235 / 255))
+        .background(AppDesign.placeholder)
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .stroke(borderColor, lineWidth: 3)
@@ -1117,7 +1117,7 @@ struct AdminHomeView: View {
         VStack(alignment: .leading, spacing: 0) {
             rentalPipelineRow(
                 title: "Долгосрочная аренда",
-                color: Color(red: 52 / 255, green: 199 / 255, blue: 89 / 255),
+                color: AppDesign.success,
                 isSelected: client.rentalIsActive && client.rentalPipelineStatus != "soon_return"
             ) {
                 updatePipelineStatus(for: client, status: "long_term")
@@ -1125,7 +1125,7 @@ struct AdminHomeView: View {
 
             rentalPipelineRow(
                 title: "Вернут в течении недели",
-                color: Color(red: 255 / 255, green: 204 / 255, blue: 0),
+                color: AppDesign.warningYellow,
                 isSelected: client.rentalIsActive && client.rentalPipelineStatus == "soon_return"
             ) {
                 updatePipelineStatus(for: client, status: "soon_return")
@@ -1133,20 +1133,20 @@ struct AdminHomeView: View {
 
             rentalPipelineRow(
                 title: "Велосипед у меня",
-                color: Color(red: 203 / 255, green: 48 / 255, blue: 224 / 255),
+                color: AppDesign.idlePurple,
                 isSelected: !client.rentalIsActive
             ) {
                 finishRental(for: client)
             }
         }
         .padding(7)
-        .background(Color.white)
+        .background(AppDesign.surfaceBackground)
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(AppDesign.accent, lineWidth: 1)
         )
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .shadow(color: Color(red: 25 / 255, green: 28 / 255, blue: 50 / 255).opacity(0.18), radius: 14, x: 0, y: 12)
+        .shadow(color: AppDesign.shadow.opacity(0.18), radius: 14, x: 0, y: 12)
     }
 
     @ViewBuilder
@@ -1180,7 +1180,7 @@ struct AdminHomeView: View {
             .padding(.trailing, 34)
             .padding(.vertical, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isSelected ? Color(red: 243 / 255, green: 244 / 255, blue: 246 / 255) : Color.white)
+            .background(isSelected ? AppDesign.selectedSoft : AppDesign.surfaceBackground)
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
@@ -1214,11 +1214,11 @@ struct AdminHomeView: View {
         return VStack(spacing: 1) {
             Text(status.title)
                 .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(Color.white.opacity(0.85))
+                .foregroundStyle(AppDesign.surfaceBackground.opacity(0.85))
                 .lineLimit(1)
             Text(status.value)
                 .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(Color.white)
+                .foregroundStyle(AppDesign.surfaceBackground)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 .allowsTightening(true)
@@ -1230,17 +1230,17 @@ struct AdminHomeView: View {
 
     private func rentStatus(for client: AdminClientSummaryResponse) -> (title: String, value: String, color: Color, width: CGFloat) {
         if !client.rentalIsActive {
-            return ("У меня", "—", Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255), 108)
+            return ("У меня", "—", AppDesign.darkText, 108)
         }
 
         if client.debtRub > 0 {
-            return ("Долг", formattedRub(client.debtRub), Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255), 108)
+            return ("Долг", formattedRub(client.debtRub), AppDesign.danger, 108)
         }
 
         return (
             "Оплачено на",
             paidDaysText(for: client),
-            Color(red: 35 / 255, green: 143 / 255, blue: 71 / 255),
+            AppDesign.success,
             108
         )
     }
@@ -1260,18 +1260,18 @@ struct AdminHomeView: View {
             .lowercased()
         switch normalizedStatus {
         case "in_stock", "mine":
-            return Color(red: 203 / 255, green: 48 / 255, blue: 224 / 255) // фиолетовый
+            return AppDesign.idlePurple // фиолетовый
         case "soon_return":
-            return Color(red: 255 / 255, green: 204 / 255, blue: 0) // жёлтый
+            return AppDesign.warningYellow // жёлтый
         case "long_term":
-            return Color(red: 52 / 255, green: 199 / 255, blue: 89 / 255) // зелёный
+            return AppDesign.success // зелёный
         default:
             // Статус не пришёл (свежесозданная запись / legacy) — fallback
             // по rentalIsActive: активная зелёная, неактивная фиолетовая.
             // Этот путь должен быть редким; основной — switch выше.
             return client.rentalIsActive
-                ? Color(red: 52 / 255, green: 199 / 255, blue: 89 / 255)
-                : Color(red: 203 / 255, green: 48 / 255, blue: 224 / 255)
+                ? AppDesign.success
+                : AppDesign.idlePurple
         }
     }
 

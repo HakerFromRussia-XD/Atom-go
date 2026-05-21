@@ -11,10 +11,10 @@ struct DebtAdjustmentSheet: View {
     @State private var toastMessage: String?
     @State private var toastDismissTask: Task<Void, Never>?
 
-    private let mainText = Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255)
-    private let subtleText = Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255)
-    private let sheetHandle = Color(red: 210 / 255, green: 213 / 255, blue: 218 / 255)
-    private let segmentBg = Color(red: 237 / 255, green: 239 / 255, blue: 244 / 255)
+    private let mainText = AppDesign.darkControl
+    private let subtleText = AppDesign.paleSky
+    private let sheetHandle = AppDesign.sheetHandleAlt
+    private let segmentBg = AppDesign.segmentBackground
 
     var body: some View {
         VStack(spacing: 0) {
@@ -41,7 +41,7 @@ struct DebtAdjustmentSheet: View {
                 .padding(.bottom, 24)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(Color.white)
+        .background(AppDesign.surfaceBackground)
         .overlay(alignment: .top) {
             Rectangle()
                 .fill(mainText)
@@ -109,7 +109,7 @@ struct DebtAdjustmentSheet: View {
                     Text("Применить")
                         .font(.system(size: 14, weight: .bold))
                         .tracking(0.28)
-                        .foregroundStyle(Color.white)
+                        .foregroundStyle(AppDesign.surfaceBackground)
                 }
             }
             .frame(maxWidth: .infinity)
@@ -133,9 +133,9 @@ struct DebtAdjustmentSheet: View {
                 .frame(height: 46)
                 .background {
                     RoundedRectangle(cornerRadius: 15, style: .continuous)
-                        .fill(isSelected ? Color.white : Color.clear)
+                        .fill(isSelected ? AppDesign.surfaceBackground : Color.clear)
                         .shadow(
-                            color: isSelected ? Color.black.opacity(0.06) : Color.clear,
+                            color: isSelected ? AppDesign.black.opacity(0.06) : Color.clear,
                             radius: 5,
                             x: 0,
                             y: 2

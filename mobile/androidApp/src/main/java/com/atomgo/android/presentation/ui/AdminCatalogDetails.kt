@@ -353,7 +353,7 @@ internal fun AdminClientsCatalogScreen(
                     onClick = onLogout
                 )
                 Spacer(Modifier.weight(1f))
-                Text("Клиенты", color = Color(0xFF141718), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("Клиенты", color = AppDesign.DarkText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.weight(1f))
                 AdminSquareTopButton(
                     iconRes = R.drawable.ic_admin_plus,
@@ -584,7 +584,7 @@ internal fun AdminBikesCatalogScreen(
                     onClick = onLogout
                 )
                 Spacer(Modifier.weight(1f))
-                Text("Велосипеды", color = Color(0xFF141718), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("Велосипеды", color = AppDesign.DarkText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.weight(1f))
                 AdminSquareTopButton(
                     iconRes = R.drawable.ic_admin_plus,
@@ -630,13 +630,13 @@ internal fun AdminClientCatalogRow(
                 }
                 .alpha(if (isCallEnabled) 1f else 0.45f)
                 .background(Color.White, RoundedCornerShape(12.dp))
-                .border(1.5.dp, Color(0xFF34C759), RoundedCornerShape(12.dp)),
+                .border(1.5.dp, AppDesign.PaidGreen, RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = Icons.Filled.Phone,
                 contentDescription = null,
-                tint = Color(0xFF34C759),
+                tint = AppDesign.PaidGreen,
                 modifier = Modifier.size(18.dp)
             )
         }
@@ -666,7 +666,7 @@ internal fun AdminClientCatalogRow(
         if (totalDebt > 0) {
             Text(
                 text = money(totalDebt),
-                color = Color(0xFFD63034),
+                color = AppDesign.DangerRed,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -964,7 +964,7 @@ internal fun AdminClientDetailsScreen(
                                             modifier = Modifier
                                                 .size(80.dp)
                                                 .background(Color(0xFFE3E6EB), RoundedCornerShape(14.dp))
-                                                .border(3.dp, Color(0xFF34C759), RoundedCornerShape(14.dp)),
+                                                .border(3.dp, AppDesign.PaidGreen, RoundedCornerShape(14.dp)),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
@@ -992,7 +992,7 @@ internal fun AdminClientDetailsScreen(
                                             )
                                             Box(
                                                 modifier = Modifier
-                                                    .background(Color(0xFF34C759), RoundedCornerShape(999.dp))
+                                                    .background(AppDesign.PaidGreen, RoundedCornerShape(999.dp))
                                                     .padding(horizontal = 10.dp, vertical = 5.dp)
                                             ) {
                                                 Text(
@@ -1008,7 +1008,7 @@ internal fun AdminClientDetailsScreen(
                                 } else {
                                     Box(
                                         modifier = Modifier
-                                            .background(Color(0xFF141718), RoundedCornerShape(999.dp))
+                                            .background(AppDesign.DarkControl, RoundedCornerShape(999.dp))
                                             .padding(horizontal = 10.dp, vertical = 5.dp)
                                     ) {
                                         Text(
@@ -1153,10 +1153,10 @@ internal fun AdminRentalDetailsScreenAndroid(
     val clipboardManager = LocalClipboardManager.current
     val uriHandler = LocalUriHandler.current
     val overlayInteraction = remember { MutableInteractionSource() }
-    val mainTextColor = Color(0xFF1F2937)
+    val mainTextColor = AppDesign.DarkControl
     val subtleTextColor = Color(0xFF6B7280)
     val dividerColor = Color(0xFFEAEAF0)
-    val credentialButtonColor = Color(0xFF141718)
+    val credentialButtonColor = AppDesign.DarkControl
     var editableLogin by remember(details?.rentalId) { mutableStateOf(details?.clientLogin.orEmpty()) }
     var editablePassword by remember(details?.rentalId) { mutableStateOf(details?.clientPassword.orEmpty()) }
     var selectedStartClientId by remember(details?.rentalId) { mutableStateOf("") }
@@ -1729,7 +1729,7 @@ internal fun CompactCredentialField(
     onValueChange: (String) -> Unit,
     placeholder: String
 ) {
-    val mainTextColor = Color(0xFF1F2937)
+    val mainTextColor = AppDesign.DarkControl
     val subtleTextColor = Color(0xFF6B7280)
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(
@@ -1853,9 +1853,9 @@ internal fun RentalLinkIconButton(
         enabled = enabled,
         shape = RoundedCornerShape(15.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = Color(0xFF141718),
+            containerColor = AppDesign.DarkControl,
             contentColor = Color.White,
-            disabledContainerColor = Color(0xFF141718).copy(alpha = 0.25f),
+            disabledContainerColor = AppDesign.DarkControl.copy(alpha = 0.25f),
             disabledContentColor = Color.White.copy(alpha = 0.35f)
         ),
         contentPadding = PaddingValues(0.dp),
@@ -1880,8 +1880,8 @@ internal fun rentalPreviewStatusPill(details: AdminRentalPreview) {
         else -> "Активная"
     }
     val color = when {
-        isClosed -> Color(0xFF141718)
-        else -> Color(0xFF34C759)
+        isClosed -> AppDesign.DarkControl
+        else -> AppDesign.PaidGreen
     }
     Box(
         modifier = Modifier
@@ -1900,10 +1900,10 @@ internal fun rentalPreviewStatusPill(details: AdminRentalPreview) {
 internal fun rentalPreviewBorderColor(details: AdminRentalPreview): Color {
     if (!details.periodEnd.isNullOrBlank()) return Color(0xFF6B7280)
     return when (normalizedPipelineStatus(details.rentalPipelineStatus)) {
-        "in_stock", "mine" -> Color(0xFFCB30E0)
-        "soon_return" -> Color(0xFFFFCC00)
-        "long_term" -> Color(0xFF34C759)
-        else -> if (details.rentalIsActive) Color(0xFF34C759) else Color(0xFFCB30E0)
+        "in_stock", "mine" -> AppDesign.IdlePurple
+        "soon_return" -> AppDesign.WarningYellow
+        "long_term" -> AppDesign.PaidGreen
+        else -> if (details.rentalIsActive) AppDesign.PaidGreen else AppDesign.IdlePurple
     }
 }
 
@@ -2030,7 +2030,7 @@ internal fun AdminBikeCatalogRow(
         }
         Text(
             text = "${formatRubAmount(bike.weeklyRateRub)} ₽/нед",
-            color = Color(0xFF1F2937),
+            color = AppDesign.DarkControl,
             fontSize = 15.sp,
             fontWeight = FontWeight.Bold
         )
@@ -2199,7 +2199,7 @@ internal fun AdminRentalDebtAdjustmentDialog(
     var toastMessage by remember { mutableStateOf<String?>(null) }
     val overlayInteraction = remember { MutableInteractionSource() }
     val closeInteraction = remember { MutableInteractionSource() }
-    val mainTextColor = Color(0xFF1F2937)
+    val mainTextColor = AppDesign.DarkControl
     val density = LocalDensity.current
     val scrimAlpha by animateFloatAsState(
         targetValue = if (visible) 0.08f else 0f,
@@ -2395,7 +2395,7 @@ private fun AdjustmentSegmentButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val mainTextColor = Color(0xFF1F2937)
+    val mainTextColor = AppDesign.DarkControl
     Box(
         modifier = modifier
             .padding(4.dp)

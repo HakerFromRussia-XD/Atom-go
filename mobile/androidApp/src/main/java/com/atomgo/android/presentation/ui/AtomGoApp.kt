@@ -841,9 +841,9 @@ private fun ClientHomeScreen(
     }
 
     val cardColor = Color(0xFFFAFBFB)
-    val mainText = Color(0xFF1F2937)
+    val mainText = AppDesign.DarkControl
     val subtleText = Color(0xFF6B7280)
-    val darkButton = Color(0xFF1F2937)
+    val darkButton = AppDesign.DarkControl
 
     BoxWithConstraints(
         modifier = Modifier
@@ -942,7 +942,7 @@ private fun ClientHomeScreen(
             val data = dashboard!!
             val debtTitle = if (data.debtRub > 0) "ДОЛГ" else "ОСТАТОК"
             val debtAmount = if (data.debtRub > 0) data.debtRub else data.balanceRub
-            val debtColor = if (data.debtRub > 0) Color(0xFFD63034) else Color(0xFF238F47)
+            val debtColor = if (data.debtRub > 0) AppDesign.DangerRed else AppDesign.PaidGreen
             val completedAtText = data.completedAt?.takeIf { it.isNotBlank() }?.let(::formatLongRuDate)
                 ?: if (!data.rentalIsActive) "—" else null
 

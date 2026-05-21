@@ -20,7 +20,7 @@ struct ClientCatalogSheet: View {
     @State private var toastMessage: String?
     @State private var toastDismissTask: Task<Void, Never>?
 
-    private let athensGray = Color(red: 247 / 255, green: 248 / 255, blue: 250 / 255)
+    private let athensGray = AppDesign.pageBackground
     private let horizontalInset: CGFloat = 8
     private let topBarHeight: CGFloat = 62
     private let searchTopPadding: CGFloat = 6
@@ -28,7 +28,7 @@ struct ClientCatalogSheet: View {
     private let chipsTopGap: CGFloat = 10
     private let chipsHeight: CGFloat = 36
     private let tabBarHeight: CGFloat = 76
-    private let callButtonGreen = Color(red: 52 / 255, green: 199 / 255, blue: 89 / 255)
+    private let callButtonGreen = AppDesign.success
 
     private var searchTop: CGFloat { topBarHeight + searchTopPadding }
     private var searchMaskHeight: CGFloat { searchTop + searchHeight / 2 }
@@ -64,20 +64,20 @@ struct ClientCatalogSheet: View {
                                     clientRow(client)
                                     if index < visibleClients.count - 1 {
                                         Divider()
-                                            .overlay(Color(red: 234 / 255, green: 234 / 255, blue: 240 / 255))
+                                            .overlay(AppDesign.athensGray)
                                     }
                                 }
                             }
                             .padding(.horizontal, 15)
                             .padding(.vertical, 5)
-                            .background(Color(red: 250 / 255, green: 251 / 255, blue: 251 / 255))
+                            .background(AppDesign.blackHaze)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 15, style: .continuous)
                                     .stroke(AppDesign.accent, lineWidth: 1.5)
                             )
                             .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
                             .shadow(
-                                color: Color(red: 25 / 255, green: 28 / 255, blue: 50 / 255).opacity(0.08),
+                                color: AppDesign.shadow.opacity(0.08),
                                 radius: 15,
                                 x: 0,
                                 y: 20
@@ -94,7 +94,7 @@ struct ClientCatalogSheet: View {
                 VStack(spacing: 0) {
                     Color.clear
                         .frame(height: searchMaskHeight)
-                    Color.white
+                    AppDesign.surfaceBackground
                 }
             }
             .onPreferenceChange(AdminCardsTopKey.self) { cardsTopY in
@@ -205,7 +205,7 @@ struct ClientCatalogSheet: View {
         Button {
             selectedFilter = filter
         } label: {
-            Color.white.opacity(0.001)
+            AppDesign.surfaceBackground.opacity(0.001)
                 .frame(width: width, height: 36)
                 .contentShape(Capsule())
         }
@@ -235,7 +235,7 @@ struct ClientCatalogSheet: View {
 
             Text("Клиенты")
                 .font(.system(size: 18, weight: .bold))
-                .foregroundStyle(Color(red: 20 / 255, green: 23 / 255, blue: 24 / 255))
+                .foregroundStyle(AppDesign.darkText)
 
             Spacer()
 
@@ -263,7 +263,7 @@ struct ClientCatalogSheet: View {
         }
         .padding(.horizontal, 15)
         .frame(height: 46)
-        .background(Color.white)
+        .background(AppDesign.surfaceBackground)
         .overlay(
             RoundedRectangle(cornerRadius: 12.84, style: .continuous)
                 .stroke(AppDesign.accent, lineWidth: 1.5)
@@ -289,13 +289,13 @@ struct ClientCatalogSheet: View {
                     .font(.system(size: 10, weight: .bold))
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(isSelected ? Color.white.opacity(0.2) : Color.black.opacity(0.08))
+                    .background(isSelected ? AppDesign.surfaceBackground.opacity(0.2) : AppDesign.black.opacity(0.08))
                     .clipShape(Capsule())
             }
-            .foregroundStyle(isSelected ? Color.white : AppDesign.accent)
+            .foregroundStyle(isSelected ? AppDesign.surfaceBackground : AppDesign.accent)
             .padding(.horizontal, 15)
             .frame(height: 36)
-            .background(isSelected ? AppDesign.accent : Color.white)
+            .background(isSelected ? AppDesign.accent : AppDesign.surfaceBackground)
             .overlay(
                 RoundedRectangle(cornerRadius: 999, style: .continuous)
                     .stroke(AppDesign.accent, lineWidth: 1.5)
@@ -315,7 +315,7 @@ struct ClientCatalogSheet: View {
     ) -> some View {
         Button(action: action) {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white)
+                .fill(AppDesign.surfaceBackground)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .stroke(AppDesign.accent, lineWidth: 1.5)
@@ -339,7 +339,7 @@ struct ClientCatalogSheet: View {
     ) -> some View {
         Button(action: action) {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white)
+                .fill(AppDesign.surfaceBackground)
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .stroke(AppDesign.accent, lineWidth: 1.5)
@@ -377,7 +377,7 @@ struct ClientCatalogSheet: View {
         }
         .frame(maxWidth: .infinity)
         .padding(24)
-        .background(Color.white)
+        .background(AppDesign.surfaceBackground)
         .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
     }
 
@@ -392,12 +392,12 @@ struct ClientCatalogSheet: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(client.fullName)
                             .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(Color(red: 31 / 255, green: 41 / 255, blue: 55 / 255))
+                            .foregroundStyle(AppDesign.darkControl)
                             .lineLimit(1)
                             .truncationMode(.tail)
                         Text(clientSubtitle(for: client))
                             .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(Color(red: 107 / 255, green: 114 / 255, blue: 128 / 255))
+                            .foregroundStyle(AppDesign.paleSky)
                             .lineLimit(1)
                             .truncationMode(.tail)
                     }
@@ -406,13 +406,13 @@ struct ClientCatalogSheet: View {
                     if clientTotalDebtRub(for: client) > 0 {
                         Text(formattedDebtRub(clientTotalDebtRub(for: client)))
                             .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(Color(red: 214 / 255, green: 48 / 255, blue: 52 / 255))
+                            .foregroundStyle(AppDesign.danger)
                             .fixedSize(horizontal: true, vertical: false)
                     }
 
                     Image(systemName: "chevron.right")
                         .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(Color(red: 167 / 255, green: 167 / 255, blue: 171 / 255))
+                        .foregroundStyle(AppDesign.chevron)
                 }
                 .frame(minHeight: 60)
                 .contentShape(Rectangle())
@@ -430,7 +430,7 @@ struct ClientCatalogSheet: View {
             openURL(url)
         } label: {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.white)
+                .fill(AppDesign.surfaceBackground)
                 .overlay(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .stroke(callButtonGreen, lineWidth: 1.5)

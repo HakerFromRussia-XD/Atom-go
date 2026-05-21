@@ -428,7 +428,7 @@ internal fun AdminBottomTabItem(
     onClick: (AdminHomeTab) -> Unit
 ) {
     val isSelected = selectedTab == tab
-    val color = if (isSelected) Color(0xFF141718) else AppDesign.IconSoft
+    val color = if (isSelected) AppDesign.DarkText else AppDesign.IconSoft
 
     Column(
         modifier = modifier
@@ -454,7 +454,7 @@ internal fun AdminBottomTabItem(
         Box(
             modifier = Modifier
                 .size(4.dp)
-                .background(if (isSelected) Color(0xFF141718) else Color.Transparent, RoundedCornerShape(999.dp))
+                .background(if (isSelected) AppDesign.DarkText else Color.Transparent, RoundedCornerShape(999.dp))
         )
     }
 }
@@ -477,7 +477,7 @@ internal fun AdminSecondaryTabStub(
     ) {
         Text(
             text = title,
-            color = Color(0xFF141718),
+            color = AppDesign.DarkText,
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold
         )
@@ -913,7 +913,7 @@ internal fun AdminHomeScreen(
                             Spacer(Modifier.weight(1f))
                             Text(
                                 "Все аренды",
-                                color = Color(0xFF141718),
+                                color = AppDesign.DarkText,
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier
