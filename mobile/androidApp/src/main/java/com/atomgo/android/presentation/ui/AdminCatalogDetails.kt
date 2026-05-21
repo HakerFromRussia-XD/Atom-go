@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -28,6 +29,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -35,7 +37,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -89,6 +90,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
@@ -1152,6 +1154,9 @@ internal fun AdminRentalDetailsScreenAndroid(
     val uriHandler = LocalUriHandler.current
     val overlayInteraction = remember { MutableInteractionSource() }
     val mainTextColor = Color(0xFF1F2937)
+    val subtleTextColor = Color(0xFF6B7280)
+    val dividerColor = Color(0xFFEAEAF0)
+    val credentialButtonColor = Color(0xFF141718)
     var editableLogin by remember(details?.rentalId) { mutableStateOf(details?.clientLogin.orEmpty()) }
     var editablePassword by remember(details?.rentalId) { mutableStateOf(details?.clientPassword.orEmpty()) }
     var selectedStartClientId by remember(details?.rentalId) { mutableStateOf("") }
@@ -1285,8 +1290,8 @@ internal fun AdminRentalDetailsScreenAndroid(
                 val debtMetricText = if (isInStockState) "—" else money(details.debtRub)
                 val adjustmentMetricText = if (isInStockState) "—" else money(details.totalAdjustmentRub)
                 val fourthMetricText = if (isInStockState) "—" else fourthMetricValue
-                val paidMetricColor = if (isInStockState) AppDesign.TitleText else AppDesign.Success
-                val debtMetricColor = if (isInStockState) AppDesign.TitleText else AppDesign.Danger
+                val paidMetricColor = if (isInStockState) mainTextColor else AppDesign.Success
+                val debtMetricColor = if (isInStockState) mainTextColor else AppDesign.Danger
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -1329,8 +1334,8 @@ internal fun AdminRentalDetailsScreenAndroid(
                                     modifier = Modifier.weight(1f),
                                     verticalArrangement = Arrangement.spacedBy(2.dp)
                                 ) {
-                                    Text(details.bikeModel, color = AppDesign.TitleText, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                                    Text("${formatRubAmount(details.weeklyRateRub)} ₽/нед", color = AppDesign.SubtleText, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                                    Text(details.bikeModel, color = mainTextColor, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                    Text("${formatRubAmount(details.weeklyRateRub)} ₽/нед", color = subtleTextColor, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                                     rentalPreviewStatusPill(details)
                                 }
                                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1359,28 +1364,31 @@ internal fun AdminRentalDetailsScreenAndroid(
                                 }
                             }
 
-                            HorizontalDivider(modifier = Modifier.padding(horizontal = 18.dp), color = Color(0xFFEAEAF0))
+                            HorizontalDivider(modifier = Modifier.padding(horizontal = 18.dp), color = dividerColor)
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(start = 18.dp, top = 16.dp, end = 18.dp, bottom = 8.dp),
                                 verticalAlignment = Alignment.Top
                             ) {
-                                MetricStack("ОПЛАЧЕНО", paidMetricText, paidMetricColor, modifier = Modifier.weight(1f))
-                                MetricStack("ДОЛГ", debtMetricText, debtMetricColor, modifier = Modifier.weight(1f))
-                                MetricStack("КОРРЕКТ.", adjustmentMetricText, AppDesign.TitleText, modifier = Modifier.weight(1f))
-                                MetricStack(fourthMetricTitle, fourthMetricText, AppDesign.TitleText, modifier = Modifier.weight(1f))
+                                MetricStack("ОПЛАЧЕНО", paidMetricText, paidMetricColor, titleColor = subtleTextColor, modifier = Modifier.weight(1f))
+                                MetricStack("ДОЛГ", debtMetricText, debtMetricColor, titleColor = subtleTextColor, modifier = Modifier.weight(1f))
+                                MetricStack("КОРРЕКТ.", adjustmentMetricText, mainTextColor, titleColor = subtleTextColor, modifier = Modifier.weight(1f))
+                                MetricStack(fourthMetricTitle, fourthMetricText, mainTextColor, titleColor = subtleTextColor, modifier = Modifier.weight(1f))
                             }
-                            HorizontalDivider(modifier = Modifier.padding(horizontal = 18.dp), color = Color(0xFFEAEAF0))
+                            HorizontalDivider(modifier = Modifier.padding(horizontal = 18.dp), color = dividerColor)
 
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .padding(horizontal = 19.dp)
+                                    .padding(top = 9.dp, bottom = 8.dp)
                                     .height(67.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 Column(
-                                    modifier = Modifier.padding(start = 19.dp),
+                                    modifier = Modifier.weight(1f),
                                     verticalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     CompactCredentialField(
@@ -1398,58 +1406,39 @@ internal fun AdminRentalDetailsScreenAndroid(
                                         placeholder = "—"
                                     )
                                 }
-                                Spacer(Modifier.weight(1f))
                                 Row(
-                                    modifier = Modifier.padding(end = 19.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    modifier = Modifier.width(165.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     if (isInStockState) {
-                                        Button(
+                                        RentalCredentialActionButton(
+                                            title = "Сгенерировать",
+                                            backgroundColor = credentialButtonColor,
                                             onClick = {
                                                 editableLogin = "user${(100000..999999).random()}"
                                                 editablePassword = buildString {
                                                     val alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
                                                     repeat(12) { append(alphabet.random()) }
                                                 }
-                                            },
-                                            shape = RoundedCornerShape(15.dp),
-                                            colors = ButtonDefaults.buttonColors(
-                                                containerColor = Color(0xFF141718),
-                                                contentColor = Color.White
-                                            ),
-                                            modifier = Modifier.size(width = 110.dp, height = 47.dp)
-                                        ) {
-                                            Text("Сгенерировать", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                        }
+                                            }
+                                        )
                                     } else {
                                         Spacer(Modifier.size(width = 110.dp, height = 47.dp))
                                     }
 
-                                    Button(
+                                    RentalCredentialCopyButton(
+                                        backgroundColor = credentialButtonColor,
                                         onClick = {
                                             val login = editableLogin.ifBlank { details.clientLogin.orEmpty() }.ifBlank { "—" }
                                             val password = editablePassword.ifBlank { details.clientPassword.orEmpty() }.ifBlank { "—" }
                                             clipboardManager.setText(AnnotatedString("Логин: $login\nПароль: $password"))
-                                        },
-                                        shape = RoundedCornerShape(15.dp),
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = Color(0xFF141718),
-                                            contentColor = Color.White
-                                        ),
-                                        contentPadding = PaddingValues(0.dp),
-                                        modifier = Modifier.size(47.dp)
-                                    ) {
-                                        Image(
-                                            painter = painterResource(R.drawable.copy_icon),
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp),
-                                            contentScale = ContentScale.Fit
-                                        )
-                                    }
+                                        }
+                                    )
                                 }
                             }
 
-                            HorizontalDivider(modifier = Modifier.padding(horizontal = 18.dp), color = Color(0xFFEAEAF0))
+                            HorizontalDivider(modifier = Modifier.padding(horizontal = 18.dp), color = dividerColor)
                             if (isInStockState) {
                                 RentalStartClientSelectorRow(
                                     selectedClientName = selectedStartClient?.fullName,
@@ -1472,14 +1461,14 @@ internal fun AdminRentalDetailsScreenAndroid(
                                     ) {
                                         Text(
                                             "АРЕНДАТОР",
-                                            color = AppDesign.SubtleText,
+                                            color = subtleTextColor,
                                             fontSize = 10.sp,
                                             letterSpacing = 0.6.sp,
                                             fontWeight = FontWeight.Bold
                                         )
                                         Text(
                                             details.clientName.ifBlank { "Клиент" },
-                                            color = AppDesign.TitleText,
+                                            color = mainTextColor,
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.Medium,
                                             maxLines = 1,
@@ -1487,7 +1476,7 @@ internal fun AdminRentalDetailsScreenAndroid(
                                         )
                                     }
                                     Spacer(Modifier.weight(1f))
-                                    Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = AppDesign.SubtleText, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = subtleTextColor, modifier = Modifier.size(16.dp))
                                 }
                             }
                         }
@@ -1677,6 +1666,62 @@ internal data class RentalJournalPreviewRow(
 )
 
 @Composable
+private fun RentalCredentialActionButton(
+    title: String,
+    backgroundColor: Color,
+    onClick: () -> Unit
+) {
+    val interaction = remember { MutableInteractionSource() }
+    Box(
+        modifier = Modifier
+            .size(width = 110.dp, height = 47.dp)
+            .background(backgroundColor, RoundedCornerShape(15.dp))
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick
+            )
+            .testTag("admin_rental_details_generate_credentials"),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = title,
+            color = Color.White,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun RentalCredentialCopyButton(
+    backgroundColor: Color,
+    onClick: () -> Unit
+) {
+    val interaction = remember { MutableInteractionSource() }
+    Box(
+        modifier = Modifier
+            .size(47.dp)
+            .background(backgroundColor, RoundedCornerShape(15.dp))
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick
+            )
+            .testTag("admin_rental_details_copy_credentials"),
+        contentAlignment = Alignment.Center
+    ) {
+        Image(
+            painter = painterResource(R.drawable.copy_icon),
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            contentScale = ContentScale.Fit
+        )
+    }
+}
+
+@Composable
 internal fun CompactCredentialField(
     title: String,
     value: String,
@@ -1684,10 +1729,12 @@ internal fun CompactCredentialField(
     onValueChange: (String) -> Unit,
     placeholder: String
 ) {
+    val mainTextColor = Color(0xFF1F2937)
+    val subtleTextColor = Color(0xFF6B7280)
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(
             title,
-            color = AppDesign.SubtleText,
+            color = subtleTextColor,
             fontSize = 10.sp,
             letterSpacing = 0.6.sp,
             fontWeight = FontWeight.Bold
@@ -1698,7 +1745,7 @@ internal fun CompactCredentialField(
                 onValueChange = onValueChange,
                 singleLine = true,
                 textStyle = TextStyle(
-                    color = AppDesign.TitleText,
+                    color = mainTextColor,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Medium
                 ),
@@ -1706,7 +1753,7 @@ internal fun CompactCredentialField(
                 modifier = Modifier.width(150.dp),
                 decorationBox = { inner ->
                     if (value.isBlank()) {
-                        Text(placeholder, color = AppDesign.SubtleText, fontSize = 10.sp)
+                        Text(placeholder, color = subtleTextColor, fontSize = 10.sp)
                     }
                     inner()
                 }
@@ -1714,7 +1761,7 @@ internal fun CompactCredentialField(
         } else {
             Text(
                 text = value.ifBlank { placeholder },
-                color = AppDesign.TitleText,
+                color = mainTextColor,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
@@ -1874,6 +1921,7 @@ internal fun MetricStack(
     title: String,
     value: String,
     valueColor: Color,
+    titleColor: Color = AppDesign.SubtleText,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -1882,7 +1930,7 @@ internal fun MetricStack(
     ) {
         Text(
             text = title.uppercase(),
-            color = AppDesign.SubtleText,
+            color = titleColor,
             fontSize = 9.sp,
             fontWeight = FontWeight.Medium,
             letterSpacing = 0.36.sp,
@@ -2142,6 +2190,7 @@ internal fun AdminRentCard(
 @Composable
 internal fun AdminRentalDebtAdjustmentDialog(
     title: String,
+    visible: Boolean = true,
     onDismiss: () -> Unit,
     onApply: (amountRub: Int, sign: String, comment: String) -> Unit
 ) {
@@ -2149,10 +2198,14 @@ internal fun AdminRentalDebtAdjustmentDialog(
     var selectedSign by remember { mutableStateOf("minus") }
     var toastMessage by remember { mutableStateOf<String?>(null) }
     val overlayInteraction = remember { MutableInteractionSource() }
+    val closeInteraction = remember { MutableInteractionSource() }
     val mainTextColor = Color(0xFF1F2937)
     val density = LocalDensity.current
-    val keyboardBottomDp = with(density) { WindowInsets.ime.getBottom(this).toDp() }
-    val keyboardGap = if (keyboardBottomDp > 0.dp) 16.dp else 0.dp
+    val scrimAlpha by animateFloatAsState(
+        targetValue = if (visible) 0.08f else 0f,
+        animationSpec = tween(durationMillis = 180, easing = LinearOutSlowInEasing),
+        label = "adjustmentScrimAlpha"
+    )
 
     LaunchedEffect(toastMessage) {
         if (!toastMessage.isNullOrBlank()) {
@@ -2165,7 +2218,7 @@ internal fun AdminRentalDebtAdjustmentDialog(
         modifier = Modifier
             .fillMaxSize()
             .zIndex(40f)
-            .background(Color.Black.copy(alpha = 0.08f))
+            .background(Color.Black.copy(alpha = scrimAlpha))
             .testTag("admin_rental_adjustment_sheet")
     ) {
         Box(
@@ -2178,98 +2231,149 @@ internal fun AdminRentalDebtAdjustmentDialog(
                 )
                 .zIndex(0f)
         )
-        Box(
+        AnimatedVisibility(
+            visible = visible,
+            enter = fadeIn(animationSpec = tween(220, easing = LinearOutSlowInEasing)) +
+                slideInVertically(initialOffsetY = { it }, animationSpec = tween(220, easing = LinearOutSlowInEasing)),
+            exit = fadeOut(animationSpec = tween(180)) +
+                slideOutVertically(targetOffsetY = { it }, animationSpec = tween(180)),
             modifier = Modifier
                 .fillMaxSize()
-                .imePadding()
-                .padding(bottom = keyboardGap)
-                .zIndex(1f),
-            contentAlignment = Alignment.BottomCenter
+                .zIndex(1f)
         ) {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                color = Color.White,
-                shadowElevation = 12.dp
-            ) {
-                Column(
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                val keyboardBottomDp = with(density) { WindowInsets.ime.getBottom(this).toDp() }
+                val navigationBottomDp = with(density) { WindowInsets.navigationBars.getBottom(this).toDp() }
+                val keyboardVisible = keyboardBottomDp > 0.dp
+                val targetSheetBottomGap = if (keyboardVisible) keyboardBottomDp else 0.dp
+                val sheetBottomGap by animateDpAsState(
+                    targetValue = targetSheetBottomGap,
+                    animationSpec = tween(durationMillis = 220, easing = LinearOutSlowInEasing),
+                    label = "adjustmentKeyboardLift"
+                )
+                val sheetBottomPadding = if (keyboardVisible) 24.dp else 24.dp + navigationBottomDp
+                val sheetHeight = 312.dp + if (keyboardVisible) 0.dp else navigationBottomDp
+
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 23.dp)
-                        .padding(top = 14.dp, bottom = 24.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                        .fillMaxSize()
+                        .padding(bottom = sheetBottomGap),
+                    contentAlignment = Alignment.BottomCenter
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.CenterHorizontally)
-                            .width(40.dp)
-                            .height(4.dp)
-                            .background(Color(0xFFD2D5DA), RoundedCornerShape(999.dp))
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = title,
-                            color = mainTextColor,
-                            fontSize = 15.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1
-                        )
-                        Spacer(Modifier.weight(1f))
-                        TextButton(onClick = onDismiss) {
-                            Text("Закрыть ✕", color = AppDesign.SubtleText, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                        }
-                    }
-                    Row(
+                    Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(54.dp)
-                            .background(Color(0xFFEDEFF4), RoundedCornerShape(16.dp))
-                            .padding(4.dp),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            .height(sheetHeight)
+                            .drawWithContent {
+                                drawContent()
+                                drawLine(
+                                    color = mainTextColor.copy(alpha = 0.2f),
+                                    start = Offset.Zero,
+                                    end = Offset(size.width, 0f),
+                                    strokeWidth = 1.dp.toPx()
+                                )
+                            },
+                        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                        color = Color.White,
+                        shadowElevation = 12.dp
                     ) {
-                        AdjustmentSegmentButton(
-                            title = "– Уменьшить",
-                            selected = selectedSign == "minus",
-                            onClick = { selectedSign = "minus" },
-                            modifier = Modifier.weight(1f)
-                        )
-                        AdjustmentSegmentButton(
-                            title = "+ Увеличить",
-                            selected = selectedSign == "plus",
-                            onClick = { selectedSign = "plus" },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                    AdminSheetInputField(
-                        label = "СУММА, ₽",
-                        placeholder = "введите...",
-                        value = amountText,
-                        onValueChange = { amountText = it.filter { ch -> ch.isDigit() } },
-                        testTag = "debt_adjustment_amount_input",
-                        keyboardType = KeyboardType.Number,
-                        borderColor = mainTextColor,
-                        autoFocus = true
-                    )
-                    Button(
-                        onClick = {
-                            val amount = amountText.toIntOrNull() ?: 0
-                            if (amount <= 0) {
-                                toastMessage = "Введите положительную сумму"
-                                return@Button
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.CenterHorizontally)
+                                    .padding(top = 14.dp)
+                                    .width(40.dp)
+                                    .height(4.dp)
+                                    .background(Color(0xFFD2D5DA), RoundedCornerShape(999.dp))
+                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 23.dp)
+                                    .padding(top = 12.dp, bottom = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = title,
+                                    color = mainTextColor,
+                                    fontSize = 15.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1
+                                )
+                                Spacer(Modifier.width(12.dp).weight(1f))
+                                Text(
+                                    text = "Закрыть ✕",
+                                    color = AppDesign.SubtleText,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.clickable(
+                                        interactionSource = closeInteraction,
+                                        indication = null,
+                                        onClick = onDismiss
+                                    )
+                                )
                             }
-                            onApply(amount, selectedSign, "")
-                        },
-                        shape = RoundedCornerShape(18.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = mainTextColor,
-                            contentColor = Color.White
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(63.dp)
-                            .testTag("debt_adjustment_apply_button")
-                    ) {
-                        Text("Применить", fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.28.sp)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 23.dp)
+                                    .padding(bottom = 14.dp)
+                                    .height(54.dp)
+                                    .background(Color(0xFFEDEFF4), RoundedCornerShape(16.dp))
+                            ) {
+                                AdjustmentSegmentButton(
+                                    title = "– Уменьшить",
+                                    selected = selectedSign == "minus",
+                                    onClick = { selectedSign = "minus" },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                AdjustmentSegmentButton(
+                                    title = "+ Увеличить",
+                                    selected = selectedSign == "plus",
+                                    onClick = { selectedSign = "plus" },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            AdminSheetInputField(
+                                label = "СУММА, ₽",
+                                placeholder = "введите...",
+                                value = amountText,
+                                onValueChange = { amountText = it.filter { ch -> ch.isDigit() } },
+                                testTag = "debt_adjustment_amount_input",
+                                keyboardType = KeyboardType.Number,
+                                borderColor = mainTextColor,
+                                autoFocus = true,
+                                modifier = Modifier
+                                    .padding(horizontal = 23.dp)
+                                    .padding(bottom = 16.dp)
+                            )
+                            Button(
+                                onClick = {
+                                    val amount = amountText.toIntOrNull() ?: 0
+                                    if (amount <= 0) {
+                                        toastMessage = "Введите положительную сумму"
+                                        return@Button
+                                    }
+                                    onApply(amount, selectedSign, "")
+                                },
+                                shape = RoundedCornerShape(18.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = mainTextColor,
+                                    contentColor = Color.White
+                                ),
+                                modifier = Modifier
+                                    .padding(horizontal = 23.dp)
+                                    .padding(bottom = sheetBottomPadding)
+                                    .fillMaxWidth()
+                                    .height(63.dp)
+                                    .testTag("debt_adjustment_apply_button")
+                            ) {
+                                Text("Применить", fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.28.sp)
+                            }
+                        }
                     }
                 }
             }
@@ -2294,6 +2398,7 @@ private fun AdjustmentSegmentButton(
     val mainTextColor = Color(0xFF1F2937)
     Box(
         modifier = modifier
+            .padding(4.dp)
             .fillMaxHeight()
             .background(if (selected) Color.White else Color.Transparent, RoundedCornerShape(15.dp))
             .border(

@@ -542,7 +542,15 @@ internal fun AdminHomeScreen(
     var selectedRentalDetails by remember { mutableStateOf<AdminRentalPreview?>(null) }
     var isRentalDetailsLoading by remember { mutableStateOf(false) }
     var rentalAdjustmentTarget by remember { mutableStateOf<AdminRentalPreview?>(null) }
+    var isRentalAdjustmentVisible by remember { mutableStateOf(false) }
     var toastMessage by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(isRentalAdjustmentVisible) {
+        if (!isRentalAdjustmentVisible && rentalAdjustmentTarget != null) {
+            delay(220)
+            rentalAdjustmentTarget = null
+        }
+    }
 
     fun refreshRents() {
         isRentsLoading = true
@@ -1275,6 +1283,7 @@ internal fun AdminHomeScreen(
             },
             onAdjust = { preview ->
                 rentalAdjustmentTarget = preview
+                isRentalAdjustmentVisible = true
             },
             onFinish = { preview ->
                 val rentalId = preview.rentalId
@@ -1325,13 +1334,14 @@ internal fun AdminHomeScreen(
     if (rentalAdjustmentTarget != null) {
         AdminRentalDebtAdjustmentDialog(
             title = "Корректировка долга",
-            onDismiss = { rentalAdjustmentTarget = null },
+            visible = isRentalAdjustmentVisible,
+            onDismiss = { isRentalAdjustmentVisible = false },
             onApply = { amountRub, sign, comment ->
                 val target = rentalAdjustmentTarget ?: return@AdminRentalDebtAdjustmentDialog
                 val clientRentalId = target.clientRentalId?.trim().orEmpty()
                 if (clientRentalId.isEmpty()) {
                     adminMessage = "Клиентская аренда для корректировки не найдена"
-                    rentalAdjustmentTarget = null
+                    isRentalAdjustmentVisible = false
                     return@AdminRentalDebtAdjustmentDialog
                 }
                 adminHomeViewModel.adjustAdminClientRentalDebt(
@@ -1343,7 +1353,7 @@ internal fun AdminHomeScreen(
                 ) { result ->
                     result.onSuccess {
                         adminMessage = "Корректировка сохранена"
-                        rentalAdjustmentTarget = null
+                        isRentalAdjustmentVisible = false
                         refreshAllCatalogs()
                         refreshSelectedRentalDetails()
                     }.onFailure {

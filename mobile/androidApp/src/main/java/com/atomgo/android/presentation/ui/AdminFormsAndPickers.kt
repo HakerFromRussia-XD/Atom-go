@@ -865,57 +865,68 @@ internal fun AdminSheetInputField(
     isDashed: Boolean = false,
     accentBorder: Boolean = false,
     borderColor: Color = AppDesign.Accent,
-    autoFocus: Boolean = false
+    autoFocus: Boolean = false,
+    modifier: Modifier = Modifier
 ) {
     val dashedColor = Color(0xFF98A1AD)
     val resolvedBorderColor = if (accentBorder) AppDesign.Accent else borderColor
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
+    val fieldInteraction = remember { MutableInteractionSource() }
 
     LaunchedEffect(autoFocus) {
         if (autoFocus) {
-            delay(180)
+            delay(150)
             focusRequester.requestFocus()
             keyboardController?.show()
         }
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            text = label.uppercase(),
-            color = Color(0xFF6B7280),
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Normal,
-            letterSpacing = 0.66.sp
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(58.dp)
-                .background(Color.White, RoundedCornerShape(12.84.dp))
-                .drawWithContent {
-                    drawContent()
-                    val corner = CornerRadius(12.84.dp.toPx(), 12.84.dp.toPx())
-                    if (isDashed) {
-                        drawRoundRect(
-                            color = dashedColor,
-                            cornerRadius = corner,
-                            style = Stroke(
-                                width = 1.5.dp.toPx(),
-                                pathEffect = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 2.5.dp.toPx()))
-                            )
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(58.dp)
+            .background(Color.White, RoundedCornerShape(12.84.dp))
+            .drawWithContent {
+                drawContent()
+                val corner = CornerRadius(12.84.dp.toPx(), 12.84.dp.toPx())
+                if (isDashed) {
+                    drawRoundRect(
+                        color = dashedColor,
+                        cornerRadius = corner,
+                        style = Stroke(
+                            width = 1.5.dp.toPx(),
+                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 2.5.dp.toPx()))
                         )
-                    } else {
-                        drawRoundRect(
-                            color = resolvedBorderColor,
-                            cornerRadius = corner,
-                            style = Stroke(width = 1.5.dp.toPx())
-                        )
-                    }
+                    )
+                } else {
+                    drawRoundRect(
+                        color = resolvedBorderColor,
+                        cornerRadius = corner,
+                        style = Stroke(width = 1.5.dp.toPx())
+                    )
                 }
-                .padding(horizontal = 19.dp),
-            contentAlignment = Alignment.CenterStart
-        ) {
+            }
+            .clickable(
+                interactionSource = fieldInteraction,
+                indication = null,
+                onClick = {
+                    focusRequester.requestFocus()
+                    keyboardController?.show()
+                }
+            )
+            .padding(horizontal = 19.dp),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = label.uppercase(),
+                color = Color(0xFF6B7280),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Normal,
+                letterSpacing = 0.66.sp,
+                maxLines = 1
+            )
             BasicTextField(
                 value = value,
                 onValueChange = onValueChange,
@@ -925,7 +936,7 @@ internal fun AdminSheetInputField(
                     .testTag(testTag),
                 singleLine = true,
                 textStyle = TextStyle(
-                    color = AppDesign.Accent,
+                    color = AppDesign.TitleText,
                     fontSize = 13.sp,
                     fontWeight = valueWeight
                 ),

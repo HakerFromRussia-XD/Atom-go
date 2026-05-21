@@ -28,6 +28,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -849,9 +850,11 @@ private fun ClientHomeScreen(
             .fillMaxSize()
             .background(AppDesign.PageBackground)
     ) {
+        val density = LocalDensity.current
         val scale = minOf(maxWidth.value / 414f, maxHeight.value / 896f).coerceIn(0.86f, 1.08f)
         fun s(value: Int) = (value * scale).dp
         fun ss(value: Float) = (value * scale).sp
+        val navigationBottomDp = with(density) { WindowInsets.navigationBars.getBottom(this).toDp() }
         val showReceiptEmailUi = shouldShowClientReceiptEmailUi(dashboard)
 
         Column(
@@ -860,7 +863,7 @@ private fun ClientHomeScreen(
                 .padding(horizontal = s(23))
                 .statusBarsPadding()
                 .verticalScroll(rememberScrollState())
-                .padding(bottom = s(120))
+                .padding(bottom = s(120) + navigationBottomDp)
         ) {
             Spacer(Modifier.height(s(10)))
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1070,9 +1073,14 @@ private fun ClientHomeScreen(
                 shadowElevation = 10.dp,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(s(429))
+                    .height(s(429) + navigationBottomDp)
             ) {
-                Column(Modifier.fillMaxSize().padding(horizontal = s(23), vertical = s(14))) {
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = s(23))
+                        .padding(top = s(14), bottom = s(14) + navigationBottomDp)
+                ) {
                     Box(
                         modifier = Modifier
                             .align(Alignment.CenterHorizontally)
