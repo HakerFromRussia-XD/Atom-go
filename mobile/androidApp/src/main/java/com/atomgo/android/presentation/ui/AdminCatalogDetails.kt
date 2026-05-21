@@ -285,7 +285,7 @@ internal fun AdminClientsCatalogScreen(
                                 shape = RoundedCornerShape(15.dp),
                                 color = Color(0xFFFAFBFB),
                                 shadowElevation = 8.dp,
-                                border = androidx.compose.foundation.BorderStroke(1.5.dp, AppDesign.Accent)
+                                border = androidx.compose.foundation.BorderStroke(1.dp, AppDesign.Accent)
                             ) {
                                 Column(modifier = Modifier.padding(vertical = 5.dp)) {
                                     visibleClients.forEachIndexed { index, item ->
@@ -602,10 +602,14 @@ internal fun AdminClientCatalogRow(
     isFirst: Boolean = false,
     onClick: () -> Unit
 ) {
+    val uriHandler = LocalUriHandler.current
+    val telUri = remember(item.primaryPhone) { telUriString(item.primaryPhone) }
+    val isCallEnabled = telUri != null
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(77.dp)
+            .height(60.dp)
             .clickable(onClick = onClick)
             .padding(horizontal = 9.dp)
             .testTag(if (isFirst) "admin_client_row_first" else "admin_client_row_${item.clientId}"),
@@ -614,6 +618,10 @@ internal fun AdminClientCatalogRow(
         Box(
             modifier = Modifier
                 .size(36.dp)
+                .clickable(enabled = isCallEnabled) {
+                    telUri?.let(uriHandler::openUri)
+                }
+                .alpha(if (isCallEnabled) 1f else 0.45f)
                 .background(Color.White, RoundedCornerShape(12.dp))
                 .border(1.5.dp, Color(0xFF34C759), RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center
@@ -664,6 +672,22 @@ internal fun AdminClientCatalogRow(
             modifier = Modifier.size(18.dp)
         )
     }
+}
+
+internal fun telUriString(rawPhone: String?): String? {
+    val trimmed = rawPhone?.trim().orEmpty()
+    if (trimmed.isEmpty()) return null
+
+    val normalized = buildString {
+        trimmed.forEachIndexed { index, ch ->
+            when {
+                ch.isDigit() -> append(ch)
+                ch == '+' && index == 0 -> append(ch)
+            }
+        }
+    }
+    if (normalized.isEmpty()) return null
+    return "tel://$normalized"
 }
 
 internal data class AdminRentalPreview(

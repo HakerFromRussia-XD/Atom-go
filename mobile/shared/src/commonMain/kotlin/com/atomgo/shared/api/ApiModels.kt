@@ -82,6 +82,8 @@ data class AdminClientSummaryResponse(
     val clientLogin: String? = null,
     @SerialName("full_name")
     val fullName: String,
+    @SerialName("primary_phone")
+    val primaryPhone: String? = null,
     @SerialName("bike_model")
     val bikeModel: String,
     @SerialName("bike_avatar_url")

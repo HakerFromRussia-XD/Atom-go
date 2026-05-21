@@ -26,10 +26,10 @@ class LoginViewModel(
     private val authUseCases: AuthUseCases
 ) : ViewModel() {
     companion object {
-        private const val CLIENT_SELF_EMPLOYED_LOGIN = "1"
-        private const val CLIENT_SELF_EMPLOYED_PASSWORD = "2"
-        private const val CLIENT_IP_LOGIN = "ip.ui.54fz"
-        private const val CLIENT_IP_PASSWORD = "client123"
+        private const val CLIENT_SELF_EMPLOYED_LOGIN = "user286525"
+        private const val CLIENT_SELF_EMPLOYED_PASSWORD = "hXwVeC35Hedvц"
+        private const val CLIENT_IP_LOGIN = "client2"
+        private const val CLIENT_IP_PASSWORD = "client234"
         private const val ADMIN_LOGIN = "admin"
         private const val ADMIN_PASSWORD = "admin123"
         private const val ADMIN_IP_LOGIN = "admin_ip"
