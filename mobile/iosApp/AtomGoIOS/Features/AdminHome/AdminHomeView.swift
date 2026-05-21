@@ -626,11 +626,11 @@ struct AdminHomeView: View {
         return ZStack(alignment: .top) {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 12) {
-                    Color.clear
+                    AppDesign.clear
                         .frame(height: cardsInitialTop)
                         .background {
                             GeometryReader { proxy in
-                                Color.clear.preference(
+                                AppDesign.clear.preference(
                                     key: AdminCardsTopKey.self,
                                     value: proxy.frame(in: .named("adminPipeline")).maxY
                                 )
@@ -678,7 +678,7 @@ struct AdminHomeView: View {
             .accessibilityIdentifier("admin.rents.scroll")
             .mask(alignment: .top) {
                 VStack(spacing: 0) {
-                    Color.clear
+                    AppDesign.clear
                         .frame(height: searchMaskHeight)
                     AppDesign.surfaceBackground
                 }
@@ -734,7 +734,7 @@ struct AdminHomeView: View {
             .zIndex(4)
 
             Text(selectedFilter.accessibilityValue)
-                .foregroundStyle(.clear)
+                .foregroundStyle(AppDesign.clear)
                 .frame(width: 1, height: 1)
                 .accessibilityIdentifier("admin.selectedFilter")
                 .accessibilityValue(selectedFilter.accessibilityValue)
@@ -967,7 +967,7 @@ struct AdminHomeView: View {
                     .lineLimit(1)
 
                 Circle()
-                    .fill(isSelected ? AppDesign.darkText : Color.clear)
+                    .fill(isSelected ? AppDesign.darkText : AppDesign.clear)
                     .frame(width: 6, height: 6)
             }
             .frame(width: 96, height: 54)

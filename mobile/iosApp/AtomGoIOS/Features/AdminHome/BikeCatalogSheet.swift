@@ -76,11 +76,11 @@ struct BikeCatalogSheet: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 12) {
-                    Color.clear
+                    AppDesign.clear
                         .frame(height: cardsInitialTop)
                         .background {
                             GeometryReader { proxy in
-                                Color.clear.preference(
+                                AppDesign.clear.preference(
                                     key: AdminCardsTopKey.self,
                                     value: proxy.frame(in: .named("bikeCatalogPipeline")).maxY
                                 )
@@ -125,7 +125,7 @@ struct BikeCatalogSheet: View {
             }
             .mask(alignment: .top) {
                 VStack(spacing: 0) {
-                    Color.clear
+                    AppDesign.clear
                         .frame(height: searchMaskHeight)
                     AppDesign.surfaceBackground
                 }

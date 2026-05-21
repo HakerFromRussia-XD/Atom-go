@@ -136,7 +136,7 @@ struct ContentView: View {
                         .contentShape(RoundedRectangle(cornerRadius: 16 * textScale, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(.white)
+                .foregroundStyle(AppDesign.surfaceBackground)
                 .background(AppDesign.accent)
                 .clipShape(RoundedRectangle(cornerRadius: 16 * textScale, style: .continuous))
                 .disabled(viewModel.isLoading)
@@ -145,7 +145,7 @@ struct ContentView: View {
 
                 Text(viewModel.statusText)
                     .font(.caption2)
-                    .foregroundStyle(.clear)
+                    .foregroundStyle(AppDesign.clear)
                     .frame(width: 1, height: 1)
                     .accessibilityIdentifier("login.statusText")
                     .accessibilityValue(viewModel.statusText)
@@ -194,7 +194,7 @@ struct ContentView: View {
                 .fill(AppDesign.cardBackground)
                 .overlay(
                     RoundedRectangle(cornerRadius: 12.84 * textScale, style: .continuous)
-                        .stroke(.black, lineWidth: 1 * textScale)
+                        .stroke(AppDesign.black, lineWidth: 1 * textScale)
                 )
 
             HStack(spacing: 20 * xScale) {
@@ -234,7 +234,7 @@ struct ContentView: View {
                 .fill(AppDesign.cardBackground)
                 .overlay(
                     RoundedRectangle(cornerRadius: 12.84 * textScale, style: .continuous)
-                        .stroke(.black, lineWidth: 1 * textScale)
+                        .stroke(AppDesign.black, lineWidth: 1 * textScale)
                 )
 
             HStack(spacing: 20 * xScale) {
@@ -256,7 +256,7 @@ struct ContentView: View {
                         .resizable()
                         .renderingMode(.template)
                         .scaledToFit()
-                        .foregroundStyle(.black)
+                        .foregroundStyle(AppDesign.black)
                         .frame(width: 20 * textScale, height: 20 * textScale)
                         .frame(width: 40 * xScale, height: 64 * yScale)
                         .contentShape(Rectangle())

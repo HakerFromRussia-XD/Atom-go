@@ -4,6 +4,7 @@ enum AppDesign {
     static let pageBackground = Color("AppPageBackground")
     static let surfaceBackground = Color("AppSurfaceBackground")
     static let black = Color("AppBlack")
+    static let clear = Color("AppClear")
     static let cardBackground = Color("AppCardBackground")
     static let darkControl = Color("AppDarkControl")
     static let darkText = Color("AppDarkText")

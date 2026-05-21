@@ -151,9 +151,9 @@ internal fun AdminSquareTopButton(
         onClick = onClick,
         contentPadding = PaddingValues(0.dp),
         shape = RoundedCornerShape(14.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
+        border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, borderColor),
         colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = Color.White,
+            containerColor = AppDesign.SurfaceBackground,
             contentColor = borderColor
         ),
         modifier = Modifier
@@ -178,8 +178,8 @@ internal fun AdminSearchField(
     Box(
         modifier = modifier
             .height(46.dp)
-            .background(Color.White, RoundedCornerShape(12.84.dp))
-            .border(1.dp, AppDesign.Accent, RoundedCornerShape(12.84.dp))
+            .background(AppDesign.SurfaceBackground, RoundedCornerShape(12.84.dp))
+            .border(AppDesign.HairlineStroke, AppDesign.Accent, RoundedCornerShape(12.84.dp))
             .padding(horizontal = 15.dp)
     ) {
         Row(
@@ -208,7 +208,7 @@ internal fun AdminSearchField(
                         Text(
                             text = placeholder,
                             fontSize = 13.sp,
-                            color = Color(0xFF73747F)
+                            color = AppDesign.SearchPlaceholder
                         )
                     }
                     innerTextField()
@@ -301,17 +301,17 @@ internal fun AdminFilterChip(
     onClick: () -> Unit
 ) {
     val containerColor by animateColorAsState(
-        targetValue = if (isSelected) AppDesign.Accent else Color.White,
+        targetValue = if (isSelected) AppDesign.Accent else AppDesign.SurfaceBackground,
         animationSpec = tween(180),
         label = "admin_filter_bg"
     )
     val textColor by animateColorAsState(
-        targetValue = if (isSelected) Color.White else AppDesign.Accent,
+        targetValue = if (isSelected) AppDesign.SurfaceBackground else AppDesign.Accent,
         animationSpec = tween(180),
         label = "admin_filter_text"
     )
     val counterColor by animateColorAsState(
-        targetValue = if (isSelected) Color.White.copy(alpha = 0.2f) else Color(0xFFE5E5E8),
+        targetValue = if (isSelected) AppDesign.SurfaceBackground.copy(alpha = 0.2f) else AppDesign.SelectedMuted,
         animationSpec = tween(180),
         label = "admin_filter_counter"
     )
@@ -320,7 +320,7 @@ internal fun AdminFilterChip(
         onClick = onClick,
         contentPadding = PaddingValues(horizontal = 0.dp),
         shape = RoundedCornerShape(999.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, AppDesign.Accent),
+        border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, AppDesign.Accent),
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = containerColor,
             contentColor = textColor
@@ -365,7 +365,7 @@ internal fun AdminBottomTabBar(
         modifier = modifier
             .fillMaxWidth()
             .testTag("admin_bottom_tab_bar"),
-        color = Color.White,
+        color = AppDesign.SurfaceBackground,
         tonalElevation = 0.dp,
         shadowElevation = 0.dp
     ) {
@@ -454,7 +454,7 @@ internal fun AdminBottomTabItem(
         Box(
             modifier = Modifier
                 .size(4.dp)
-                .background(if (isSelected) AppDesign.DarkText else Color.Transparent, RoundedCornerShape(999.dp))
+                .background(if (isSelected) AppDesign.DarkText else AppDesign.Transparent, RoundedCornerShape(999.dp))
         )
     }
 }
@@ -489,9 +489,9 @@ internal fun AdminSecondaryTabStub(
         OutlinedButton(
             onClick = onPrimaryAction,
             shape = RoundedCornerShape(999.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, AppDesign.Accent),
+            border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, AppDesign.Accent),
             colors = ButtonDefaults.outlinedButtonColors(
-                containerColor = Color.White,
+                containerColor = AppDesign.SurfaceBackground,
                 contentColor = AppDesign.Accent
             ),
             modifier = Modifier
@@ -823,8 +823,8 @@ internal fun AdminHomeScreen(
                                                     .fillMaxWidth()
                                                     .padding(top = 14.dp),
                                                 shape = RoundedCornerShape(15.dp),
-                                                color = Color(0xFFFAFBFB),
-                                                border = androidx.compose.foundation.BorderStroke(1.dp, AppDesign.Accent)
+                                                color = AppDesign.BlackHaze,
+                                                border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, AppDesign.Accent)
                                             ) {
                                                 Column(
                                                     modifier = Modifier
@@ -845,9 +845,9 @@ internal fun AdminHomeScreen(
                                                     .fillMaxWidth()
                                                     .testTag("admin_rents_container"),
                                                 shape = RoundedCornerShape(15.dp),
-                                                color = Color(0xFFFAFBFB),
+                                                color = AppDesign.BlackHaze,
                                                 shadowElevation = 8.dp,
-                                                border = androidx.compose.foundation.BorderStroke(1.dp, AppDesign.Accent)
+                                                border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, AppDesign.Accent)
                                             ) {
                                                 Column(modifier = Modifier.padding(vertical = 5.dp)) {
                                                     visibleRents.forEachIndexed { index, item ->
@@ -860,7 +860,7 @@ internal fun AdminHomeScreen(
                                                             onSetMine = { finishRentalToMine(item) }
                                                         )
                                                         if (index < visibleRents.lastIndex) {
-                                                            HorizontalDivider(color = Color(0xFFEAEAF0), thickness = 1.dp)
+                                                            HorizontalDivider(color = AppDesign.LightStroke, thickness = AppDesign.HairlineStroke)
                                                         }
                                                     }
                                                 }

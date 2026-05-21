@@ -219,7 +219,7 @@ struct ClientHomeView: View {
                             ].joined(separator: "|")
                         )
                         .font(.caption2)
-                        .foregroundStyle(.clear)
+                        .foregroundStyle(AppDesign.clear)
                         .frame(width: 1, height: 1)
                         .accessibilityIdentifier("client.paymentMetadata")
                         .accessibilityValue(
@@ -305,7 +305,7 @@ struct ClientHomeView: View {
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("client.receiptEmailEditButton")
             } else {
-                Color.clear
+                AppDesign.clear
                     .frame(width: 47 * scale, height: 47 * scale)
             }
         }
@@ -469,7 +469,7 @@ struct ClientHomeView: View {
 
                     if viewModel.isCreatingPayment {
                         ProgressView()
-                            .tint(.white)
+                            .tint(AppDesign.surfaceBackground)
                     } else {
                         Text("Оплатить весь долг · \(moneyText(max(0, dashboard.debtRub)))")
                             .font(.system(size: 14 * scale, weight: .bold))

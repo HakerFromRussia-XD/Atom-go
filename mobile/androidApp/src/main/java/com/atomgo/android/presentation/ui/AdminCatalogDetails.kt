@@ -272,8 +272,8 @@ internal fun AdminClientsCatalogScreen(
                                     .fillMaxWidth()
                                     .padding(top = 14.dp),
                                 shape = RoundedCornerShape(15.dp),
-                                color = Color(0xFFFAFBFB),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, AppDesign.Accent)
+                                color = AppDesign.BlackHaze,
+                                border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, AppDesign.Accent)
                             ) {
                                 Column(
                                     modifier = Modifier
@@ -290,9 +290,9 @@ internal fun AdminClientsCatalogScreen(
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(15.dp),
-                                color = Color(0xFFFAFBFB),
+                                color = AppDesign.BlackHaze,
                                 shadowElevation = 8.dp,
-                                border = androidx.compose.foundation.BorderStroke(1.dp, AppDesign.Accent)
+                                border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, AppDesign.Accent)
                             ) {
                                 Column(modifier = Modifier.padding(vertical = 5.dp)) {
                                     visibleClients.forEachIndexed { index, item ->
@@ -302,7 +302,7 @@ internal fun AdminClientsCatalogScreen(
                                             onClick = { onOpenClient(item) }
                                         )
                                         if (index < visibleClients.lastIndex) {
-                                            HorizontalDivider(color = Color(0xFFEAEAF0), thickness = 1.dp)
+                                            HorizontalDivider(color = AppDesign.LightStroke, thickness = AppDesign.HairlineStroke)
                                         }
                                     }
                                 }
@@ -504,8 +504,8 @@ internal fun AdminBikesCatalogScreen(
                                     .fillMaxWidth()
                                     .padding(top = 14.dp),
                                 shape = RoundedCornerShape(15.dp),
-                                color = Color(0xFFFAFBFB),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, AppDesign.Accent)
+                                color = AppDesign.BlackHaze,
+                                border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, AppDesign.Accent)
                             ) {
                                 Column(
                                     modifier = Modifier
@@ -522,9 +522,9 @@ internal fun AdminBikesCatalogScreen(
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(15.dp),
-                                color = Color(0xFFFAFBFB),
+                                color = AppDesign.BlackHaze,
                                 shadowElevation = 8.dp,
-                                border = androidx.compose.foundation.BorderStroke(1.dp, AppDesign.Accent)
+                                border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, AppDesign.Accent)
                             ) {
                                 Column(modifier = Modifier.padding(vertical = 5.dp)) {
                                     visibleBikes.forEachIndexed { index, bike ->
@@ -533,7 +533,7 @@ internal fun AdminBikesCatalogScreen(
                                             runtime = bikeCatalogRuntimeSnapshot(bike = bike, rentals = rentals)
                                         )
                                         if (index < visibleBikes.lastIndex) {
-                                            HorizontalDivider(color = Color(0xFFEAEAF0), thickness = 1.dp)
+                                            HorizontalDivider(color = AppDesign.LightStroke, thickness = AppDesign.HairlineStroke)
                                         }
                                     }
                                 }
@@ -629,8 +629,8 @@ internal fun AdminClientCatalogRow(
                     telUri?.let(uriHandler::openUri)
                 }
                 .alpha(if (isCallEnabled) 1f else 0.45f)
-                .background(Color.White, RoundedCornerShape(12.dp))
-                .border(1.5.dp, AppDesign.PaidGreen, RoundedCornerShape(12.dp)),
+                .background(AppDesign.SurfaceBackground, RoundedCornerShape(12.dp))
+                .border(AppDesign.ThinStroke, AppDesign.PaidGreen, RoundedCornerShape(12.dp)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
@@ -647,7 +647,7 @@ internal fun AdminClientCatalogRow(
         ) {
             Text(
                 text = item.fullName,
-                color = Color(0xFF111827),
+                color = AppDesign.TextPrimary,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
@@ -655,7 +655,7 @@ internal fun AdminClientCatalogRow(
             )
             Text(
                 text = clientCatalogSubtitle(item),
-                color = Color(0xFF6B7280),
+                color = AppDesign.PaleSky,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
@@ -675,7 +675,7 @@ internal fun AdminClientCatalogRow(
         Icon(
             imageVector = Icons.Filled.KeyboardArrowRight,
             contentDescription = null,
-            tint = Color(0xFFA7A7AB),
+            tint = AppDesign.Chevron,
             modifier = Modifier.size(18.dp)
         )
     }
@@ -868,9 +868,9 @@ internal fun AdminClientDetailsScreen(
                         onClick = onEditProfile,
                         contentPadding = PaddingValues(0.dp),
                         shape = RoundedCornerShape(14.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, AppDesign.Accent),
+                        border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, AppDesign.Accent),
                         colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = Color.White,
+                            containerColor = AppDesign.SurfaceBackground,
                             contentColor = AppDesign.Accent
                         ),
                         modifier = Modifier
@@ -890,9 +890,9 @@ internal fun AdminClientDetailsScreen(
                         enabled = canDelete,
                         contentPadding = PaddingValues(0.dp),
                         shape = RoundedCornerShape(14.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, AppDesign.Danger),
+                        border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, AppDesign.Danger),
                         colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = Color.White,
+                            containerColor = AppDesign.SurfaceBackground,
                             contentColor = AppDesign.Danger
                         ),
                         modifier = Modifier
@@ -943,9 +943,9 @@ internal fun AdminClientDetailsScreen(
                                 .fillMaxWidth()
                                 .testTag("admin_client_details_card"),
                             shape = RoundedCornerShape(15.dp),
-                            color = Color(0xFFFAFBFB),
+                            color = AppDesign.BlackHaze,
                             shadowElevation = 8.dp,
-                            border = androidx.compose.foundation.BorderStroke(1.dp, AppDesign.Accent)
+                            border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, AppDesign.Accent)
                         ) {
                             val cardPadding = if (hasOpenRental) {
                                 PaddingValues(start = 23.dp, top = 21.dp, end = 23.dp, bottom = 21.dp)
@@ -963,8 +963,8 @@ internal fun AdminClientDetailsScreen(
                                         Box(
                                             modifier = Modifier
                                                 .size(80.dp)
-                                                .background(Color(0xFFE3E6EB), RoundedCornerShape(14.dp))
-                                                .border(3.dp, AppDesign.PaidGreen, RoundedCornerShape(14.dp)),
+                                                .background(AppDesign.Placeholder, RoundedCornerShape(14.dp))
+                                                .border(AppDesign.EmphasisStroke, AppDesign.PaidGreen, RoundedCornerShape(14.dp)),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
@@ -997,14 +997,14 @@ internal fun AdminClientDetailsScreen(
                                             ) {
                                                 Text(
                                                     "Активный",
-                                                    color = Color.White,
+                                                    color = AppDesign.SurfaceBackground,
                                                     fontSize = 11.sp,
                                                     fontWeight = FontWeight.Bold
                                                 )
                                             }
                                         }
                                     }
-                                    HorizontalDivider(color = Color(0xFFEAEAF0))
+                                    HorizontalDivider(color = AppDesign.LightStroke, thickness = AppDesign.HairlineStroke)
                                 } else {
                                     Box(
                                         modifier = Modifier
@@ -1013,7 +1013,7 @@ internal fun AdminClientDetailsScreen(
                                     ) {
                                         Text(
                                             "Неактивный",
-                                            color = Color.White,
+                                            color = AppDesign.SurfaceBackground,
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold
                                         )
@@ -1029,7 +1029,7 @@ internal fun AdminClientDetailsScreen(
                                 }
 
                                 if (d.carriedDebtRub > 0) {
-                                    HorizontalDivider(color = Color(0xFFEAEAF0))
+                                    HorizontalDivider(color = AppDesign.LightStroke, thickness = AppDesign.HairlineStroke)
                                     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                         Text(
                                             "ПЕРЕНЕСЁННЫЙ ДОЛГ",
@@ -1089,9 +1089,9 @@ internal fun AdminClientDetailsScreen(
                                                 onOpenRental(AdminRentalPreview.fromHistory(client = d, rental = rental))
                                             },
                                         shape = RoundedCornerShape(15.dp),
-                                        color = Color(0xFFFAFBFB),
+                                        color = AppDesign.BlackHaze,
                                         shadowElevation = 8.dp,
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEAEAF0))
+                                        border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, AppDesign.LightStroke)
                                     ) {
                                         Row(
                                             modifier = Modifier
@@ -1102,7 +1102,7 @@ internal fun AdminClientDetailsScreen(
                                             Box(
                                                 modifier = Modifier
                                                     .size(36.dp)
-                                                    .background(Color(0xFFE3E6EB), RoundedCornerShape(10.dp)),
+                                                    .background(AppDesign.Placeholder, RoundedCornerShape(10.dp)),
                                                 contentAlignment = Alignment.Center
                                             ) {
                                                 Icon(Icons.Outlined.DirectionsBike, contentDescription = null, tint = AppDesign.IconSoft, modifier = Modifier.size(20.dp))
@@ -1154,8 +1154,8 @@ internal fun AdminRentalDetailsScreenAndroid(
     val uriHandler = LocalUriHandler.current
     val overlayInteraction = remember { MutableInteractionSource() }
     val mainTextColor = AppDesign.DarkControl
-    val subtleTextColor = Color(0xFF6B7280)
-    val dividerColor = Color(0xFFEAEAF0)
+    val subtleTextColor = AppDesign.PaleSky
+    val dividerColor = AppDesign.LightStroke
     val credentialButtonColor = AppDesign.DarkControl
     var editableLogin by remember(details?.rentalId) { mutableStateOf(details?.clientLogin.orEmpty()) }
     var editablePassword by remember(details?.rentalId) { mutableStateOf(details?.clientPassword.orEmpty()) }
@@ -1207,7 +1207,7 @@ internal fun AdminRentalDetailsScreenAndroid(
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
-                .padding(horizontal = 23.dp)
+                .padding(horizontal = 8.dp)
                 .zIndex(1f)
         ) {
             Spacer(Modifier.height(8.dp))
@@ -1232,9 +1232,9 @@ internal fun AdminRentalDetailsScreenAndroid(
                             onClick = onEdit,
                             contentPadding = PaddingValues(0.dp),
                             shape = RoundedCornerShape(14.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, mainTextColor),
+                            border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, mainTextColor),
                             colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = Color.White,
+                                containerColor = AppDesign.SurfaceBackground,
                                 contentColor = mainTextColor
                             ),
                             modifier = Modifier
@@ -1253,9 +1253,9 @@ internal fun AdminRentalDetailsScreenAndroid(
                         onClick = onDelete,
                         contentPadding = PaddingValues(0.dp),
                         shape = RoundedCornerShape(14.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, AppDesign.Danger),
+                        border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, AppDesign.Danger),
                         colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = Color.White,
+                            containerColor = AppDesign.SurfaceBackground,
                             contentColor = AppDesign.Danger
                         ),
                         modifier = Modifier
@@ -1302,9 +1302,9 @@ internal fun AdminRentalDetailsScreenAndroid(
                             .fillMaxWidth()
                             .padding(top = 8.dp),
                         shape = RoundedCornerShape(15.dp),
-                        color = Color.White,
+                        color = AppDesign.SurfaceBackground,
                         shadowElevation = 8.dp,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, mainTextColor)
+                        border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, mainTextColor)
                     ) {
                         Column(
                             modifier = Modifier.fillMaxWidth()
@@ -1318,8 +1318,8 @@ internal fun AdminRentalDetailsScreenAndroid(
                                 Box(
                                     modifier = Modifier
                                         .size(80.dp)
-                                        .background(Color(0xFFE3E6EB), RoundedCornerShape(18.dp))
-                                        .border(3.dp, rentalPreviewBorderColor(details), RoundedCornerShape(18.dp)),
+                                        .background(AppDesign.Placeholder, RoundedCornerShape(18.dp))
+                                        .border(AppDesign.EmphasisStroke, rentalPreviewBorderColor(details), RoundedCornerShape(18.dp)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
@@ -1364,7 +1364,7 @@ internal fun AdminRentalDetailsScreenAndroid(
                                 }
                             }
 
-                            HorizontalDivider(modifier = Modifier.padding(horizontal = 18.dp), color = dividerColor)
+                            HorizontalDivider(modifier = Modifier.padding(horizontal = 18.dp), color = dividerColor, thickness = AppDesign.HairlineStroke)
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -1376,7 +1376,7 @@ internal fun AdminRentalDetailsScreenAndroid(
                                 MetricStack("КОРРЕКТ.", adjustmentMetricText, mainTextColor, titleColor = subtleTextColor, modifier = Modifier.weight(1f))
                                 MetricStack(fourthMetricTitle, fourthMetricText, mainTextColor, titleColor = subtleTextColor, modifier = Modifier.weight(1f))
                             }
-                            HorizontalDivider(modifier = Modifier.padding(horizontal = 18.dp), color = dividerColor)
+                            HorizontalDivider(modifier = Modifier.padding(horizontal = 18.dp), color = dividerColor, thickness = AppDesign.HairlineStroke)
 
                             Row(
                                 modifier = Modifier
@@ -1438,7 +1438,7 @@ internal fun AdminRentalDetailsScreenAndroid(
                                 }
                             }
 
-                            HorizontalDivider(modifier = Modifier.padding(horizontal = 18.dp), color = dividerColor)
+                            HorizontalDivider(modifier = Modifier.padding(horizontal = 18.dp), color = dividerColor, thickness = AppDesign.HairlineStroke)
                             if (isInStockState) {
                                 RentalStartClientSelectorRow(
                                     selectedClientName = selectedStartClient?.fullName,
@@ -1505,8 +1505,8 @@ internal fun AdminRentalDetailsScreenAndroid(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(35.dp)
-                                        .background(Color.White, RoundedCornerShape(10.dp))
-                                        .border(1.dp, Color(0xFFEAEAF0), RoundedCornerShape(10.dp))
+                                        .background(AppDesign.SurfaceBackground, RoundedCornerShape(10.dp))
+                                        .border(AppDesign.HairlineStroke, AppDesign.LightStroke, RoundedCornerShape(10.dp))
                                         .padding(horizontal = 15.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -1552,9 +1552,9 @@ internal fun AdminRentalDetailsScreenAndroid(
                                 if (canAdjust) mainTextColor else mainTextColor.copy(alpha = 0.35f)
                             ),
                             colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = Color.White,
+                                containerColor = AppDesign.SurfaceBackground,
                                 contentColor = mainTextColor,
-                                disabledContainerColor = Color.White,
+                                disabledContainerColor = AppDesign.SurfaceBackground,
                                 disabledContentColor = mainTextColor.copy(alpha = 0.45f)
                             ),
                             modifier = Modifier
@@ -1571,7 +1571,7 @@ internal fun AdminRentalDetailsScreenAndroid(
                                 shape = RoundedCornerShape(16.dp),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = AppDesign.Danger,
-                                    contentColor = Color.White
+                                    contentColor = AppDesign.SurfaceBackground
                                 ),
                                 modifier = Modifier
                                     .weight(1f)
@@ -1608,9 +1608,9 @@ internal fun AdminRentalDetailsScreenAndroid(
                                 shape = RoundedCornerShape(16.dp),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = AppDesign.Success,
-                                    contentColor = Color.White,
+                                    contentColor = AppDesign.SurfaceBackground,
                                     disabledContainerColor = AppDesign.Success.copy(alpha = 0.65f),
-                                    disabledContentColor = Color.White
+                                    disabledContentColor = AppDesign.SurfaceBackground
                                 ),
                                 modifier = Modifier
                                     .weight(1f)
@@ -1686,7 +1686,7 @@ private fun RentalCredentialActionButton(
     ) {
         Text(
             text = title,
-            color = Color.White,
+            color = AppDesign.SurfaceBackground,
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             maxLines = 1
@@ -1730,7 +1730,7 @@ internal fun CompactCredentialField(
     placeholder: String
 ) {
     val mainTextColor = AppDesign.DarkControl
-    val subtleTextColor = Color(0xFF6B7280)
+    val subtleTextColor = AppDesign.PaleSky
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text(
             title,
@@ -1784,8 +1784,8 @@ internal fun RentalStartClientSelectorRow(
         modifier = modifier
             .fillMaxWidth()
             .height(58.dp)
-            .background(Color.White, RoundedCornerShape(12.84.dp))
-            .border(1.dp, borderColor, RoundedCornerShape(12.84.dp))
+            .background(AppDesign.SurfaceBackground, RoundedCornerShape(12.84.dp))
+            .border(AppDesign.HairlineStroke, borderColor, RoundedCornerShape(12.84.dp))
             .clickable(onClick = onClick)
             .testTag("admin_rental_details_client_selector"),
         verticalAlignment = Alignment.CenterVertically
@@ -1796,7 +1796,7 @@ internal fun RentalStartClientSelectorRow(
                 .width(4.dp)
                 .fillMaxHeight()
                 .background(
-                    if (hasSelectedClient) borderColor else Color(0xFFD3D7DD),
+                    if (hasSelectedClient) borderColor else AppDesign.SheetHandle,
                     RoundedCornerShape(4.dp)
                 )
         )
@@ -1815,7 +1815,7 @@ internal fun RentalStartClientSelectorRow(
             )
             Text(
                 text = selectedClientName?.takeIf { it.isNotBlank() } ?: "выбрать клиента",
-                color = if (hasSelectedClient) AppDesign.TitleText else Color(0xFFC9CCD2),
+                color = if (hasSelectedClient) AppDesign.TitleText else AppDesign.Ghost,
                 fontSize = 13.sp,
                 fontWeight = if (hasSelectedClient) FontWeight.Bold else FontWeight.Medium,
                 maxLines = 1,
@@ -1826,7 +1826,7 @@ internal fun RentalStartClientSelectorRow(
             modifier = Modifier
                 .padding(end = 15.dp)
                 .size(28.dp)
-                .background(Color(0xFFEAEAF0), RoundedCornerShape(8.dp)),
+                .background(AppDesign.LightStroke, RoundedCornerShape(8.dp)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
@@ -1854,9 +1854,9 @@ internal fun RentalLinkIconButton(
         shape = RoundedCornerShape(15.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = AppDesign.DarkControl,
-            contentColor = Color.White,
+            contentColor = AppDesign.SurfaceBackground,
             disabledContainerColor = AppDesign.DarkControl.copy(alpha = 0.25f),
-            disabledContentColor = Color.White.copy(alpha = 0.35f)
+            disabledContentColor = AppDesign.SurfaceBackground.copy(alpha = 0.35f)
         ),
         contentPadding = PaddingValues(0.dp),
         modifier = Modifier.size(47.dp)
@@ -1890,7 +1890,7 @@ internal fun rentalPreviewStatusPill(details: AdminRentalPreview) {
     ) {
         Text(
             text = title,
-            color = Color.White,
+            color = AppDesign.SurfaceBackground,
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold
         )
@@ -1898,7 +1898,7 @@ internal fun rentalPreviewStatusPill(details: AdminRentalPreview) {
 }
 
 internal fun rentalPreviewBorderColor(details: AdminRentalPreview): Color {
-    if (!details.periodEnd.isNullOrBlank()) return Color(0xFF6B7280)
+    if (!details.periodEnd.isNullOrBlank()) return AppDesign.PaleSky
     return when (normalizedPipelineStatus(details.rentalPipelineStatus)) {
         "in_stock", "mine" -> AppDesign.IdlePurple
         "soon_return" -> AppDesign.WarningYellow
@@ -1960,8 +1960,8 @@ internal fun AdminDetailsReadonlyField(label: String, value: String?) {
             modifier = Modifier
                 .fillMaxWidth()
                 .height(60.dp)
-                .background(Color.White, RoundedCornerShape(12.84.dp))
-                .border(1.dp, AppDesign.Accent, RoundedCornerShape(12.84.dp))
+                .background(AppDesign.SurfaceBackground, RoundedCornerShape(12.84.dp))
+                .border(AppDesign.HairlineStroke, AppDesign.Accent, RoundedCornerShape(12.84.dp))
                 .padding(horizontal = 19.dp),
             contentAlignment = Alignment.CenterStart
         ) {
@@ -1992,9 +1992,9 @@ internal fun AdminBikeCatalogRow(
         Box(
             modifier = Modifier
                 .size(59.dp)
-                .background(Color(0xFFE3E6EB), RoundedCornerShape(12.dp))
+                .background(AppDesign.Placeholder, RoundedCornerShape(12.dp))
                 .border(
-                    width = 3.dp,
+                    width = AppDesign.EmphasisStroke,
                     color = runtime.borderColor,
                     shape = RoundedCornerShape(12.dp)
                 )
@@ -2013,7 +2013,7 @@ internal fun AdminBikeCatalogRow(
         ) {
             Text(
                 text = bike.bikeModel,
-                color = Color(0xFF111827),
+                color = AppDesign.TextPrimary,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
@@ -2021,7 +2021,7 @@ internal fun AdminBikeCatalogRow(
             )
             Text(
                 text = runtime.subtitle,
-                color = Color(0xFF6B7280),
+                color = AppDesign.PaleSky,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
@@ -2038,7 +2038,7 @@ internal fun AdminBikeCatalogRow(
         Icon(
             imageVector = Icons.Filled.KeyboardArrowRight,
             contentDescription = null,
-            tint = Color(0xFFA7A7AB),
+            tint = AppDesign.Chevron,
             modifier = Modifier.size(18.dp)
         )
     }
@@ -2078,9 +2078,9 @@ internal fun AdminRentCard(
                     .size(59.dp)
                     .clickable { isPipelineMenuOpen = true }
                     .testTag(avatarTag)
-                    .background(Color(0xFFE3E6EB), RoundedCornerShape(12.dp))
+                    .background(AppDesign.Placeholder, RoundedCornerShape(12.dp))
                     .border(
-                        width = 3.dp,
+                        width = AppDesign.EmphasisStroke,
                         color = avatarBorderColor(item),
                         shape = RoundedCornerShape(12.dp)
                     )
@@ -2136,7 +2136,7 @@ internal fun AdminRentCard(
         ) {
             Text(
                 text = displayName,
-                color = Color(0xFF111827),
+                color = AppDesign.TextPrimary,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
@@ -2144,7 +2144,7 @@ internal fun AdminRentCard(
             )
             Text(
                 text = item.bikeModel,
-                color = Color(0x80111827),
+                color = AppDesign.TextPrimaryMuted,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,
@@ -2152,7 +2152,7 @@ internal fun AdminRentCard(
             )
             Text(
                 text = "Корректировка: ${money(item.totalAdjustmentRub)}",
-                color = Color(0x80111827),
+                color = AppDesign.TextPrimaryMuted,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1
@@ -2171,14 +2171,14 @@ internal fun AdminRentCard(
         ) {
             Text(
                 text = status.title,
-                color = Color.White.copy(alpha = 0.85f),
+                color = AppDesign.SurfaceBackground.copy(alpha = 0.85f),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1
             )
             Text(
                 text = status.value,
-                color = Color.White,
+                color = AppDesign.SurfaceBackground,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1
@@ -2218,7 +2218,7 @@ internal fun AdminRentalDebtAdjustmentDialog(
         modifier = Modifier
             .fillMaxSize()
             .zIndex(40f)
-            .background(Color.Black.copy(alpha = scrimAlpha))
+            .background(AppDesign.Black.copy(alpha = scrimAlpha))
             .testTag("admin_rental_adjustment_sheet")
     ) {
         Box(
@@ -2270,11 +2270,11 @@ internal fun AdminRentalDebtAdjustmentDialog(
                                     color = mainTextColor.copy(alpha = 0.2f),
                                     start = Offset.Zero,
                                     end = Offset(size.width, 0f),
-                                    strokeWidth = 1.dp.toPx()
+                                    strokeWidth = AppDesign.HairlineStroke.toPx()
                                 )
                             },
                         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                        color = Color.White,
+                        color = AppDesign.SurfaceBackground,
                         shadowElevation = 12.dp
                     ) {
                         Column(
@@ -2287,7 +2287,7 @@ internal fun AdminRentalDebtAdjustmentDialog(
                                     .padding(top = 14.dp)
                                     .width(40.dp)
                                     .height(4.dp)
-                                    .background(Color(0xFFD2D5DA), RoundedCornerShape(999.dp))
+                                    .background(AppDesign.SheetHandleAlt, RoundedCornerShape(999.dp))
                             )
                             Row(
                                 modifier = Modifier
@@ -2322,7 +2322,7 @@ internal fun AdminRentalDebtAdjustmentDialog(
                                     .padding(horizontal = 23.dp)
                                     .padding(bottom = 14.dp)
                                     .height(54.dp)
-                                    .background(Color(0xFFEDEFF4), RoundedCornerShape(16.dp))
+                                    .background(AppDesign.SegmentBackground, RoundedCornerShape(16.dp))
                             ) {
                                 AdjustmentSegmentButton(
                                     title = "– Уменьшить",
@@ -2362,7 +2362,7 @@ internal fun AdminRentalDebtAdjustmentDialog(
                                 shape = RoundedCornerShape(18.dp),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = mainTextColor,
-                                    contentColor = Color.White
+                                    contentColor = AppDesign.SurfaceBackground
                                 ),
                                 modifier = Modifier
                                     .padding(horizontal = 23.dp)
@@ -2400,10 +2400,10 @@ private fun AdjustmentSegmentButton(
         modifier = modifier
             .padding(4.dp)
             .fillMaxHeight()
-            .background(if (selected) Color.White else Color.Transparent, RoundedCornerShape(15.dp))
+            .background(if (selected) AppDesign.SurfaceBackground else AppDesign.Transparent, RoundedCornerShape(15.dp))
             .border(
                 width = if (selected) 1.5.dp else 0.dp,
-                color = if (selected) mainTextColor else Color.Transparent,
+                color = if (selected) mainTextColor else AppDesign.Transparent,
                 shape = RoundedCornerShape(15.dp)
             )
             .clickable(onClick = onClick),

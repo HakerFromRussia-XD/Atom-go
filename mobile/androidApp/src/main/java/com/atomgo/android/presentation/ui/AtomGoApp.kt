@@ -183,9 +183,9 @@ private fun ClientTariffIllustration(
     modifier: Modifier = Modifier
 ) {
     fun d(value: Int) = (value * scale).dp
-    val fill = Color(0xFFBEC0C6)
-    val stroke = Color(0xFFC6C9D0)
-    val canvas = Color(0xFFEBECEF)
+    val fill = AppDesign.IconFill
+    val stroke = AppDesign.IconStroke
+    val canvas = AppDesign.IconCanvas
 
     when (paymentType) {
         ClientPaymentType.Day -> {
@@ -292,9 +292,9 @@ private fun ClientTariffIllustration(
                 horizontalArrangement = Arrangement.spacedBy(d(4)),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(Modifier.size(d(18)).border(1.dp, stroke, RoundedCornerShape(999.dp)))
+                Box(Modifier.size(d(18)).border(AppDesign.HairlineStroke, stroke, RoundedCornerShape(999.dp)))
                 Box(Modifier.size(d(18)).background(stroke, RoundedCornerShape(999.dp)))
-                Box(Modifier.size(d(18)).border(1.dp, stroke, RoundedCornerShape(999.dp)))
+                Box(Modifier.size(d(18)).border(AppDesign.HairlineStroke, stroke, RoundedCornerShape(999.dp)))
             }
         }
 
@@ -322,12 +322,12 @@ private fun ClientTariffCard(
         label = "client_tariff_card_height"
     )
     val animatedBorderColor by animateColorAsState(
-        targetValue = if (isSelected) mainText else Color(0xFFEAEAF0),
+        targetValue = if (isSelected) mainText else AppDesign.LightStroke,
         animationSpec = tween(180),
         label = "client_tariff_card_border_color"
     )
     val animatedBorderWidth by animateDpAsState(
-        targetValue = if (isSelected) 2.dp else 1.dp,
+        targetValue = if (isSelected) AppDesign.SelectedStroke else AppDesign.HairlineStroke,
         animationSpec = tween(180),
         label = "client_tariff_card_border_width"
     )
@@ -462,8 +462,8 @@ private fun LoginScreen(
                     .offset(x = sx(16f), y = sy(328f)),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(" Welcome to ", fontFamily = urbanist, fontWeight = FontWeight.Bold, fontSize = (40f * textScale).sp, color = Color(0xFF212121))
-                Text("AtomGo", fontFamily = urbanist, fontWeight = FontWeight.Bold, fontSize = (40f * textScale).sp, color = Color(0xFF212121))
+                Text(" Welcome to ", fontFamily = urbanist, fontWeight = FontWeight.Bold, fontSize = (40f * textScale).sp, color = AppDesign.TitleBlack)
+                Text("AtomGo", fontFamily = urbanist, fontWeight = FontWeight.Bold, fontSize = (40f * textScale).sp, color = AppDesign.TitleBlack)
             }
 
             LoginField(
@@ -574,9 +574,9 @@ private fun LoginScreen(
                 contentPadding = PaddingValues(0.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = AppDesign.Accent,
-                    contentColor = Color.White,
+                    contentColor = AppDesign.SurfaceBackground,
                     disabledContainerColor = AppDesign.Accent.copy(alpha = 0.5f),
-                    disabledContentColor = Color.White.copy(alpha = 0.9f)
+                    disabledContentColor = AppDesign.SurfaceBackground.copy(alpha = 0.9f)
                 ),
                 modifier = Modifier
                     .testTag("login_submit_button")
@@ -595,7 +595,7 @@ private fun LoginScreen(
 
                 Text(
                     text = state.statusText,
-                    color = Color.Transparent,
+                    color = AppDesign.Transparent,
                     fontSize = 1.sp,
                     modifier = Modifier
                         .size(1.dp)
@@ -637,7 +637,7 @@ private fun LoginQuickFillButton(
             .testTag(testTag)
             .semantics { contentDescription = testTag }
             .border(
-                width = 1.dp,
+                width = AppDesign.HairlineStroke,
                 color = AppDesign.IconSoft.copy(alpha = 0.35f),
                 shape = RoundedCornerShape((8f * textScale).dp)
             )
@@ -694,8 +694,8 @@ private fun LoginField(
         },
         trailingIcon = trailing,
         colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = Color.Black,
-            unfocusedBorderColor = Color.Black,
+            focusedBorderColor = AppDesign.Black,
+            unfocusedBorderColor = AppDesign.Black,
             focusedContainerColor = AppDesign.CardBackground,
             unfocusedContainerColor = AppDesign.CardBackground
         )
@@ -840,9 +840,9 @@ private fun ClientHomeScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    val cardColor = Color(0xFFFAFBFB)
+    val cardColor = AppDesign.BlackHaze
     val mainText = AppDesign.DarkControl
-    val subtleText = Color(0xFF6B7280)
+    val subtleText = AppDesign.PaleSky
     val darkButton = AppDesign.DarkControl
 
     BoxWithConstraints(
@@ -870,7 +870,7 @@ private fun ClientHomeScreen(
                 OutlinedButton(
                     onClick = onLogout,
                     shape = RoundedCornerShape(s(14)),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, mainText),
+                    border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, mainText),
                     contentPadding = PaddingValues(0.dp),
                     modifier = Modifier.size(s(47))
                 ) {
@@ -899,7 +899,7 @@ private fun ClientHomeScreen(
                             isReceiptEmailDialogPresented = true
                         },
                         shape = RoundedCornerShape(s(14)),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, mainText),
+                        border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, mainText),
                         contentPadding = PaddingValues(0.dp),
                         modifier = Modifier
                             .size(s(47))
@@ -921,7 +921,7 @@ private fun ClientHomeScreen(
                 Surface(
                     shape = RoundedCornerShape(s(16)),
                     color = cardColor,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, AppDesign.Danger)
+                    border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, AppDesign.Danger)
                 ) {
                     Column(Modifier.fillMaxWidth().padding(s(16))) {
                         Text("Не удалось загрузить данные", color = AppDesign.Danger, fontWeight = FontWeight.Bold, fontSize = ss(16f))
@@ -950,21 +950,21 @@ private fun ClientHomeScreen(
                 shape = RoundedCornerShape(s(15)),
                 color = cardColor,
                 shadowElevation = 8.dp,
-                border = androidx.compose.foundation.BorderStroke(1.dp, mainText)
+                border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, mainText)
             ) {
                 Column(Modifier.fillMaxWidth().padding(horizontal = s(23), vertical = s(21))) {
                     Row(horizontalArrangement = Arrangement.spacedBy(s(16)), verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
                                 .size(s(84))
-                                .background(Color(0xFFE3E6EB), RoundedCornerShape(s(18)))
+                                .background(AppDesign.Placeholder, RoundedCornerShape(s(18)))
                                 .drawWithContent {
                                     drawContent()
                                     val dash = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 3.dp.toPx()))
                                     drawRoundRect(
-                                        color = Color(0xFF98A1AD),
+                                        color = AppDesign.PlaceholderStroke,
                                         cornerRadius = CornerRadius(s(18).toPx(), s(18).toPx()),
-                                        style = Stroke(width = 1.dp.toPx(), pathEffect = dash)
+                                        style = Stroke(width = AppDesign.HairlineStroke.toPx(), pathEffect = dash)
                                     )
                                 },
                             contentAlignment = Alignment.Center
@@ -972,7 +972,7 @@ private fun ClientHomeScreen(
                             Icon(
                                 imageVector = Icons.Outlined.DirectionsBike,
                                 contentDescription = null,
-                                tint = Color(0xFF989FAB),
+                                tint = AppDesign.BikeIconMuted,
                                 modifier = Modifier.size(s(40))
                             )
                         }
@@ -1000,7 +1000,7 @@ private fun ClientHomeScreen(
                         }
                     }
                     Spacer(Modifier.height(s(16)))
-                    HorizontalDivider(color = Color(0xFFEAEAF0), thickness = 1.dp)
+                    HorizontalDivider(color = AppDesign.LightStroke, thickness = AppDesign.HairlineStroke)
                     Spacer(Modifier.height(s(10)))
                     Row(horizontalArrangement = Arrangement.spacedBy(s(12))) {
                         val stats = listOfNotNull(
@@ -1030,11 +1030,11 @@ private fun ClientHomeScreen(
                 enabled = data.debtRub > 0 && !isCreatingPayment,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = darkButton,
-                    contentColor = Color.White
+                    contentColor = AppDesign.SurfaceBackground
                 )
             ) {
                 if (isCreatingPayment) {
-                    CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(s(20)))
+                    CircularProgressIndicator(color = AppDesign.SurfaceBackground, strokeWidth = 2.dp, modifier = Modifier.size(s(20)))
                 } else {
                     Text("Оплатить весь долг · ${money(data.debtRub.coerceAtLeast(0))}", fontWeight = FontWeight.Bold, fontSize = ss(14f))
                 }
@@ -1052,7 +1052,7 @@ private fun ClientHomeScreen(
                 enabled = !isCreatingPayment,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = darkButton,
-                    contentColor = Color.White
+                    contentColor = AppDesign.SurfaceBackground
                 )
             ) { Text("Выбрать тариф ↑", fontWeight = FontWeight.Bold, fontSize = ss(14f)) }
 
@@ -1068,7 +1068,7 @@ private fun ClientHomeScreen(
         ) {
             val data = dashboard ?: return@AnimatedVisibility
             Surface(
-                color = Color.White,
+                color = AppDesign.SurfaceBackground,
                 shape = RoundedCornerShape(topStart = s(24), topEnd = s(24)),
                 shadowElevation = 10.dp,
                 modifier = Modifier
@@ -1086,7 +1086,7 @@ private fun ClientHomeScreen(
                             .align(Alignment.CenterHorizontally)
                             .width(s(40))
                             .height(s(4))
-                            .background(Color(0xFFD3D7DD), RoundedCornerShape(s(2)))
+                            .background(AppDesign.SheetHandle, RoundedCornerShape(s(2)))
                     )
                     Spacer(Modifier.height(s(12)))
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1134,8 +1134,8 @@ private fun ClientHomeScreen(
                         },
                         modifier = Modifier.fillMaxWidth().height(s(63)),
                         shape = RoundedCornerShape(s(16)),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, mainText),
-                        colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White, contentColor = mainText)
+                        border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, mainText),
+                        colors = ButtonDefaults.outlinedButtonColors(containerColor = AppDesign.SurfaceBackground, contentColor = mainText)
                     ) { Text("Оплатить выбранный · ${money(amountForType(selectedType, data))}", fontWeight = FontWeight.Bold, fontSize = ss(14f)) }
                 }
             }

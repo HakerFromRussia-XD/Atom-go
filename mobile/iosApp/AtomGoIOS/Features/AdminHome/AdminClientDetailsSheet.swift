@@ -180,7 +180,7 @@ struct AdminClientDetailsSheet: View {
                     }
                 }
             } else {
-                Color.clear
+                AppDesign.clear
             }
         }
         .onChange(of: operationErrorMessage) { newValue in

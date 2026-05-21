@@ -1,5 +1,7 @@
 package com.atomgo.android.presentation.ui
 
+import com.atomgo.android.AppDesign
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -38,7 +40,7 @@ internal fun AppToast(
         modifier = modifier.padding(bottom = bottomPadding.dp + navigationBottomDp)
     ) {
         Surface(
-            color = Color.White.copy(alpha = 0.98f),
+            color = AppDesign.SurfaceBackground.copy(alpha = 0.98f),
             shadowElevation = 10.dp,
             shape = RoundedCornerShape(12.dp)
         ) {
@@ -47,7 +49,7 @@ internal fun AppToast(
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
-                color = Color.Black
+                color = AppDesign.Black
             )
         }
     }

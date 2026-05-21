@@ -523,7 +523,7 @@ struct AdminRentalDetailsScreen: View {
                     Button(action: generateCredentials) {
                         Text("Сгенерировать")
                             .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(AppDesign.surfaceBackground)
                             .frame(width: 110, height: 47)
                             .background(AppDesign.darkText)
                             .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
@@ -532,7 +532,7 @@ struct AdminRentalDetailsScreen: View {
                     .accessibilityIdentifier("rentalDetails.generateCredentialsButton")
                 } else {
                     Rectangle()
-                        .fill(Color.clear)
+                        .fill(AppDesign.clear)
                         .frame(width: 110, height: 47)
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
@@ -655,7 +655,7 @@ struct AdminRentalDetailsScreen: View {
                     } label: {
                         Text("Завершить")
                             .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(AppDesign.surfaceBackground)
                             .frame(maxWidth: .infinity)
                             .frame(height: 52)
                             .background(AppDesign.danger)
@@ -670,7 +670,7 @@ struct AdminRentalDetailsScreen: View {
                     } label: {
                         Text(startButtonTitle)
                             .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(AppDesign.surfaceBackground)
                             .frame(maxWidth: .infinity)
                             .frame(height: 52)
                             .background(startButtonColor)

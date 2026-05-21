@@ -299,7 +299,7 @@ struct RentalHistoryCard: View {
                 .foregroundStyle(AppDesign.iconSoft)
         }
         .frame(width: 44, height: 44)
-        .background(.white)
+        .background(AppDesign.surfaceBackground)
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 

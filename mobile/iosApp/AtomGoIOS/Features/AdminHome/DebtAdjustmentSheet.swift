@@ -104,7 +104,7 @@ struct DebtAdjustmentSheet: View {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .fill(mainText)
                 if isSaving {
-                    ProgressView().tint(.white)
+                    ProgressView().tint(AppDesign.surfaceBackground)
                 } else {
                     Text("Применить")
                         .font(.system(size: 14, weight: .bold))
@@ -133,9 +133,9 @@ struct DebtAdjustmentSheet: View {
                 .frame(height: 46)
                 .background {
                     RoundedRectangle(cornerRadius: 15, style: .continuous)
-                        .fill(isSelected ? AppDesign.surfaceBackground : Color.clear)
+                        .fill(isSelected ? AppDesign.surfaceBackground : AppDesign.clear)
                         .shadow(
-                            color: isSelected ? AppDesign.black.opacity(0.06) : Color.clear,
+                            color: isSelected ? AppDesign.black.opacity(0.06) : AppDesign.clear,
                             radius: 5,
                             x: 0,
                             y: 2
@@ -143,7 +143,7 @@ struct DebtAdjustmentSheet: View {
                 }
                 .overlay {
                     RoundedRectangle(cornerRadius: 15, style: .continuous)
-                        .stroke(isSelected ? mainText : Color.clear, lineWidth: 1.5)
+                        .stroke(isSelected ? mainText : AppDesign.clear, lineWidth: 1.5)
                 }
                 .padding(4)
         }

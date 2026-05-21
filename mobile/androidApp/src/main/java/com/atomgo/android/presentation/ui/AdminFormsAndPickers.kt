@@ -567,7 +567,7 @@ internal fun AdminCreateRentalDialog(
                 value = clients.firstOrNull { it.clientId == clientId }?.fullName,
                 placeholder = "выбрать клаента",
                 testTag = "create_rental_client_selector",
-                leadingMarkerColor = Color(0xFFD3D7DD),
+                leadingMarkerColor = AppDesign.SheetHandle,
                 onClick = {
                     draftClientId = clientId
                     isClientPickerPresented = true
@@ -579,7 +579,7 @@ internal fun AdminCreateRentalDialog(
                 value = bikes.firstOrNull { it.bikeId == bikeId }?.let { "${it.bikeModel} · ${it.weeklyRateRub} ₽/нед" },
                 placeholder = "выбрать · покажет ставку",
                 testTag = "create_rental_bike_selector",
-                leadingMarkerColor = Color(0xFFCDD1D9),
+                leadingMarkerColor = AppDesign.MarkerSoft,
                 onClick = {
                     draftBikeId = bikeId
                     isBikePickerPresented = true
@@ -632,7 +632,7 @@ internal fun AdminCreateRentalDialog(
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = AppDesign.Accent,
-                        contentColor = Color.White
+                        contentColor = AppDesign.SurfaceBackground
                     )
                 ) {
                     Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -646,9 +646,9 @@ internal fun AdminCreateRentalDialog(
                         .height(46.dp)
                         .testTag("create_rental_copy_credentials_button"),
                     shape = RoundedCornerShape(12.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.5.dp, AppDesign.Accent),
+                    border = androidx.compose.foundation.BorderStroke(AppDesign.ThinStroke, AppDesign.Accent),
                     colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = Color.White,
+                        containerColor = AppDesign.SurfaceBackground,
                         contentColor = AppDesign.Accent
                     )
                 ) {
@@ -819,9 +819,9 @@ internal fun AdminSheetTopButton(
     Box(
         modifier = Modifier
             .size(47.dp)
-            .background(if (dark) AppDesign.Accent else Color.White, RoundedCornerShape(14.dp))
+            .background(if (dark) AppDesign.Accent else AppDesign.SurfaceBackground, RoundedCornerShape(14.dp))
             .border(
-                width = 1.5.dp,
+                width = AppDesign.ThinStroke,
                 color = AppDesign.Accent,
                 shape = RoundedCornerShape(14.dp)
             )
@@ -844,7 +844,7 @@ internal fun AdminFormSectionTitle(
 ) {
     Text(
         text = text,
-        color = Color(0xFF6B7280),
+        color = AppDesign.PaleSky,
         fontSize = 11.sp,
         fontWeight = FontWeight.Bold,
         letterSpacing = 0.88.sp,
@@ -868,7 +868,7 @@ internal fun AdminSheetInputField(
     autoFocus: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    val dashedColor = Color(0xFF98A1AD)
+    val dashedColor = AppDesign.PlaceholderStroke
     val resolvedBorderColor = if (accentBorder) AppDesign.Accent else borderColor
     val focusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -886,7 +886,7 @@ internal fun AdminSheetInputField(
         modifier = modifier
             .fillMaxWidth()
             .height(58.dp)
-            .background(Color.White, RoundedCornerShape(12.84.dp))
+            .background(AppDesign.SurfaceBackground, RoundedCornerShape(12.84.dp))
             .drawWithContent {
                 drawContent()
                 val corner = CornerRadius(12.84.dp.toPx(), 12.84.dp.toPx())
@@ -895,7 +895,7 @@ internal fun AdminSheetInputField(
                         color = dashedColor,
                         cornerRadius = corner,
                         style = Stroke(
-                            width = 1.5.dp.toPx(),
+                            width = AppDesign.ThinStroke.toPx(),
                             pathEffect = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 2.5.dp.toPx()))
                         )
                     )
@@ -903,7 +903,7 @@ internal fun AdminSheetInputField(
                     drawRoundRect(
                         color = resolvedBorderColor,
                         cornerRadius = corner,
-                        style = Stroke(width = 1.5.dp.toPx())
+                        style = Stroke(width = AppDesign.ThinStroke.toPx())
                     )
                 }
             }
@@ -921,7 +921,7 @@ internal fun AdminSheetInputField(
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 text = label.uppercase(),
-                color = Color(0xFF6B7280),
+                color = AppDesign.PaleSky,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Normal,
                 letterSpacing = 0.66.sp,
@@ -949,7 +949,7 @@ internal fun AdminSheetInputField(
                     if (value.isEmpty()) {
                         Text(
                             placeholder,
-                            color = Color(0xFFC9CCD2),
+                            color = AppDesign.Ghost,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Normal
                         )
@@ -967,15 +967,15 @@ internal fun AdminSelectorField(
     value: String?,
     placeholder: String,
     testTag: String,
-    leadingMarkerColor: Color = Color.Transparent,
+    leadingMarkerColor: Color = AppDesign.Transparent,
     onClick: () -> Unit
 ) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(58.dp)
-            .background(Color.White, RoundedCornerShape(12.84.dp))
-            .border(1.5.dp, AppDesign.Accent, RoundedCornerShape(12.84.dp))
+            .background(AppDesign.SurfaceBackground, RoundedCornerShape(12.84.dp))
+            .border(AppDesign.ThinStroke, AppDesign.Accent, RoundedCornerShape(12.84.dp))
             .testTag(testTag)
             .clickable(onClick = onClick)
     ) {
@@ -991,14 +991,14 @@ internal fun AdminSelectorField(
             ) {
                 Text(
                     text = label,
-                    color = Color(0xFF6B7280),
+                    color = AppDesign.PaleSky,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 0.8.sp
                 )
                 Text(
                     text = value ?: placeholder,
-                    color = if (value == null) Color(0xFFC9CCD2) else AppDesign.TitleText,
+                    color = if (value == null) AppDesign.Ghost else AppDesign.TitleText,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
@@ -1008,18 +1008,18 @@ internal fun AdminSelectorField(
             Box(
                 modifier = Modifier
                     .size(28.dp)
-                    .background(Color(0xFFEAEAF0), RoundedCornerShape(8.dp)),
+                    .background(AppDesign.LightStroke, RoundedCornerShape(8.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Filled.KeyboardArrowDown,
                     contentDescription = null,
-                    tint = Color(0xFF6B7280),
+                    tint = AppDesign.PaleSky,
                     modifier = Modifier.size(16.dp)
                 )
             }
         }
-        if (leadingMarkerColor != Color.Transparent) {
+        if (leadingMarkerColor != AppDesign.Transparent) {
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
@@ -1043,14 +1043,14 @@ internal fun AdminDashedActionButton(
         modifier = Modifier
             .fillMaxWidth()
             .height(52.dp)
-            .background(Color.White, RoundedCornerShape(16.dp))
+            .background(AppDesign.SurfaceBackground, RoundedCornerShape(16.dp))
             .drawWithContent {
                 drawContent()
                 drawRoundRect(
-                    color = Color(0xFF98A1AD),
+                    color = AppDesign.PlaceholderStroke,
                     cornerRadius = CornerRadius(16.dp.toPx(), 16.dp.toPx()),
                     style = Stroke(
-                        width = 1.5.dp.toPx(),
+                        width = AppDesign.ThinStroke.toPx(),
                         pathEffect = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 3.dp.toPx()))
                     )
                 )
@@ -1075,14 +1075,14 @@ internal fun AdminBikePhotoCard(testTag: String) {
         modifier = Modifier
             .fillMaxWidth()
             .height(202.dp)
-            .background(Color(0xFFEEF0F3), RoundedCornerShape(14.dp))
+            .background(AppDesign.InputFill, RoundedCornerShape(14.dp))
             .drawWithContent {
                 drawContent()
                 drawRoundRect(
                     color = AppDesign.Accent,
                     cornerRadius = CornerRadius(14.dp.toPx(), 14.dp.toPx()),
                     style = Stroke(
-                        width = 1.5.dp.toPx(),
+                        width = AppDesign.ThinStroke.toPx(),
                         pathEffect = PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 2.5.dp.toPx()))
                     )
                 )
@@ -1094,8 +1094,8 @@ internal fun AdminBikePhotoCard(testTag: String) {
             Box(
                 modifier = Modifier
                     .size(58.dp)
-                    .background(Color.White, RoundedCornerShape(14.dp))
-                    .border(1.5.dp, AppDesign.Accent, RoundedCornerShape(14.dp)),
+                    .background(AppDesign.SurfaceBackground, RoundedCornerShape(14.dp))
+                    .border(AppDesign.ThinStroke, AppDesign.Accent, RoundedCornerShape(14.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -1110,7 +1110,7 @@ internal fun AdminBikePhotoCard(testTag: String) {
             Spacer(Modifier.height(2.dp))
             Text(
                 "Нажмите, чтобы выбрать из галереи",
-                color = Color(0xFF6B7280),
+                color = AppDesign.PaleSky,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium
             )
@@ -1216,7 +1216,7 @@ internal fun RentalClientPickerSheet(
                         .fillMaxWidth()
                         .padding(horizontal = 8.dp, vertical = 14.dp),
                     shape = RoundedCornerShape(15.dp),
-                    color = Color.White
+                    color = AppDesign.SurfaceBackground
                 ) {
                     Column(
                         modifier = Modifier
@@ -1240,7 +1240,7 @@ internal fun RentalClientPickerSheet(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(top = 10.dp)
-                        .background(Color.White)
+                        .background(AppDesign.SurfaceBackground)
                         .testTag(listTag),
                     contentPadding = PaddingValues(bottom = 20.dp)
                 ) {
@@ -1258,7 +1258,7 @@ internal fun RentalClientPickerSheet(
                                 modifier = Modifier
                                     .size(48.dp)
                                     .background(AppDesign.PageBackground, RoundedCornerShape(12.dp))
-                                    .border(1.dp, Color(0xFFE0E5EC), RoundedCornerShape(12.dp)),
+                                    .border(AppDesign.HairlineStroke, AppDesign.ControlStroke, RoundedCornerShape(12.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
@@ -1287,7 +1287,7 @@ internal fun RentalClientPickerSheet(
                             )
                         }
                         if (index < visibleClients.lastIndex) {
-                            HorizontalDivider(color = Color(0xFFEAEAF0), thickness = 1.dp)
+                            HorizontalDivider(color = AppDesign.LightStroke, thickness = AppDesign.HairlineStroke)
                         }
                     }
                 }
@@ -1361,7 +1361,7 @@ internal fun RentalBikePickerSheet(
                         .fillMaxWidth()
                         .padding(horizontal = 8.dp, vertical = 14.dp),
                     shape = RoundedCornerShape(15.dp),
-                    color = Color.White
+                    color = AppDesign.SurfaceBackground
                 ) {
                     Column(
                         modifier = Modifier
@@ -1379,7 +1379,7 @@ internal fun RentalBikePickerSheet(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(top = 10.dp)
-                        .background(Color.White)
+                        .background(AppDesign.SurfaceBackground)
                         .testTag(listTag),
                     contentPadding = PaddingValues(bottom = 20.dp)
                 ) {
@@ -1397,7 +1397,7 @@ internal fun RentalBikePickerSheet(
                                 modifier = Modifier
                                     .size(48.dp)
                                     .background(AppDesign.PageBackground, RoundedCornerShape(12.dp))
-                                    .border(1.dp, Color(0xFFE0E5EC), RoundedCornerShape(12.dp)),
+                                    .border(AppDesign.HairlineStroke, AppDesign.ControlStroke, RoundedCornerShape(12.dp)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
@@ -1420,7 +1420,7 @@ internal fun RentalBikePickerSheet(
                             )
                         }
                         if (index < visibleBikes.lastIndex) {
-                            HorizontalDivider(color = Color(0xFFEAEAF0), thickness = 1.dp)
+                            HorizontalDivider(color = AppDesign.LightStroke, thickness = AppDesign.HairlineStroke)
                         }
                     }
                 }
@@ -1446,8 +1446,8 @@ internal fun RentalPickerHeader(
         Box(
             modifier = Modifier
                 .size(47.dp)
-                .background(Color.White, RoundedCornerShape(14.dp))
-                .border(1.5.dp, AppDesign.Accent, RoundedCornerShape(14.dp))
+                .background(AppDesign.SurfaceBackground, RoundedCornerShape(14.dp))
+                .border(AppDesign.ThinStroke, AppDesign.Accent, RoundedCornerShape(14.dp))
                 .clickable(onClick = onClose)
                 .testTag("selection_picker_close_button"),
             contentAlignment = Alignment.Center
@@ -1461,7 +1461,7 @@ internal fun RentalPickerHeader(
             modifier = Modifier
                 .size(47.dp)
                 .background(AppDesign.Accent, RoundedCornerShape(14.dp))
-                .border(1.5.dp, AppDesign.Accent, RoundedCornerShape(14.dp))
+                .border(AppDesign.ThinStroke, AppDesign.Accent, RoundedCornerShape(14.dp))
                 .clickable(enabled = confirmEnabled, onClick = onConfirm)
                 .testTag("selection_picker_confirm_button")
                 .alpha(if (confirmEnabled) 1f else 0.45f),
@@ -1487,8 +1487,8 @@ internal fun RentalPickerSearchField(
         modifier = modifier
             .fillMaxWidth()
             .height(46.dp)
-            .background(Color.White, RoundedCornerShape(12.84.dp))
-            .border(1.5.dp, AppDesign.Accent, RoundedCornerShape(12.84.dp))
+            .background(AppDesign.SurfaceBackground, RoundedCornerShape(12.84.dp))
+            .border(AppDesign.ThinStroke, AppDesign.Accent, RoundedCornerShape(12.84.dp))
             .padding(horizontal = 15.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1507,7 +1507,7 @@ internal fun RentalPickerSearchField(
             cursorBrush = SolidColor(AppDesign.TitleText),
             decorationBox = { inner ->
                 if (value.isEmpty()) {
-                    Text(placeholder, color = Color(0xFFC9CCD2), fontSize = 13.sp)
+                    Text(placeholder, color = AppDesign.Ghost, fontSize = 13.sp)
                 }
                 inner()
             }
@@ -1522,15 +1522,15 @@ internal fun RentalPickerFilterChip(
     selected: Boolean,
     onClick: () -> Unit
 ) {
-    val bg = if (selected) AppDesign.Accent else Color.White
-    val textColor = if (selected) Color.White else AppDesign.Accent
-    val countBg = if (selected) Color.White.copy(alpha = 0.2f) else Color.Black.copy(alpha = 0.08f)
+    val bg = if (selected) AppDesign.Accent else AppDesign.SurfaceBackground
+    val textColor = if (selected) AppDesign.SurfaceBackground else AppDesign.Accent
+    val countBg = if (selected) AppDesign.SurfaceBackground.copy(alpha = 0.2f) else AppDesign.Black.copy(alpha = 0.08f)
 
     Row(
         modifier = Modifier
             .height(36.dp)
             .background(bg, RoundedCornerShape(999.dp))
-            .border(1.5.dp, AppDesign.Accent, RoundedCornerShape(999.dp))
+            .border(AppDesign.ThinStroke, AppDesign.Accent, RoundedCornerShape(999.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 15.dp),
         verticalAlignment = Alignment.CenterVertically,
