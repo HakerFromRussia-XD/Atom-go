@@ -592,11 +592,12 @@ struct AdminRentalDetailsScreen: View {
 
     private func journalRow(_ row: AdminRentalJournalEntry) -> some View {
         HStack(spacing: 12) {
-            Text(row.type.uppercased())
+            Text(journalOperationLabel(row.type))
                 .font(.system(size: 10, weight: .bold))
                 .tracking(0.6)
                 .foregroundStyle(AppDesign.paleSky)
-                .frame(width: 90, alignment: .leading)
+                .lineLimit(1)
+                .frame(width: 128, alignment: .leading)
 
             Text(signedRub(row.amountRub))
                 .font(.system(size: 13, weight: .bold))
@@ -1145,6 +1146,21 @@ struct AdminRentalDetailsScreen: View {
             return AppDesign.danger
         }
         return AppDesign.darkControl
+    }
+
+    private func journalOperationLabel(_ type: String) -> String {
+        let normalized = type.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch normalized {
+        case "payment":
+            return "Оплата"
+        case "adjustment":
+            return "Корректировка"
+        case "charge":
+            return "Начисление аренды"
+        default:
+            let trimmed = type.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? "—" : trimmed
+        }
     }
 
     private func prettyDate(_ value: String?) -> String {

@@ -129,6 +129,15 @@ internal fun formatJournalDateLabel(value: String): String {
     return "—"
 }
 
+internal fun ledgerOperationLabel(type: String): String {
+    return when (type.trim().lowercase()) {
+        "payment" -> "Оплата"
+        "adjustment" -> "Корректировка"
+        "charge" -> "Начисление аренды"
+        else -> type.trim().ifEmpty { "—" }
+    }
+}
+
 internal fun rentStatus(item: AdminClientSummaryResponse): RentStatusPill {
     if (!item.rentalIsActive) {
         return RentStatusPill(

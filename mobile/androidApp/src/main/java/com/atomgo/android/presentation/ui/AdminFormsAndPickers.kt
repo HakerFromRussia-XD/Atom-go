@@ -553,7 +553,7 @@ internal fun AdminCreateRentalDialog(
             },
             backTag = "create_rental_cancel_button",
             submitTag = "create_rental_submit_button",
-            horizontalPadding = 23.dp,
+            horizontalPadding = 8.dp,
             topBarHeight = 47.dp,
             topBarTopPadding = 8.dp,
             contentTopPadding = 14.dp,

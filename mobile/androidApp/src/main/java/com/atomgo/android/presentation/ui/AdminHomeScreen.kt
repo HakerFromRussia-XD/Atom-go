@@ -846,7 +846,6 @@ internal fun AdminHomeScreen(
                                                     .testTag("admin_rents_container"),
                                                 shape = RoundedCornerShape(15.dp),
                                                 color = AppDesign.BlackHaze,
-                                                shadowElevation = 8.dp,
                                                 border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, AppDesign.Accent)
                                             ) {
                                                 Column(modifier = Modifier.padding(vertical = 5.dp)) {

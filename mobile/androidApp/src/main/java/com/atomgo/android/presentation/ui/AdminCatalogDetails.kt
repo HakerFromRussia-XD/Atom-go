@@ -291,7 +291,6 @@ internal fun AdminClientsCatalogScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(15.dp),
                                 color = AppDesign.BlackHaze,
-                                shadowElevation = 8.dp,
                                 border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, AppDesign.Accent)
                             ) {
                                 Column(modifier = Modifier.padding(vertical = 5.dp)) {
@@ -523,7 +522,6 @@ internal fun AdminBikesCatalogScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(15.dp),
                                 color = AppDesign.BlackHaze,
-                                shadowElevation = 8.dp,
                                 border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, AppDesign.Accent)
                             ) {
                                 Column(modifier = Modifier.padding(vertical = 5.dp)) {
@@ -944,7 +942,6 @@ internal fun AdminClientDetailsScreen(
                                 .testTag("admin_client_details_card"),
                             shape = RoundedCornerShape(15.dp),
                             color = AppDesign.BlackHaze,
-                            shadowElevation = 8.dp,
                             border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, AppDesign.Accent)
                         ) {
                             val cardPadding = if (hasOpenRental) {
@@ -1090,7 +1087,6 @@ internal fun AdminClientDetailsScreen(
                                             },
                                         shape = RoundedCornerShape(15.dp),
                                         color = AppDesign.BlackHaze,
-                                        shadowElevation = 8.dp,
                                         border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, AppDesign.LightStroke)
                                     ) {
                                         Row(
@@ -1303,7 +1299,6 @@ internal fun AdminRentalDetailsScreenAndroid(
                             .padding(top = 8.dp),
                         shape = RoundedCornerShape(15.dp),
                         color = AppDesign.SurfaceBackground,
-                        shadowElevation = 8.dp,
                         border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, mainTextColor)
                     ) {
                         Column(
@@ -1511,11 +1506,13 @@ internal fun AdminRentalDetailsScreenAndroid(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                     Text(
-                                        text = row.type.uppercase(),
+                                        text = ledgerOperationLabel(row.type),
                                         color = AppDesign.SubtleText,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.width(90.dp)
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.width(128.dp)
                                     )
                                     Text(
                                         text = signedRub(row.amountRub),
