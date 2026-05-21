@@ -3,6 +3,7 @@ package com.atomgo.android.domain.usecase
 import com.atomgo.android.domain.repository.AdminRepository
 import com.atomgo.shared.api.AdminBikeResponse
 import com.atomgo.shared.api.AdminClientDetailsResponse
+import com.atomgo.shared.api.AdminClientPhone
 import com.atomgo.shared.api.AdminClientSummaryResponse
 import com.atomgo.shared.api.AdminRentalDetailsResponse
 
@@ -65,7 +66,11 @@ class AdminUseCases(
         bikeId: String,
         login: String,
         password: String,
-        periodStart: String
+        periodStart: String,
+        periodEnd: String? = null,
+        videoUrl: String? = null,
+        contractUrl: String? = null,
+        comment: String? = null
     ) {
         adminRepository.createRental(
             accessToken = accessToken,
@@ -73,7 +78,11 @@ class AdminUseCases(
             bikeId = bikeId,
             login = login,
             password = password,
-            periodStart = periodStart
+            periodStart = periodStart,
+            periodEnd = periodEnd,
+            videoUrl = videoUrl,
+            contractUrl = contractUrl,
+            comment = comment
         )
     }
 
@@ -99,8 +108,7 @@ class AdminUseCases(
         fullName: String,
         address: String,
         passportData: String,
-        phoneLabel: String,
-        phoneNumber: String,
+        phones: List<AdminClientPhone>,
         comment: String?
     ) {
         adminRepository.updateClient(
@@ -109,8 +117,7 @@ class AdminUseCases(
             fullName = fullName,
             address = address,
             passportData = passportData,
-            phoneLabel = phoneLabel,
-            phoneNumber = phoneNumber,
+            phones = phones,
             comment = comment
         )
     }
@@ -118,6 +125,7 @@ class AdminUseCases(
     suspend fun updateBike(
         accessToken: String,
         bikeId: String,
+        photoUrl: String?,
         bikeModel: String,
         weeklyRateRub: Int,
         frameSerialNumber: String,
@@ -128,6 +136,7 @@ class AdminUseCases(
         adminRepository.updateBike(
             accessToken = accessToken,
             bikeId = bikeId,
+            photoUrl = photoUrl,
             bikeModel = bikeModel,
             weeklyRateRub = weeklyRateRub,
             frameSerialNumber = frameSerialNumber,
@@ -144,7 +153,10 @@ class AdminUseCases(
         periodStart: String,
         periodEnd: String?,
         login: String?,
-        password: String?
+        password: String?,
+        videoUrl: String?,
+        contractUrl: String?,
+        comment: String?
     ) {
         adminRepository.updateRental(
             accessToken = accessToken,
@@ -153,7 +165,10 @@ class AdminUseCases(
             periodStart = periodStart,
             periodEnd = periodEnd,
             login = login,
-            password = password
+            password = password,
+            videoUrl = videoUrl,
+            contractUrl = contractUrl,
+            comment = comment
         )
     }
 

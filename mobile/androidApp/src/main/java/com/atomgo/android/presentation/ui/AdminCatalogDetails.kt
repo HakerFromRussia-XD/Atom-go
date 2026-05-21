@@ -388,6 +388,7 @@ internal fun AdminBikesCatalogScreen(
     onRetry: () -> Unit,
     onLogout: () -> Unit,
     onCreate: () -> Unit,
+    onOpenBike: (AdminBikeResponse) -> Unit,
     visibleBikes: List<AdminBikeResponse>
 ) {
     val density = LocalDensity.current
@@ -531,7 +532,8 @@ internal fun AdminBikesCatalogScreen(
                                     visibleBikes.forEachIndexed { index, bike ->
                                         AdminBikeCatalogRow(
                                             bike = bike,
-                                            runtime = bikeCatalogRuntimeSnapshot(bike = bike, rentals = rentals)
+                                            runtime = bikeCatalogRuntimeSnapshot(bike = bike, rentals = rentals),
+                                            onClick = { onOpenBike(bike) }
                                         )
                                         if (index < visibleBikes.lastIndex) {
                                             HorizontalDivider(color = AppDesign.LightStroke, thickness = AppDesign.HairlineStroke)
@@ -1315,7 +1317,7 @@ internal fun AdminRentalDetailsScreenAndroid(
                 Text("Аренда", color = AppDesign.TitleText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.weight(1f))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (details != null && rentalPreviewIsRunning(details)) {
+                    if (details != null && details.rentalId.isNotBlank()) {
                         OutlinedButton(
                             onClick = onEdit,
                             contentPadding = PaddingValues(0.dp),
@@ -2131,12 +2133,14 @@ internal fun AdminDetailsReadonlyField(label: String, value: String?) {
 @Composable
 internal fun AdminBikeCatalogRow(
     bike: AdminBikeResponse,
-    runtime: BikeCatalogRuntimeSnapshot
+    runtime: BikeCatalogRuntimeSnapshot,
+    onClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(77.dp)
+            .clickable(onClick = onClick)
             .padding(horizontal = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

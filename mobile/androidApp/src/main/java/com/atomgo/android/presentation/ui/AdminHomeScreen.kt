@@ -530,7 +530,7 @@ internal fun AdminHomeScreen(
     var showCreateBike by remember { mutableStateOf(false) }
     var showCreateRental by remember { mutableStateOf(false) }
     var showUpdateClient by remember { mutableStateOf(false) }
-    var showUpdateBike by remember { mutableStateOf(false) }
+    var selectedBikeForEdit by remember { mutableStateOf<AdminBikeResponse?>(null) }
     var showUpdateRental by remember { mutableStateOf(false) }
     var confirmDeleteRentalId by remember { mutableStateOf<String?>(null) }
     var confirmDeleteClientId by remember { mutableStateOf<String?>(null) }
@@ -976,6 +976,7 @@ internal fun AdminHomeScreen(
                     onRetry = ::refreshBikes,
                     onLogout = onLogout,
                     onCreate = { showCreateBike = true },
+                    onOpenBike = { bike -> selectedBikeForEdit = bike },
                     visibleBikes = filteredBikes
                 )
             }
@@ -1059,14 +1060,18 @@ internal fun AdminHomeScreen(
             clients = clientsCatalog,
             bikes = bikesCatalog,
             onDismiss = { showCreateRental = false },
-            onCreate = { clientId, bikeId, login, password, periodStart ->
+            onCreate = { clientId, bikeId, login, password, periodStart, periodEnd, videoUrl, contractUrl, comment ->
                 adminHomeViewModel.createAdminRental(
                     accessToken = session.accessToken,
                     clientId = clientId.ifBlank { null },
                     bikeId = bikeId,
                     login = login,
                     password = password,
-                    periodStart = periodStart
+                    periodStart = periodStart,
+                    periodEnd = periodEnd.ifBlank { null },
+                    videoUrl = videoUrl.ifBlank { null },
+                    contractUrl = contractUrl.ifBlank { null },
+                    comment = comment.ifBlank { null }
                 ) { result ->
                     result.onSuccess {
                         adminMessage = "Аренда создана"
@@ -1078,37 +1083,16 @@ internal fun AdminHomeScreen(
         )
     }
 
-    if (showUpdateClient) {
-        AdminUpdateClientDialog(
-            onDismiss = { showUpdateClient = false },
-            onUpdate = { clientId, fullName, address, passport, phoneLabel, phoneNumber, comment ->
-                adminHomeViewModel.updateAdminClient(
-                    accessToken = session.accessToken,
-                    clientId = clientId,
-                    fullName = fullName,
-                    address = address,
-                    passportData = passport,
-                    phoneLabel = phoneLabel,
-                    phoneNumber = phoneNumber,
-                    comment = comment.ifBlank { null }
-                ) { result ->
-                    result.onSuccess {
-                        adminMessage = "Клиент обновлен"
-                        showUpdateClient = false
-                        refreshAllCatalogs()
-                    }.onFailure { adminMessage = "Ошибка обновления клиента: ${it.message}" }
-                }
-            }
-        )
-    }
-
-    if (showUpdateBike) {
+    selectedBikeForEdit?.let { editingBike ->
         AdminUpdateBikeDialog(
-            onDismiss = { showUpdateBike = false },
-            onUpdate = { bikeId, model, rate, frame, motor, battery1, battery2 ->
+            bike = editingBike,
+            bikes = bikesCatalog,
+            onDismiss = { selectedBikeForEdit = null },
+            onUpdate = { bikeId, photoUrl, model, rate, frame, motor, battery1, battery2 ->
                 adminHomeViewModel.updateAdminBike(
                     accessToken = session.accessToken,
                     bikeId = bikeId,
+                    photoUrl = photoUrl,
                     bikeModel = model,
                     weeklyRateRub = rate.toIntOrNull() ?: 0,
                     frameSerialNumber = frame,
@@ -1118,32 +1102,9 @@ internal fun AdminHomeScreen(
                 ) { result ->
                     result.onSuccess {
                         adminMessage = "Велосипед обновлен"
-                        showUpdateBike = false
+                        selectedBikeForEdit = null
                         refreshAllCatalogs()
                     }.onFailure { adminMessage = "Ошибка обновления велосипеда: ${it.message}" }
-                }
-            }
-        )
-    }
-
-    if (showUpdateRental) {
-        AdminUpdateRentalDialog(
-            onDismiss = { showUpdateRental = false },
-            onUpdate = { rentalId, bikeId, periodStart, periodEnd, login, password ->
-                adminHomeViewModel.updateAdminRental(
-                    accessToken = session.accessToken,
-                    rentalId = rentalId,
-                    bikeId = bikeId,
-                    periodStart = periodStart,
-                    periodEnd = periodEnd.ifBlank { null },
-                    login = login.ifBlank { null },
-                    password = password.ifBlank { null }
-                ) { result ->
-                    result.onSuccess {
-                        adminMessage = "Аренда обновлена"
-                        showUpdateRental = false
-                        refreshAllCatalogs()
-                    }.onFailure { adminMessage = "Ошибка обновления аренды: ${it.message}" }
                 }
             }
         )
@@ -1328,6 +1289,71 @@ internal fun AdminHomeScreen(
                 }
             }
         )
+    }
+
+    if (showUpdateClient) {
+        val details = detailPayload
+        if (details != null) {
+            Box(modifier = Modifier.fillMaxSize().zIndex(31f)) {
+                AdminUpdateClientDialog(
+                    details = details,
+                    onDismiss = { showUpdateClient = false },
+                    onUpdate = { clientId, fullName, address, passport, phones, comment ->
+                        adminHomeViewModel.updateAdminClient(
+                            accessToken = session.accessToken,
+                            clientId = clientId,
+                            fullName = fullName,
+                            address = address,
+                            passportData = passport,
+                            phones = phones,
+                            comment = comment.ifBlank { null }
+                        ) { result ->
+                            result.onSuccess {
+                                adminMessage = "Клиент обновлен"
+                                showUpdateClient = false
+                                refreshAllCatalogs()
+                                openClientDetails(clientId)
+                            }.onFailure { adminMessage = "Ошибка обновления клиента: ${it.message}" }
+                        }
+                    }
+                )
+            }
+        }
+    }
+
+    if (showUpdateRental) {
+        val details = selectedRentalDetails
+        if (details != null) {
+            Box(modifier = Modifier.fillMaxSize().zIndex(32f)) {
+                AdminUpdateRentalDialog(
+                    details = details,
+                    clients = clientsCatalog,
+                    bikes = bikesCatalog,
+                    onDismiss = { showUpdateRental = false },
+                    onUpdate = { rentalId, _, bikeId, periodStart, periodEnd, login, password, videoUrl, contractUrl, comment ->
+                        adminHomeViewModel.updateAdminRental(
+                            accessToken = session.accessToken,
+                            rentalId = rentalId,
+                            bikeId = bikeId,
+                            periodStart = periodStart,
+                            periodEnd = periodEnd.ifBlank { null },
+                            login = login.ifBlank { null },
+                            password = password.ifBlank { null },
+                            videoUrl = videoUrl.ifBlank { null },
+                            contractUrl = contractUrl.ifBlank { null },
+                            comment = comment.ifBlank { null }
+                        ) { result ->
+                            result.onSuccess {
+                                adminMessage = "Аренда обновлена"
+                                showUpdateRental = false
+                                refreshAllCatalogs()
+                                refreshSelectedRentalDetails()
+                            }.onFailure { adminMessage = "Ошибка обновления аренды: ${it.message}" }
+                        }
+                    }
+                )
+            }
+        }
     }
 
     if (rentalAdjustmentTarget != null) {

@@ -1,5 +1,12 @@
 package com.atomgo.android.presentation.ui
 
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.util.Base64
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
@@ -97,6 +104,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -104,6 +112,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -126,12 +135,15 @@ import com.atomgo.android.ClientPaymentType
 import com.atomgo.android.R
 import com.atomgo.android.presentation.model.*
 import com.atomgo.android.presentation.viewmodel.*
+import coil.compose.AsyncImage
 import com.atomgo.shared.api.AdminBikeResponse
+import com.atomgo.shared.api.AdminClientPhone
 import com.atomgo.shared.api.AdminClientSummaryResponse
 import com.atomgo.shared.api.AdminClientDetailsResponse
 import com.atomgo.shared.api.AdminRentalHistoryItemResponse
 import com.atomgo.shared.api.ClientDashboardResponse
 import kotlinx.coroutines.delay
+import java.io.ByteArrayOutputStream
 import java.text.DecimalFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -452,7 +464,7 @@ internal fun AdminCreateRentalDialog(
     clients: List<AdminClientSummaryResponse>,
     bikes: List<AdminBikeResponse>,
     onDismiss: () -> Unit,
-    onCreate: (String, String, String, String, String) -> Unit
+    onCreate: (String, String, String, String, String, String, String, String, String) -> Unit
 ) {
     var clientId by remember { mutableStateOf("") }
     var bikeId by remember { mutableStateOf("") }
@@ -549,7 +561,17 @@ internal fun AdminCreateRentalDialog(
                         return@AdminFormSheetScaffold
                     }
                 }
-                onCreate(clientId, bikeId, login.trim(), password.trim(), start)
+                onCreate(
+                    clientId,
+                    bikeId,
+                    login.trim(),
+                    password.trim(),
+                    start,
+                    periodEnd.trim(),
+                    videoUrl.trim(),
+                    contractUrl.trim(),
+                    comment.trim()
+                )
             },
             backTag = "create_rental_cancel_button",
             submitTag = "create_rental_submit_button",
@@ -1070,11 +1092,17 @@ internal fun AdminDashedActionButton(
 }
 
 @Composable
-internal fun AdminBikePhotoCard(testTag: String) {
+internal fun AdminBikePhotoCard(
+    testTag: String,
+    photoUrl: String? = null,
+    onClick: (() -> Unit)? = null
+) {
+    val normalizedPhotoUrl = photoUrl?.trim().orEmpty().takeIf { it.isNotEmpty() }
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(202.dp)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .background(AppDesign.InputFill, RoundedCornerShape(14.dp))
             .drawWithContent {
                 drawContent()
@@ -1090,30 +1118,41 @@ internal fun AdminBikePhotoCard(testTag: String) {
             .testTag(testTag),
         contentAlignment = Alignment.Center
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(
+        if (normalizedPhotoUrl != null) {
+            AsyncImage(
+                model = normalizedPhotoUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
                 modifier = Modifier
-                    .size(58.dp)
-                    .background(AppDesign.SurfaceBackground, RoundedCornerShape(14.dp))
-                    .border(AppDesign.ThinStroke, AppDesign.Accent, RoundedCornerShape(14.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.DirectionsBike,
-                    contentDescription = null,
-                    tint = AppDesign.Accent,
-                    modifier = Modifier.size(24.dp)
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(14.dp))
+            )
+        } else {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    modifier = Modifier
+                        .size(58.dp)
+                        .background(AppDesign.SurfaceBackground, RoundedCornerShape(14.dp))
+                        .border(AppDesign.ThinStroke, AppDesign.Accent, RoundedCornerShape(14.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.DirectionsBike,
+                        contentDescription = null,
+                        tint = AppDesign.Accent,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+                Text("Загрузить фото", color = AppDesign.Accent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "Нажмите, чтобы выбрать из галереи",
+                    color = AppDesign.PaleSky,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium
                 )
             }
-            Spacer(Modifier.height(12.dp))
-            Text("Загрузить фото", color = AppDesign.Accent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(2.dp))
-            Text(
-                "Нажмите, чтобы выбрать из галереи",
-                color = AppDesign.PaleSky,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium
-            )
         }
     }
 }
@@ -1549,93 +1588,706 @@ internal fun RentalPickerFilterChip(
 
 @Composable
 internal fun AdminUpdateClientDialog(
+    details: AdminClientDetailsResponse,
     onDismiss: () -> Unit,
-    onUpdate: (String, String, String, String, String, String, String) -> Unit
+    onUpdate: (String, String, String, String, List<AdminClientPhone>, String) -> Unit
 ) {
-    var clientId by remember { mutableStateOf("") }
-    var fullName by remember { mutableStateOf("") }
-    var address by remember { mutableStateOf("") }
-    var passport by remember { mutableStateOf("") }
-    var phoneLabel by remember { mutableStateOf("main") }
-    var phoneNumber by remember { mutableStateOf("") }
-    var comment by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Обновить клиента") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(clientId, { clientId = it }, label = { Text("Client ID") })
-                OutlinedTextField(fullName, { fullName = it }, label = { Text("ФИО") })
-                OutlinedTextField(address, { address = it }, label = { Text("Адрес") })
-                OutlinedTextField(passport, { passport = it }, label = { Text("Паспорт") })
-                OutlinedTextField(phoneLabel, { phoneLabel = it }, label = { Text("Метка телефона") })
-                OutlinedTextField(phoneNumber, { phoneNumber = it }, label = { Text("Телефон") })
-                OutlinedTextField(comment, { comment = it }, label = { Text("Комментарий") })
+    var fullName by remember(details.clientId) { mutableStateOf(details.fullName) }
+    var address by remember(details.clientId) { mutableStateOf(details.address) }
+    var passport by remember(details.clientId) { mutableStateOf(details.passportData) }
+    var phones by remember(details.clientId) {
+        mutableStateOf(details.phones.ifEmpty { listOf(AdminClientPhone(label = "Рабочий (TG)", number = "")) })
+    }
+    val existingComment = details.comment?.trim().orEmpty()
+    var isCommentVisible by remember(details.clientId) { mutableStateOf(existingComment.isNotEmpty()) }
+    var comment by remember(details.clientId) { mutableStateOf(existingComment) }
+    var toastMessage by remember { mutableStateOf<String?>(null) }
+
+    fun fail(message: String) {
+        toastMessage = message
+    }
+
+    LaunchedEffect(toastMessage) {
+        if (!toastMessage.isNullOrEmpty()) {
+            delay(2200)
+            toastMessage = null
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AppDesign.PageBackground)
+            .testTag("edit_client_sheet")
+    ) {
+        AdminFormSheetScaffold(
+            title = "Редактировать",
+            onBack = onDismiss,
+            onSubmit = {
+                val normalizedFullName = fullName.trim()
+                if (normalizedFullName.isEmpty()) {
+                    fail("Укажите ФИО клиента")
+                    return@AdminFormSheetScaffold
+                }
+                val normalizedPhones = phones
+                    .map { AdminClientPhone(label = it.label.trim(), number = it.number.trim()) }
+                    .filter { it.label.isNotEmpty() && it.number.isNotEmpty() }
+
+                onUpdate(
+                    details.clientId,
+                    normalizedFullName,
+                    address.trim(),
+                    passport.trim(),
+                    normalizedPhones,
+                    if (isCommentVisible) comment.trim() else ""
+                )
+            },
+            backTag = "edit_client_cancel_button",
+            submitTag = "edit_client_submit_button",
+            horizontalPadding = 8.dp,
+            topBarHeight = 62.dp,
+            topBarTopPadding = 0.dp,
+            contentTopPadding = 16.dp,
+            contentBottomPadding = 24.dp,
+            contentSpacing = 18.dp
+        ) {
+            AdminFormSectionTitle("ПРОФИЛЬ")
+            AdminSheetInputField(
+                label = "ФИО",
+                placeholder = "введите...",
+                value = fullName,
+                onValueChange = { fullName = it },
+                testTag = "edit_client_full_name_input",
+                keyboardType = KeyboardType.Text,
+                capitalization = KeyboardCapitalization.Words
+            )
+            AdminSheetInputField(
+                label = "Адрес",
+                placeholder = "введите...",
+                value = address,
+                onValueChange = { address = it },
+                testTag = "edit_client_address_input",
+                keyboardType = KeyboardType.Text
+            )
+            AdminSheetInputField(
+                label = "Паспортные данные",
+                placeholder = "введите...",
+                value = passport,
+                onValueChange = { passport = it },
+                testTag = "edit_client_passport_input",
+                keyboardType = KeyboardType.Text
+            )
+
+            AdminFormSectionTitle("ТЕЛЕФОНЫ", topPadding = 6.dp)
+            phones.forEachIndexed { index, phone ->
+                AdminSheetInputField(
+                    label = "Подпись",
+                    placeholder = "введите...",
+                    value = phone.label,
+                    onValueChange = { value ->
+                        phones = phones.toMutableList().also {
+                            it[index] = it[index].copy(label = value)
+                        }
+                    },
+                    testTag = if (index == 0) "edit_client_phone_label_1_input" else "edit_client_phone_label_${index}_input",
+                    keyboardType = KeyboardType.Text,
+                    valueWeight = FontWeight.Bold,
+                    capitalization = KeyboardCapitalization.Sentences
+                )
+                AdminSheetInputField(
+                    label = "Телефон",
+                    placeholder = "+7 …",
+                    value = phone.number,
+                    onValueChange = { value ->
+                        phones = phones.toMutableList().also {
+                            it[index] = it[index].copy(number = value)
+                        }
+                    },
+                    testTag = if (index == 0) "edit_client_phone_number_1_input" else "edit_client_phone_number_${index}_input",
+                    keyboardType = KeyboardType.Phone
+                )
             }
-        },
-        confirmButton = { OutlinedButton(onClick = { onUpdate(clientId, fullName, address, passport, phoneLabel, phoneNumber, comment) }) { Text("Сохранить") } },
-        dismissButton = { OutlinedButton(onClick = onDismiss) { Text("Отмена") } }
-    )
+
+            AdminDashedActionButton(
+                text = "+ Добавить телефон",
+                enabled = true,
+                onClick = { phones = phones + AdminClientPhone(label = "", number = "") },
+                testTag = "edit_client_add_phone_button"
+            )
+
+            if (isCommentVisible) {
+                AdminSheetInputField(
+                    label = "Комментарий",
+                    placeholder = "введите...",
+                    value = comment,
+                    onValueChange = { comment = it },
+                    testTag = "edit_client_comment_input",
+                    keyboardType = KeyboardType.Text
+                )
+            }
+
+            AdminDashedActionButton(
+                text = "+ Добавить комментарий",
+                enabled = true,
+                onClick = { isCommentVisible = true },
+                testTag = "edit_client_add_comment_button"
+            )
+        }
+
+        AppToast(
+            message = toastMessage,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            bottomPadding = 96
+        )
+    }
 }
 
 @Composable
 internal fun AdminUpdateBikeDialog(
+    bike: AdminBikeResponse,
+    bikes: List<AdminBikeResponse>,
     onDismiss: () -> Unit,
-    onUpdate: (String, String, String, String, String, String, String) -> Unit
+    onUpdate: (String, String?, String, String, String, String, String, String) -> Unit
 ) {
-    var bikeId by remember { mutableStateOf("") }
-    var model by remember { mutableStateOf("") }
-    var rate by remember { mutableStateOf("") }
-    var frame by remember { mutableStateOf("") }
-    var motor by remember { mutableStateOf("") }
-    var battery1 by remember { mutableStateOf("") }
-    var battery2 by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Обновить велосипед") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(bikeId, { bikeId = it }, label = { Text("Bike ID") })
-                OutlinedTextField(model, { model = it }, label = { Text("Модель") })
-                OutlinedTextField(rate, { rate = it }, label = { Text("Ставка/нед (₽)") })
-                OutlinedTextField(frame, { frame = it }, label = { Text("Frame SN") })
-                OutlinedTextField(motor, { motor = it }, label = { Text("Motor SN") })
-                OutlinedTextField(battery1, { battery1 = it }, label = { Text("Battery 1 SN") })
-                OutlinedTextField(battery2, { battery2 = it }, label = { Text("Battery 2 SN") })
-            }
-        },
-        confirmButton = { OutlinedButton(onClick = { onUpdate(bikeId, model, rate, frame, motor, battery1, battery2) }) { Text("Сохранить") } },
-        dismissButton = { OutlinedButton(onClick = onDismiss) { Text("Отмена") } }
-    )
+    var model by remember(bike.bikeId) { mutableStateOf(bike.bikeModel) }
+    var rate by remember(bike.bikeId) { mutableStateOf(bike.weeklyRateRub.toString()) }
+    var frame by remember(bike.bikeId) { mutableStateOf(bike.frameSerialNumber) }
+    var motor by remember(bike.bikeId) { mutableStateOf(bike.motorSerialNumber) }
+    var battery1 by remember(bike.bikeId) { mutableStateOf(bike.batterySerialNumber1) }
+    var battery2 by remember(bike.bikeId) { mutableStateOf(bike.batterySerialNumber2.orEmpty()) }
+    var photoDataUrl by remember(bike.bikeId) { mutableStateOf<String?>(null) }
+    var toastMessage by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    val photoSource = photoDataUrl ?: bike.photoUrl
+
+    fun fail(message: String) {
+        toastMessage = message
+    }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val encoded = uriToBikePhotoDataUrl(context, uri)
+        if (encoded == null) {
+            fail("Не удалось открыть изображение")
+        } else {
+            photoDataUrl = encoded
+        }
+    }
+
+    LaunchedEffect(toastMessage) {
+        if (!toastMessage.isNullOrEmpty()) {
+            delay(2200)
+            toastMessage = null
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AppDesign.PageBackground)
+            .testTag("edit_bike_sheet")
+    ) {
+        AdminFormSheetScaffold(
+            title = "Ред. велосипед",
+            onBack = onDismiss,
+            onSubmit = {
+                val normalizedModel = model.trim()
+                val normalizedRate = rate.trim().toIntOrNull()
+                val normalizedFrame = frame.trim()
+                val normalizedMotor = motor.trim()
+                val normalizedBattery1 = battery1.trim()
+                val normalizedBattery2 = battery2.trim()
+
+                when {
+                    normalizedModel.isEmpty() -> fail("Укажите модель велосипеда")
+                    normalizedRate == null || normalizedRate <= 0 -> fail("Стоимость недели должна быть положительным числом")
+                    normalizedFrame.isEmpty() -> fail("Укажите серийный номер рамы")
+                    normalizedMotor.isEmpty() -> fail("Укажите серийный номер мотора")
+                    normalizedBattery1.isEmpty() -> fail("Укажите серийный номер аккумулятора 1")
+                    else -> {
+                        val duplicateMessage = validateBikeSerialDuplicates(
+                            bikes = bikes,
+                            bikeIdToIgnore = bike.bikeId,
+                            frameSerial = normalizedFrame,
+                            motorSerial = normalizedMotor,
+                            batterySerialNumber1 = normalizedBattery1,
+                            batterySerialNumber2 = normalizedBattery2.ifBlank { null }
+                        )
+                        if (duplicateMessage != null) {
+                            fail(duplicateMessage)
+                        } else {
+                            onUpdate(
+                                bike.bikeId,
+                                photoSource,
+                                normalizedModel,
+                                normalizedRate.toString(),
+                                normalizedFrame,
+                                normalizedMotor,
+                                normalizedBattery1,
+                                normalizedBattery2
+                            )
+                        }
+                    }
+                }
+            },
+            backTag = "edit_bike_cancel_button",
+            submitTag = "edit_bike_submit_button",
+            horizontalPadding = 8.dp,
+            topBarHeight = 47.dp,
+            topBarTopPadding = 8.dp,
+            contentTopPadding = 14.dp,
+            contentBottomPadding = 24.dp,
+            contentSpacing = 14.dp
+        ) {
+            AdminBikePhotoCard(
+                testTag = "edit_bike_photo_picker",
+                photoUrl = photoSource,
+                onClick = { photoPickerLauncher.launch("image/*") }
+            )
+            AdminFormSectionTitle("ОБЯЗАТЕЛЬНЫЕ")
+            AdminSheetInputField(
+                label = "Название/модель",
+                placeholder = "введите...",
+                value = model,
+                onValueChange = { model = it },
+                testTag = "edit_bike_model_input",
+                keyboardType = KeyboardType.Text,
+                capitalization = KeyboardCapitalization.Words
+            )
+            AdminSheetInputField(
+                label = "Серийный номер / VIN",
+                placeholder = "введите...",
+                value = frame,
+                onValueChange = { frame = it },
+                testTag = "edit_bike_frame_input",
+                keyboardType = KeyboardType.Text
+            )
+            AdminSheetInputField(
+                label = "Серийный номер мотора",
+                placeholder = "введите...",
+                value = motor,
+                onValueChange = { motor = it },
+                testTag = "edit_bike_motor_input",
+                keyboardType = KeyboardType.Text
+            )
+            AdminSheetInputField(
+                label = "Недельная ставка W (₽)",
+                placeholder = "введите...",
+                value = rate,
+                onValueChange = { rate = it },
+                testTag = "edit_bike_rate_input",
+                keyboardType = KeyboardType.Number
+            )
+
+            AdminFormSectionTitle("ОПЦИОНАЛЬНО", topPadding = 6.dp)
+            AdminSheetInputField(
+                label = "Серийный номер АКБ 1",
+                placeholder = "не обязательно",
+                value = battery1,
+                onValueChange = { battery1 = it },
+                testTag = "edit_bike_battery1_input",
+                keyboardType = KeyboardType.Text,
+                isDashed = true
+            )
+            AdminSheetInputField(
+                label = "Серийный номер АКБ 2",
+                placeholder = "не обязательно",
+                value = battery2,
+                onValueChange = { battery2 = it },
+                testTag = "edit_bike_battery2_input",
+                keyboardType = KeyboardType.Text,
+                isDashed = true
+            )
+        }
+
+        AppToast(
+            message = toastMessage,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            bottomPadding = 96
+        )
+    }
 }
 
 @Composable
 internal fun AdminUpdateRentalDialog(
+    details: AdminRentalPreview,
+    clients: List<AdminClientSummaryResponse>,
+    bikes: List<AdminBikeResponse>,
     onDismiss: () -> Unit,
-    onUpdate: (String, String, String, String, String, String) -> Unit
+    onUpdate: (String, String, String, String, String, String, String, String, String, String) -> Unit
 ) {
-    var rentalId by remember { mutableStateOf("") }
-    var bikeId by remember { mutableStateOf("") }
-    var periodStart by remember { mutableStateOf("") }
-    var periodEnd by remember { mutableStateOf("") }
-    var login by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Обновить аренду") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(rentalId, { rentalId = it }, label = { Text("Rental ID") })
-                OutlinedTextField(bikeId, { bikeId = it }, label = { Text("Bike ID") })
-                OutlinedTextField(periodStart, { periodStart = it }, label = { Text("Дата начала YYYY-MM-DD") })
-                OutlinedTextField(periodEnd, { periodEnd = it }, label = { Text("Дата конца YYYY-MM-DD (optional)") })
-                OutlinedTextField(login, { login = it }, label = { Text("Логин (optional)") })
-                OutlinedTextField(password, { password = it }, label = { Text("Пароль (optional)") })
+    var clientId by remember(details.rentalId) { mutableStateOf(details.clientId) }
+    var bikeId by remember(details.rentalId) { mutableStateOf(details.bikeId) }
+    var login by remember(details.rentalId) { mutableStateOf(details.clientLogin.orEmpty()) }
+    var password by remember(details.rentalId) { mutableStateOf(details.clientPassword.orEmpty()) }
+    var periodStart by remember(details.rentalId) { mutableStateOf(details.periodStart) }
+    var periodEnd by remember(details.rentalId) { mutableStateOf(details.periodEnd.orEmpty()) }
+    var videoUrl by remember(details.rentalId) { mutableStateOf(details.videoUrl.orEmpty()) }
+    var contractUrl by remember(details.rentalId) { mutableStateOf(details.contractUrl.orEmpty()) }
+    var comment by remember(details.rentalId) { mutableStateOf(details.comment.orEmpty()) }
+    var toastMessage by remember { mutableStateOf<String?>(null) }
+    var isClientPickerPresented by remember { mutableStateOf(false) }
+    var isBikePickerPresented by remember { mutableStateOf(false) }
+    var draftClientId by remember(details.rentalId) { mutableStateOf(details.clientId) }
+    var draftBikeId by remember(details.rentalId) { mutableStateOf(details.bikeId) }
+    val clipboardManager = LocalClipboardManager.current
+
+    fun fail(message: String) {
+        toastMessage = message
+    }
+
+    fun generateCredentials() {
+        val symbols = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%"
+        password = buildString {
+            repeat(12) { append(symbols.random()) }
+        }
+        if (login.trim().isEmpty()) {
+            login = generateRentalLoginCandidate(clients.firstOrNull { it.clientId == clientId }?.fullName)
+        }
+    }
+
+    fun copyCredentials() {
+        val normalizedLogin = login.trim()
+        val normalizedPassword = password.trim()
+        when {
+            normalizedLogin.isEmpty() && normalizedPassword.isEmpty() -> fail("Заполните логин и пароль")
+            normalizedLogin.isEmpty() -> fail("Заполните логин")
+            normalizedPassword.isEmpty() -> fail("Заполните пароль")
+            else -> {
+                clipboardManager.setText(AnnotatedString("Логин: $normalizedLogin\nПароль: $normalizedPassword"))
+                toastMessage = "Скопировано"
             }
-        },
-        confirmButton = { OutlinedButton(onClick = { onUpdate(rentalId, bikeId, periodStart, periodEnd, login, password) }) { Text("Сохранить") } },
-        dismissButton = { OutlinedButton(onClick = onDismiss) { Text("Отмена") } }
-    )
+        }
+    }
+
+    LaunchedEffect(toastMessage) {
+        if (!toastMessage.isNullOrEmpty()) {
+            delay(2200)
+            toastMessage = null
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(AppDesign.PageBackground)
+            .testTag("edit_rental_sheet")
+    ) {
+        AdminFormSheetScaffold(
+            title = "Ред. аренду",
+            onBack = onDismiss,
+            onSubmit = {
+                val normalizedStart = periodStart.trim()
+                val normalizedEnd = periodEnd.trim()
+                val normalizedLogin = login.trim()
+                val normalizedPassword = password.trim()
+
+                when {
+                    clientId.isBlank() -> fail("Выберите клиента")
+                    bikeId.isBlank() -> fail("Выберите велосипед")
+                    normalizedLogin.isEmpty() || normalizedPassword.isEmpty() -> fail("Укажите логин и пароль клиента")
+                    !isValidApiDate(normalizedStart) -> fail("Дата начала должна быть в формате YYYY-MM-DD")
+                    normalizedEnd.isNotEmpty() && !isValidApiDate(normalizedEnd) -> fail("Дата окончания должна быть в формате YYYY-MM-DD")
+                    normalizedEnd.isNotEmpty() && normalizedEnd < normalizedStart -> fail("Дата окончания не может быть раньше даты начала")
+                    else -> {
+                        val duplicateLoginMessage = validateRentalLoginDuplicate(
+                            clients = clients,
+                            selectedClientId = clientId,
+                            login = normalizedLogin
+                        )
+                        if (duplicateLoginMessage != null) {
+                            fail(duplicateLoginMessage)
+                        } else {
+                            onUpdate(
+                                details.rentalId,
+                                clientId,
+                                bikeId,
+                                normalizedStart,
+                                normalizedEnd,
+                                normalizedLogin,
+                                normalizedPassword,
+                                videoUrl.trim(),
+                                contractUrl.trim(),
+                                comment.trim()
+                            )
+                        }
+                    }
+                }
+            },
+            backTag = "edit_rental_cancel_button",
+            submitTag = "edit_rental_submit_button",
+            horizontalPadding = 8.dp,
+            topBarHeight = 47.dp,
+            topBarTopPadding = 8.dp,
+            contentTopPadding = 14.dp,
+            contentBottomPadding = 26.dp,
+            contentSpacing = 14.dp,
+            titleColor = AppDesign.TitleText
+        ) {
+            AdminFormSectionTitle("КЛИЕНТ И ВЕЛОСИПЕД")
+            AdminSelectorField(
+                label = "КЛИЕНТ",
+                value = clients.firstOrNull { it.clientId == clientId }?.fullName ?: details.clientName.takeIf { it.isNotBlank() },
+                placeholder = "выбрать клаента",
+                testTag = "edit_rental_client_selector",
+                leadingMarkerColor = AppDesign.SheetHandle,
+                onClick = {
+                    draftClientId = clientId
+                    isClientPickerPresented = true
+                }
+            )
+            AdminSelectorField(
+                label = "ВЕЛОСИПЕД",
+                value = bikes.firstOrNull { it.bikeId == bikeId }?.let { "${it.bikeModel} · ${it.weeklyRateRub} ₽/нед" }
+                    ?: details.bikeModel.takeIf { it.isNotBlank() },
+                placeholder = "выбрать · покажет ставку",
+                testTag = "edit_rental_bike_selector",
+                leadingMarkerColor = AppDesign.MarkerSoft,
+                onClick = {
+                    draftBikeId = bikeId
+                    isBikePickerPresented = true
+                }
+            )
+            AdminSheetInputField(
+                label = "ДАТА НАЧАЛА",
+                placeholder = "YYYY-MM-DD",
+                value = periodStart,
+                onValueChange = { periodStart = it },
+                testTag = "edit_rental_start_date_input",
+                keyboardType = KeyboardType.Text
+            )
+            AdminSheetInputField(
+                label = "ДАТА ОКОНЧАНИЯ",
+                placeholder = "не обязательно",
+                value = periodEnd,
+                onValueChange = { periodEnd = it },
+                testTag = "edit_rental_end_date_input",
+                keyboardType = KeyboardType.Text,
+                isDashed = true
+            )
+
+            AdminFormSectionTitle("ДОСТУП КЛИЕНТА", topPadding = 6.dp)
+            AdminSheetInputField(
+                label = "ЛОГИН КЛИЕНТА",
+                placeholder = "введите...",
+                value = login,
+                onValueChange = { login = it },
+                testTag = "edit_rental_login_input",
+                keyboardType = KeyboardType.Text
+            )
+            AdminSheetInputField(
+                label = "ПАРОЛЬ КЛИЕНТА",
+                placeholder = "введите...",
+                value = password,
+                onValueChange = { password = it },
+                testTag = "edit_rental_password_input",
+                keyboardType = KeyboardType.Password
+            )
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = { generateCredentials() },
+                    modifier = Modifier
+                        .width(179.dp)
+                        .height(44.dp)
+                        .testTag("edit_rental_generate_credentials_button"),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AppDesign.Accent,
+                        contentColor = AppDesign.SurfaceBackground
+                    )
+                ) {
+                    Icon(Icons.Filled.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Сгенерировать", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+                OutlinedButton(
+                    onClick = { copyCredentials() },
+                    modifier = Modifier
+                        .width(181.dp)
+                        .height(46.dp)
+                        .testTag("edit_rental_copy_credentials_button"),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(AppDesign.ThinStroke, AppDesign.Accent),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = AppDesign.SurfaceBackground,
+                        contentColor = AppDesign.Accent
+                    )
+                ) {
+                    Icon(Icons.Filled.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Скопировать", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
+
+            AdminFormSectionTitle("ДОКУМЕНТЫ И КОММЕНТАРИЙ", topPadding = 6.dp)
+            AdminSheetInputField(
+                label = "ССЫЛКА НА ВИДЕО",
+                placeholder = "не обязательно",
+                value = videoUrl,
+                onValueChange = { videoUrl = it },
+                testTag = "edit_rental_video_url_input",
+                keyboardType = KeyboardType.Uri,
+                isDashed = true
+            )
+            AdminSheetInputField(
+                label = "ССЫЛКА НА ДОГОВОР",
+                placeholder = "не обязательно",
+                value = contractUrl,
+                onValueChange = { contractUrl = it },
+                testTag = "edit_rental_contract_url_input",
+                keyboardType = KeyboardType.Uri,
+                isDashed = true
+            )
+            AdminSheetInputField(
+                label = "КОММЕНТАРИЙ",
+                placeholder = "не обязательно",
+                value = comment,
+                onValueChange = { comment = it },
+                testTag = "edit_rental_comment_input",
+                keyboardType = KeyboardType.Text,
+                isDashed = true
+            )
+        }
+
+        AppToast(
+            message = toastMessage,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            bottomPadding = 96
+        )
+
+        AnimatedVisibility(
+            visible = isClientPickerPresented,
+            enter = fadeIn(animationSpec = tween(220)) + slideInVertically(initialOffsetY = { it }, animationSpec = tween(220)),
+            exit = fadeOut(animationSpec = tween(180)) + slideOutVertically(targetOffsetY = { it }, animationSpec = tween(180)),
+            modifier = Modifier.fillMaxSize().zIndex(15f)
+        ) {
+            RentalClientPickerSheet(
+                clients = clients,
+                selectedId = draftClientId,
+                onSelect = { draftClientId = it },
+                onClose = { isClientPickerPresented = false },
+                onConfirm = {
+                    clientId = draftClientId
+                    isClientPickerPresented = false
+                },
+                listTag = "edit_rental_client_picker_list"
+            )
+        }
+
+        AnimatedVisibility(
+            visible = isBikePickerPresented,
+            enter = fadeIn(animationSpec = tween(220)) + slideInVertically(initialOffsetY = { it }, animationSpec = tween(220)),
+            exit = fadeOut(animationSpec = tween(180)) + slideOutVertically(targetOffsetY = { it }, animationSpec = tween(180)),
+            modifier = Modifier.fillMaxSize().zIndex(15f)
+        ) {
+            RentalBikePickerSheet(
+                bikes = bikes,
+                selectedId = draftBikeId,
+                onSelect = { draftBikeId = it },
+                onClose = { isBikePickerPresented = false },
+                onConfirm = {
+                    bikeId = draftBikeId
+                    isBikePickerPresented = false
+                },
+                listTag = "edit_rental_bike_picker_list"
+            )
+        }
+    }
+}
+
+private fun validateBikeSerialDuplicates(
+    bikes: List<AdminBikeResponse>,
+    bikeIdToIgnore: String?,
+    frameSerial: String,
+    motorSerial: String,
+    batterySerialNumber1: String,
+    batterySerialNumber2: String?
+): String? {
+    val serialPairs = listOf(
+        "frame" to frameSerial.trim(),
+        "motor" to motorSerial.trim(),
+        "battery1" to batterySerialNumber1.trim(),
+        "battery2" to batterySerialNumber2.orEmpty().trim()
+    ).filter { it.second.isNotEmpty() }
+
+    val normalizedValues = serialPairs.map { it.second.lowercase() }
+    if (normalizedValues.size != normalizedValues.toSet().size) {
+        return "Серийные номера внутри карточки велосипеда должны быть уникальными"
+    }
+
+    serialPairs.forEach { (field, value) ->
+        val duplicate = bikes.firstOrNull { bike ->
+            bike.bikeId != bikeIdToIgnore && bikeContainsSerial(bike, value)
+        }
+        if (duplicate != null) {
+            return when (field) {
+                "frame" -> "Серийный номер рамы уже используется в другом велосипеде"
+                "motor" -> "Серийный номер мотора уже используется в другом велосипеде"
+                "battery1" -> "Серийный номер аккумулятора 1 уже используется в другом велосипеде"
+                "battery2" -> "Серийный номер аккумулятора 2 уже используется в другом велосипеде"
+                else -> "Серийный номер уже используется в другом велосипеде"
+            }
+        }
+    }
+
+    return null
+}
+
+private fun bikeContainsSerial(bike: AdminBikeResponse, serial: String): Boolean {
+    val normalized = serial.trim().lowercase()
+    if (normalized.isEmpty()) return false
+    return bike.frameSerialNumber.lowercase() == normalized ||
+        bike.motorSerialNumber.lowercase() == normalized ||
+        bike.batterySerialNumber1.lowercase() == normalized ||
+        bike.batterySerialNumber2.orEmpty().lowercase() == normalized
+}
+
+private fun validateRentalLoginDuplicate(
+    clients: List<AdminClientSummaryResponse>,
+    selectedClientId: String,
+    login: String
+): String? {
+    val normalizedLogin = login.trim().lowercase()
+    if (normalizedLogin.isEmpty()) return null
+    val duplicate = clients.firstOrNull { client ->
+        client.clientId != selectedClientId &&
+            client.clientLogin.orEmpty().trim().lowercase() == normalizedLogin
+    }
+    return if (duplicate != null) "Логин уже привязан к другому клиенту. Укажите другой логин" else null
+}
+
+private fun isValidApiDate(value: String): Boolean {
+    return runCatching { LocalDate.parse(value, DateTimeFormatter.ISO_LOCAL_DATE) }.isSuccess
+}
+
+private fun generateRentalLoginCandidate(fullName: String?): String {
+    val fromName = fullName
+        ?.trim()
+        ?.lowercase()
+        ?.replace("\\s+".toRegex(), ".")
+        ?.filter { it.isLetterOrDigit() || it == '.' }
+        .orEmpty()
+    return fromName.ifBlank { "client${(1000..9999).random()}" }
+}
+
+private fun uriToBikePhotoDataUrl(context: Context, uri: Uri): String? {
+    return runCatching {
+        val bitmap = context.contentResolver.openInputStream(uri)?.use { input ->
+            BitmapFactory.decodeStream(input)
+        }
+        val bytes = if (bitmap != null) {
+            ByteArrayOutputStream().use { output ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 82, output)
+                output.toByteArray()
+            }
+        } else {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                input.readBytes()
+            } ?: return null
+        }
+        "data:image/jpeg;base64,${Base64.encodeToString(bytes, Base64.NO_WRAP)}"
+    }.getOrNull()
 }
 
 @Composable

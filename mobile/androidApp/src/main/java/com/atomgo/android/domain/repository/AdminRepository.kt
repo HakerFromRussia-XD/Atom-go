@@ -2,6 +2,7 @@ package com.atomgo.android.domain.repository
 
 import com.atomgo.shared.api.AdminBikeResponse
 import com.atomgo.shared.api.AdminClientDetailsResponse
+import com.atomgo.shared.api.AdminClientPhone
 import com.atomgo.shared.api.AdminClientSummaryResponse
 import com.atomgo.shared.api.AdminRentalDetailsResponse
 
@@ -35,7 +36,11 @@ interface AdminRepository {
         bikeId: String,
         login: String,
         password: String,
-        periodStart: String
+        periodStart: String,
+        periodEnd: String?,
+        videoUrl: String?,
+        contractUrl: String?,
+        comment: String?
     )
 
     suspend fun fetchClientDetails(accessToken: String, clientId: String): AdminClientDetailsResponse
@@ -49,14 +54,14 @@ interface AdminRepository {
         fullName: String,
         address: String,
         passportData: String,
-        phoneLabel: String,
-        phoneNumber: String,
+        phones: List<AdminClientPhone>,
         comment: String?
     )
 
     suspend fun updateBike(
         accessToken: String,
         bikeId: String,
+        photoUrl: String?,
         bikeModel: String,
         weeklyRateRub: Int,
         frameSerialNumber: String,
@@ -72,7 +77,10 @@ interface AdminRepository {
         periodStart: String,
         periodEnd: String?,
         login: String?,
-        password: String?
+        password: String?,
+        videoUrl: String?,
+        contractUrl: String?,
+        comment: String?
     )
 
     suspend fun updateRentalPipelineStatus(accessToken: String, rentalId: String, pipelineStatus: String)

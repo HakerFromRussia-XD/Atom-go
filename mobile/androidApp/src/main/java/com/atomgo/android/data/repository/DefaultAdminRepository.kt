@@ -77,7 +77,11 @@ class DefaultAdminRepository : AdminRepository {
         bikeId: String,
         login: String,
         password: String,
-        periodStart: String
+        periodStart: String,
+        periodEnd: String?,
+        videoUrl: String?,
+        contractUrl: String?,
+        comment: String?
     ) {
         apiClient.createAdminRental(
             accessToken = accessToken,
@@ -86,7 +90,11 @@ class DefaultAdminRepository : AdminRepository {
                 bikeId = bikeId,
                 login = login,
                 password = password,
-                periodStart = periodStart
+                periodStart = periodStart,
+                periodEnd = periodEnd,
+                videoUrl = videoUrl,
+                contractUrl = contractUrl,
+                comment = comment
             )
         )
     }
@@ -113,8 +121,7 @@ class DefaultAdminRepository : AdminRepository {
         fullName: String,
         address: String,
         passportData: String,
-        phoneLabel: String,
-        phoneNumber: String,
+        phones: List<AdminClientPhone>,
         comment: String?
     ) {
         apiClient.updateAdminClient(
@@ -124,7 +131,7 @@ class DefaultAdminRepository : AdminRepository {
                 fullName = fullName,
                 address = address,
                 passportData = passportData,
-                phones = listOf(AdminClientPhone(label = phoneLabel, number = phoneNumber)),
+                phones = phones,
                 comment = comment
             )
         )
@@ -133,6 +140,7 @@ class DefaultAdminRepository : AdminRepository {
     override suspend fun updateBike(
         accessToken: String,
         bikeId: String,
+        photoUrl: String?,
         bikeModel: String,
         weeklyRateRub: Int,
         frameSerialNumber: String,
@@ -144,6 +152,7 @@ class DefaultAdminRepository : AdminRepository {
             accessToken = accessToken,
             bikeId = bikeId,
             requestBody = AdminUpdateBikeRequest(
+                photoUrl = photoUrl,
                 bikeModel = bikeModel,
                 weeklyRateRub = weeklyRateRub,
                 frameSerialNumber = frameSerialNumber,
@@ -161,7 +170,10 @@ class DefaultAdminRepository : AdminRepository {
         periodStart: String,
         periodEnd: String?,
         login: String?,
-        password: String?
+        password: String?,
+        videoUrl: String?,
+        contractUrl: String?,
+        comment: String?
     ) {
         apiClient.updateAdminRental(
             accessToken = accessToken,
@@ -171,7 +183,10 @@ class DefaultAdminRepository : AdminRepository {
                 periodStart = periodStart,
                 periodEnd = periodEnd,
                 login = login,
-                password = password
+                password = password,
+                videoUrl = videoUrl,
+                contractUrl = contractUrl,
+                comment = comment
             )
         )
     }
