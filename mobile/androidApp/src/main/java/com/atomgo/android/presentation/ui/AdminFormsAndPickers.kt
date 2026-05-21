@@ -88,6 +88,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
@@ -97,6 +99,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.drawWithContent
@@ -861,10 +864,21 @@ internal fun AdminSheetInputField(
     capitalization: KeyboardCapitalization = KeyboardCapitalization.Sentences,
     isDashed: Boolean = false,
     accentBorder: Boolean = false,
-    borderColor: Color = AppDesign.Accent
+    borderColor: Color = AppDesign.Accent,
+    autoFocus: Boolean = false
 ) {
     val dashedColor = Color(0xFF98A1AD)
     val resolvedBorderColor = if (accentBorder) AppDesign.Accent else borderColor
+    val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(autoFocus) {
+        if (autoFocus) {
+            delay(180)
+            focusRequester.requestFocus()
+            keyboardController?.show()
+        }
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
@@ -907,6 +921,7 @@ internal fun AdminSheetInputField(
                 onValueChange = onValueChange,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .focusRequester(focusRequester)
                     .testTag(testTag),
                 singleLine = true,
                 textStyle = TextStyle(

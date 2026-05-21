@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -2145,10 +2146,13 @@ internal fun AdminRentalDebtAdjustmentDialog(
     onApply: (amountRub: Int, sign: String, comment: String) -> Unit
 ) {
     var amountText by remember { mutableStateOf("") }
-    var selectedSign by remember { mutableStateOf("-") }
+    var selectedSign by remember { mutableStateOf("minus") }
     var toastMessage by remember { mutableStateOf<String?>(null) }
     val overlayInteraction = remember { MutableInteractionSource() }
     val mainTextColor = Color(0xFF1F2937)
+    val density = LocalDensity.current
+    val keyboardBottomDp = with(density) { WindowInsets.ime.getBottom(this).toDp() }
+    val keyboardGap = if (keyboardBottomDp > 0.dp) 16.dp else 0.dp
 
     LaunchedEffect(toastMessage) {
         if (!toastMessage.isNullOrBlank()) {
@@ -2161,104 +2165,120 @@ internal fun AdminRentalDebtAdjustmentDialog(
         modifier = Modifier
             .fillMaxSize()
             .zIndex(40f)
-            .clickable(
-                interactionSource = overlayInteraction,
-                indication = null,
-                onClick = {}
-            )
             .background(Color.Black.copy(alpha = 0.08f))
-            .testTag("admin_rental_adjustment_sheet"),
-        contentAlignment = Alignment.BottomCenter
+            .testTag("admin_rental_adjustment_sheet")
     ) {
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-            color = Color.White,
-            shadowElevation = 12.dp
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clickable(
+                    interactionSource = overlayInteraction,
+                    indication = null,
+                    onClick = {}
+                )
+                .zIndex(0f)
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .imePadding()
+                .padding(bottom = keyboardGap)
+                .zIndex(1f),
+            contentAlignment = Alignment.BottomCenter
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 23.dp)
-                    .padding(top = 14.dp, bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                color = Color.White,
+                shadowElevation = 12.dp
             ) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.CenterHorizontally)
-                        .width(40.dp)
-                        .height(4.dp)
-                        .background(Color(0xFFD2D5DA), RoundedCornerShape(999.dp))
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = title,
-                        color = mainTextColor,
-                        fontSize = 15.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1
-                    )
-                    Spacer(Modifier.weight(1f))
-                    TextButton(onClick = onDismiss) {
-                        Text("Закрыть ✕", color = AppDesign.SubtleText, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                    }
-                }
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(54.dp)
-                        .background(Color(0xFFEDEFF4), RoundedCornerShape(16.dp))
-                        .padding(4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        .padding(horizontal = 23.dp)
+                        .padding(top = 14.dp, bottom = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    AdjustmentSegmentButton(
-                        title = "– Уменьшить",
-                        selected = selectedSign == "-",
-                        onClick = { selectedSign = "-" },
-                        modifier = Modifier.weight(1f)
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .width(40.dp)
+                            .height(4.dp)
+                            .background(Color(0xFFD2D5DA), RoundedCornerShape(999.dp))
                     )
-                    AdjustmentSegmentButton(
-                        title = "+ Увеличить",
-                        selected = selectedSign == "+",
-                        onClick = { selectedSign = "+" },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                AdminSheetInputField(
-                    label = "СУММА, ₽",
-                    placeholder = "введите...",
-                    value = amountText,
-                    onValueChange = { amountText = it.filter { ch -> ch.isDigit() } },
-                    testTag = "debt_adjustment_amount_input",
-                    keyboardType = KeyboardType.Number,
-                    borderColor = mainTextColor
-                )
-                Button(
-                    onClick = {
-                        val amount = amountText.toIntOrNull() ?: 0
-                        if (amount <= 0) {
-                            toastMessage = "Введите положительную сумму"
-                            return@Button
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = title,
+                            color = mainTextColor,
+                            fontSize = 15.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
+                        Spacer(Modifier.weight(1f))
+                        TextButton(onClick = onDismiss) {
+                            Text("Закрыть ✕", color = AppDesign.SubtleText, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                         }
-                        onApply(amount, selectedSign, "")
-                    },
-                    shape = RoundedCornerShape(18.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = mainTextColor,
-                        contentColor = Color.White
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(63.dp)
-                        .testTag("debt_adjustment_apply_button")
-                ) {
-                    Text("Применить", fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.28.sp)
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(54.dp)
+                            .background(Color(0xFFEDEFF4), RoundedCornerShape(16.dp))
+                            .padding(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        AdjustmentSegmentButton(
+                            title = "– Уменьшить",
+                            selected = selectedSign == "minus",
+                            onClick = { selectedSign = "minus" },
+                            modifier = Modifier.weight(1f)
+                        )
+                        AdjustmentSegmentButton(
+                            title = "+ Увеличить",
+                            selected = selectedSign == "plus",
+                            onClick = { selectedSign = "plus" },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    AdminSheetInputField(
+                        label = "СУММА, ₽",
+                        placeholder = "введите...",
+                        value = amountText,
+                        onValueChange = { amountText = it.filter { ch -> ch.isDigit() } },
+                        testTag = "debt_adjustment_amount_input",
+                        keyboardType = KeyboardType.Number,
+                        borderColor = mainTextColor,
+                        autoFocus = true
+                    )
+                    Button(
+                        onClick = {
+                            val amount = amountText.toIntOrNull() ?: 0
+                            if (amount <= 0) {
+                                toastMessage = "Введите положительную сумму"
+                                return@Button
+                            }
+                            onApply(amount, selectedSign, "")
+                        },
+                        shape = RoundedCornerShape(18.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = mainTextColor,
+                            contentColor = Color.White
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(63.dp)
+                            .testTag("debt_adjustment_apply_button")
+                    ) {
+                        Text("Применить", fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.28.sp)
+                    }
                 }
             }
         }
         AppToast(
             message = toastMessage,
-            modifier = Modifier.align(Alignment.BottomCenter),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .zIndex(2f),
             bottomPadding = 96
         )
     }
