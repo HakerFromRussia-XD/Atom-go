@@ -1,6 +1,8 @@
-package com.atomgo.android
+package com.atomgo.android.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
+import com.atomgo.android.presentation.model.AppRoute
+import com.atomgo.android.presentation.model.AuthSession
 import com.atomgo.shared.api.UserRole
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

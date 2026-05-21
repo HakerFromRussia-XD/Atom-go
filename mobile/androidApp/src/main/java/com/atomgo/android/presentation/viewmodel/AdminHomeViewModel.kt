@@ -1,4 +1,4 @@
-package com.atomgo.android
+package com.atomgo.android.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope

@@ -1,6 +1,7 @@
 package com.atomgo.android
 
 import com.atomgo.android.domain.repository.ClientRepository
+import com.atomgo.android.presentation.viewmodel.ClientHomeViewModel
 import com.atomgo.shared.api.ClientDashboardResponse
 import com.atomgo.shared.api.ClientPaymentPresetsResponse
 import com.atomgo.shared.api.CreatePaymentResponse

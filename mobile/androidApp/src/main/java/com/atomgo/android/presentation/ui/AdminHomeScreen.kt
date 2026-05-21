@@ -1,4 +1,4 @@
-package com.atomgo.android
+package com.atomgo.android.presentation.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
@@ -117,6 +117,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.atomgo.android.AppDesign
+import com.atomgo.android.ClientPaymentType
+import com.atomgo.android.R
+import com.atomgo.android.presentation.logic.AdminCatalogFilterEngine
+import com.atomgo.android.presentation.model.*
+import com.atomgo.android.presentation.viewmodel.*
 import com.atomgo.shared.api.AdminBikeResponse
 import com.atomgo.shared.api.AdminClientSummaryResponse
 import com.atomgo.shared.api.AdminClientDetailsResponse
@@ -126,49 +132,6 @@ import kotlinx.coroutines.delay
 import java.text.DecimalFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-internal enum class AdminRentFilter {
-    All,
-    SoonReturn,
-    Debtors,
-    Mine
-}
-
-internal enum class AdminClientFilter {
-    All,
-    Debtors,
-    Active
-}
-
-internal enum class AdminBikeFilter {
-    All,
-    Free,
-    Rented
-}
-
-internal enum class AdminHomeTab {
-    Rents,
-    Clients,
-    Bikes
-}
-
-internal data class AdminFilterCounters(
-    val all: Int,
-    val soonReturn: Int,
-    val debtors: Int,
-    val mine: Int
-)
-
-internal data class AdminClientFilterCounters(
-    val all: Int,
-    val debtors: Int,
-    val active: Int
-)
-
-internal data class AdminBikeFilterCounters(
-    val all: Int,
-    val free: Int,
-    val rented: Int
-)
 
 internal data class RentStatusPill(
     val title: String,

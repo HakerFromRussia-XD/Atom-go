@@ -1,10 +1,9 @@
-package com.atomgo.android
+package com.atomgo.android.presentation.viewmodel
 
-import android.app.Application
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.atomgo.android.data.repository.DefaultAuthRepository
-import com.atomgo.android.domain.repository.AuthRepository
+import com.atomgo.android.domain.usecase.AuthUseCases
+import com.atomgo.android.presentation.model.AuthSession
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,8 +22,9 @@ data class LoginUiState(
     }
 }
 
-class LoginViewModel(application: Application) : AndroidViewModel(application) {
-    private val authRepository: AuthRepository = DefaultAuthRepository(application)
+class LoginViewModel(
+    private val authUseCases: AuthUseCases
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(initialState())
     val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
@@ -34,7 +34,7 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setRememberMe(enabled: Boolean) {
         _uiState.update { it.copy(rememberMe = enabled) }
-        authRepository.setRememberMe(enabled)
+        authUseCases.setRememberMe(enabled)
     }
 
     fun signIn(onAuthenticated: (AuthSession) -> Unit) {
@@ -49,9 +49,9 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(statusText = "Статус: выполняю вход...", isLoading = true) }
         viewModelScope.launch {
             try {
-                val session = authRepository.login(login, password)
+                val session = authUseCases.login(login = login, password = password)
                 if (_uiState.value.rememberMe) {
-                    authRepository.saveCredentials(login = login, password = password)
+                    authUseCases.saveCredentials(login = login, password = password)
                 }
                 _uiState.update {
                     it.copy(
@@ -71,7 +71,7 @@ class LoginViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun initialState(): LoginUiState {
-        val rememberState = authRepository.readRememberState()
+        val rememberState = authUseCases.readRememberState()
         return LoginUiState(
             login = rememberState.login,
             password = rememberState.password,

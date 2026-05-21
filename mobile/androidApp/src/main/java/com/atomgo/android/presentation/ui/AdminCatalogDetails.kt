@@ -1,4 +1,4 @@
-package com.atomgo.android
+package com.atomgo.android.presentation.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
@@ -117,6 +117,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.atomgo.android.AppDesign
+import com.atomgo.android.ClientPaymentType
+import com.atomgo.android.R
+import com.atomgo.android.presentation.model.*
+import com.atomgo.android.presentation.viewmodel.*
 import com.atomgo.shared.api.AdminBikeResponse
 import com.atomgo.shared.api.AdminClientSummaryResponse
 import com.atomgo.shared.api.AdminClientDetailsResponse
@@ -1770,10 +1775,6 @@ internal fun normalizeCatalogBikeModel(rawValue: String): String {
 }
 
 internal fun normalizeCatalogSearchText(value: String): String = value.trim().lowercase()
-
-internal fun normalizedPipelineStatus(value: String?): String {
-    return value.orEmpty().trim().lowercase()
-}
 
 internal fun shortPaidUntilText(paidUntilRaw: String?): String? {
     val value = paidUntilRaw?.trim().orEmpty()

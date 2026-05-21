@@ -1,22 +1,21 @@
-package com.atomgo.android
+package com.atomgo.android.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.atomgo.android.data.repository.DefaultClientRepository
-import com.atomgo.android.domain.repository.ClientRepository
+import com.atomgo.android.domain.usecase.ClientUseCases
 import com.atomgo.shared.api.ClientDashboardResponse
 import com.atomgo.shared.api.CreatePaymentResponse
 import com.atomgo.shared.api.PaymentStatusResponse
 import kotlinx.coroutines.launch
 
 class ClientHomeViewModel(
-    private val clientRepository: ClientRepository = DefaultClientRepository()
+    private val clientUseCases: ClientUseCases
 ) : ViewModel() {
 
     fun fetchClientDashboard(accessToken: String, onResult: (Result<ClientDashboardResponse>) -> Unit) {
         viewModelScope.launch {
             runCatching {
-                clientRepository.fetchDashboard(accessToken)
+                clientUseCases.fetchDashboard(accessToken = accessToken)
             }.also(onResult)
         }
     }
@@ -29,7 +28,7 @@ class ClientHomeViewModel(
     ) {
         viewModelScope.launch {
             runCatching {
-                clientRepository.createPayment(
+                clientUseCases.createPayment(
                     accessToken = accessToken,
                     paymentType = paymentType,
                     receiptEmail = receiptEmail
@@ -45,7 +44,7 @@ class ClientHomeViewModel(
     ) {
         viewModelScope.launch {
             runCatching {
-                clientRepository.fetchPaymentStatus(accessToken = accessToken, paymentId = paymentId)
+                clientUseCases.fetchPaymentStatus(accessToken = accessToken, paymentId = paymentId)
             }.also(onResult)
         }
     }

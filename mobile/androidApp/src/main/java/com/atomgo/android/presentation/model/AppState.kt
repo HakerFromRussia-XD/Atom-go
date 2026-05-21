@@ -1,4 +1,4 @@
-package com.atomgo.android
+package com.atomgo.android.presentation.model
 
 import androidx.compose.runtime.Immutable
 import com.atomgo.shared.api.UserRole
