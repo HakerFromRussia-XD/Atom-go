@@ -123,7 +123,6 @@ import com.atomgo.shared.api.AdminClientDetailsResponse
 import com.atomgo.shared.api.AdminRentalHistoryItemResponse
 import com.atomgo.shared.api.ClientDashboardResponse
 import kotlinx.coroutines.delay
-import java.text.DecimalFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 

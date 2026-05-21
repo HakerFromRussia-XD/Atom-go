@@ -5,7 +5,6 @@ import com.atomgo.android.AppDesign
 import com.atomgo.shared.api.AdminBikeResponse
 import com.atomgo.shared.api.AdminClientDetailsResponse
 import com.atomgo.shared.api.AdminClientSummaryResponse
-import java.text.DecimalFormat
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
@@ -106,7 +105,26 @@ internal fun shortPaidUntilText(paidUntilRaw: String?): String? {
 }
 
 internal fun formatRubAmount(value: Int): String {
-    return DecimalFormat("#,###").format(value).replace(',', ' ')
+    val raw = value.toString()
+    val signOffset = if (raw.startsWith("-")) 1 else 0
+    val digitCount = raw.length - signOffset
+    if (digitCount <= 3) return raw
+
+    val firstGroupSize = digitCount % 3
+    return buildString(raw.length + digitCount / 3) {
+        if (signOffset == 1) append('-')
+        var index = signOffset
+        if (firstGroupSize > 0) {
+            append(raw, index, index + firstGroupSize)
+            index += firstGroupSize
+            if (index < raw.length) append(' ')
+        }
+        while (index < raw.length) {
+            append(raw, index, index + 3)
+            index += 3
+            if (index < raw.length) append(' ')
+        }
+    }
 }
 
 internal val ruShortMonths = listOf("янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек")

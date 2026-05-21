@@ -102,7 +102,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -139,15 +139,18 @@ import com.atomgo.shared.api.AdminRentalHistoryItemResponse
 import com.atomgo.shared.api.AdminRentalJournalEntryResponse
 import com.atomgo.shared.api.ClientDashboardResponse
 import kotlinx.coroutines.delay
-import java.text.DecimalFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+
+private val AdminCatalogRowShape = RoundedCornerShape(15.dp)
+private val AdminCatalogAvatarShape = RoundedCornerShape(12.dp)
+private val AdminCatalogCallShape = RoundedCornerShape(12.dp)
 
 internal fun Modifier.adminCatalogListSegmentFrame(
     index: Int,
     lastIndex: Int
 ): Modifier {
-    return drawBehind {
+    return drawWithCache {
         val strokeWidth = AppDesign.HairlineStroke.toPx()
         val halfStroke = strokeWidth / 2f
         val radius = 15.dp.toPx()
@@ -155,109 +158,111 @@ internal fun Modifier.adminCatalogListSegmentFrame(
         val isFirst = index == 0
         val isLast = index == lastIndex
 
-        when {
-            isFirst && isLast -> drawRoundRect(
-                color = AppDesign.BlackHaze,
-                topLeft = Offset.Zero,
-                size = size,
-                cornerRadius = corner
-            )
-            isFirst -> drawRoundRect(
-                color = AppDesign.BlackHaze,
-                topLeft = Offset.Zero,
-                size = Size(size.width, size.height + radius),
-                cornerRadius = corner
-            )
-            isLast -> drawRoundRect(
-                color = AppDesign.BlackHaze,
-                topLeft = Offset(0f, -radius),
-                size = Size(size.width, size.height + radius),
-                cornerRadius = corner
-            )
-            else -> drawRect(color = AppDesign.BlackHaze)
-        }
+        onDrawBehind {
+            when {
+                isFirst && isLast -> drawRoundRect(
+                    color = AppDesign.BlackHaze,
+                    topLeft = Offset.Zero,
+                    size = size,
+                    cornerRadius = corner
+                )
+                isFirst -> drawRoundRect(
+                    color = AppDesign.BlackHaze,
+                    topLeft = Offset.Zero,
+                    size = Size(size.width, size.height + radius),
+                    cornerRadius = corner
+                )
+                isLast -> drawRoundRect(
+                    color = AppDesign.BlackHaze,
+                    topLeft = Offset(0f, -radius),
+                    size = Size(size.width, size.height + radius),
+                    cornerRadius = corner
+                )
+                else -> drawRect(color = AppDesign.BlackHaze)
+            }
 
-        if (isFirst && isLast) {
-            drawRoundRect(
-                color = AppDesign.Accent,
-                topLeft = Offset(halfStroke, halfStroke),
-                size = Size(size.width - strokeWidth, size.height - strokeWidth),
-                cornerRadius = CornerRadius(radius - halfStroke, radius - halfStroke),
-                style = Stroke(strokeWidth)
-            )
-            return@drawBehind
-        }
+            if (isFirst && isLast) {
+                drawRoundRect(
+                    color = AppDesign.Accent,
+                    topLeft = Offset(halfStroke, halfStroke),
+                    size = Size(size.width - strokeWidth, size.height - strokeWidth),
+                    cornerRadius = CornerRadius(radius - halfStroke, radius - halfStroke),
+                    style = Stroke(strokeWidth)
+                )
+                return@onDrawBehind
+            }
 
-        val leftX = halfStroke
-        val rightX = size.width - halfStroke
-        val topY = halfStroke
-        val bottomY = size.height - halfStroke
+            val leftX = halfStroke
+            val rightX = size.width - halfStroke
+            val topY = halfStroke
+            val bottomY = size.height - halfStroke
 
-        if (isFirst) {
+            if (isFirst) {
+                drawLine(
+                    color = AppDesign.Accent,
+                    start = Offset(radius, topY),
+                    end = Offset(size.width - radius, topY),
+                    strokeWidth = strokeWidth
+                )
+                drawArc(
+                    color = AppDesign.Accent,
+                    startAngle = 180f,
+                    sweepAngle = 90f,
+                    useCenter = false,
+                    topLeft = Offset(halfStroke, halfStroke),
+                    size = Size(radius * 2f - strokeWidth, radius * 2f - strokeWidth),
+                    style = Stroke(strokeWidth)
+                )
+                drawArc(
+                    color = AppDesign.Accent,
+                    startAngle = 270f,
+                    sweepAngle = 90f,
+                    useCenter = false,
+                    topLeft = Offset(size.width - radius * 2f + halfStroke, halfStroke),
+                    size = Size(radius * 2f - strokeWidth, radius * 2f - strokeWidth),
+                    style = Stroke(strokeWidth)
+                )
+            }
+
             drawLine(
                 color = AppDesign.Accent,
-                start = Offset(radius, topY),
-                end = Offset(size.width - radius, topY),
+                start = Offset(leftX, if (isFirst) radius else 0f),
+                end = Offset(leftX, if (isLast) size.height - radius else size.height),
                 strokeWidth = strokeWidth
             )
-            drawArc(
-                color = AppDesign.Accent,
-                startAngle = 180f,
-                sweepAngle = 90f,
-                useCenter = false,
-                topLeft = Offset(halfStroke, halfStroke),
-                size = Size(radius * 2f - strokeWidth, radius * 2f - strokeWidth),
-                style = Stroke(strokeWidth)
-            )
-            drawArc(
-                color = AppDesign.Accent,
-                startAngle = 270f,
-                sweepAngle = 90f,
-                useCenter = false,
-                topLeft = Offset(size.width - radius * 2f + halfStroke, halfStroke),
-                size = Size(radius * 2f - strokeWidth, radius * 2f - strokeWidth),
-                style = Stroke(strokeWidth)
-            )
-        }
-
-        drawLine(
-            color = AppDesign.Accent,
-            start = Offset(leftX, if (isFirst) radius else 0f),
-            end = Offset(leftX, if (isLast) size.height - radius else size.height),
-            strokeWidth = strokeWidth
-        )
-        drawLine(
-            color = AppDesign.Accent,
-            start = Offset(rightX, if (isFirst) radius else 0f),
-            end = Offset(rightX, if (isLast) size.height - radius else size.height),
-            strokeWidth = strokeWidth
-        )
-
-        if (isLast) {
             drawLine(
                 color = AppDesign.Accent,
-                start = Offset(radius, bottomY),
-                end = Offset(size.width - radius, bottomY),
+                start = Offset(rightX, if (isFirst) radius else 0f),
+                end = Offset(rightX, if (isLast) size.height - radius else size.height),
                 strokeWidth = strokeWidth
             )
-            drawArc(
-                color = AppDesign.Accent,
-                startAngle = 90f,
-                sweepAngle = 90f,
-                useCenter = false,
-                topLeft = Offset(halfStroke, size.height - radius * 2f + halfStroke),
-                size = Size(radius * 2f - strokeWidth, radius * 2f - strokeWidth),
-                style = Stroke(strokeWidth)
-            )
-            drawArc(
-                color = AppDesign.Accent,
-                startAngle = 0f,
-                sweepAngle = 90f,
-                useCenter = false,
-                topLeft = Offset(size.width - radius * 2f + halfStroke, size.height - radius * 2f + halfStroke),
-                size = Size(radius * 2f - strokeWidth, radius * 2f - strokeWidth),
-                style = Stroke(strokeWidth)
-            )
+
+            if (isLast) {
+                drawLine(
+                    color = AppDesign.Accent,
+                    start = Offset(radius, bottomY),
+                    end = Offset(size.width - radius, bottomY),
+                    strokeWidth = strokeWidth
+                )
+                drawArc(
+                    color = AppDesign.Accent,
+                    startAngle = 90f,
+                    sweepAngle = 90f,
+                    useCenter = false,
+                    topLeft = Offset(halfStroke, size.height - radius * 2f + halfStroke),
+                    size = Size(radius * 2f - strokeWidth, radius * 2f - strokeWidth),
+                    style = Stroke(strokeWidth)
+                )
+                drawArc(
+                    color = AppDesign.Accent,
+                    startAngle = 0f,
+                    sweepAngle = 90f,
+                    useCenter = false,
+                    topLeft = Offset(size.width - radius * 2f + halfStroke, size.height - radius * 2f + halfStroke),
+                    size = Size(radius * 2f - strokeWidth, radius * 2f - strokeWidth),
+                    style = Stroke(strokeWidth)
+                )
+            }
         }
     }
 }
@@ -745,14 +750,12 @@ internal fun AdminClientCatalogRow(
     val uriHandler = LocalUriHandler.current
     val telUri = remember(item.primaryPhone) { telUriString(item.primaryPhone) }
     val isCallEnabled = telUri != null
-    val rowShape = RoundedCornerShape(15.dp)
-    val callShape = RoundedCornerShape(12.dp)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(60.dp)
-            .adminClickable(shape = rowShape, onClick = onClick)
+            .adminClickable(shape = AdminCatalogRowShape, onClick = onClick)
             .padding(horizontal = 9.dp)
             .testTag(if (isFirst) "admin_client_row_first" else "admin_client_row_${item.clientId}"),
         verticalAlignment = Alignment.CenterVertically
@@ -760,12 +763,12 @@ internal fun AdminClientCatalogRow(
         Box(
             modifier = Modifier
                 .size(36.dp)
-                .adminClickable(shape = callShape, enabled = isCallEnabled) {
+                .adminClickable(shape = AdminCatalogCallShape, enabled = isCallEnabled) {
                     telUri?.let(uriHandler::openUri)
                 }
                 .alpha(if (isCallEnabled) 1f else 0.45f)
-                .background(AppDesign.SurfaceBackground, callShape)
-                .border(AppDesign.ThinStroke, AppDesign.PaidGreen, callShape),
+                .background(AppDesign.SurfaceBackground, AdminCatalogCallShape)
+                .border(AppDesign.ThinStroke, AppDesign.PaidGreen, AdminCatalogCallShape),
             contentAlignment = Alignment.Center
         ) {
             Icon(
@@ -2260,23 +2263,22 @@ internal fun AdminBikeCatalogRow(
     runtime: BikeCatalogRuntimeSnapshot,
     onClick: () -> Unit
 ) {
-    val rowShape = RoundedCornerShape(15.dp)
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(77.dp)
-            .adminClickable(shape = rowShape, onClick = onClick)
+            .adminClickable(shape = AdminCatalogRowShape, onClick = onClick)
             .padding(horizontal = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
                 .size(59.dp)
-                .background(AppDesign.Placeholder, RoundedCornerShape(12.dp))
+                .background(AppDesign.Placeholder, AdminCatalogAvatarShape)
                 .border(
                     width = AppDesign.EmphasisStroke,
                     color = runtime.borderColor,
-                    shape = RoundedCornerShape(12.dp)
+                    shape = AdminCatalogAvatarShape
                 )
         ) {
             Icon(
@@ -2338,18 +2340,12 @@ internal fun AdminRentCard(
     val status = rentStatus(item)
     val avatarTag = if (isFirst) "admin_rent_card_avatar_first" else "admin_rent_card_avatar_${item.rentalId ?: item.clientId}"
     var isPipelineMenuOpen by remember(item.rentalId, item.clientId) { mutableStateOf(false) }
-    val normalizedPipelineStatus = item.rentalPipelineStatus.orEmpty().trim().lowercase()
-    val isLongTermSelected = item.rentalIsActive && normalizedPipelineStatus != "soon_return"
-    val isSoonReturnSelected = item.rentalIsActive && normalizedPipelineStatus == "soon_return"
-    val isMineSelected = !item.rentalIsActive
-    val rowShape = RoundedCornerShape(15.dp)
-    val avatarShape = RoundedCornerShape(12.dp)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(77.dp)
-            .adminClickable(shape = rowShape) { onDetails() }
+            .adminClickable(shape = AdminCatalogRowShape) { onDetails() }
             .padding(horizontal = 9.dp)
             .testTag(if (isFirst) "admin_rent_card_first" else "admin_rent_card_${item.rentalId ?: item.clientId}"),
         verticalAlignment = Alignment.CenterVertically
@@ -2358,13 +2354,13 @@ internal fun AdminRentCard(
             Box(
                 modifier = Modifier
                     .size(59.dp)
-                    .adminClickable(shape = avatarShape) { isPipelineMenuOpen = true }
+                    .adminClickable(shape = AdminCatalogAvatarShape) { isPipelineMenuOpen = true }
                     .testTag(avatarTag)
-                    .background(AppDesign.Placeholder, avatarShape)
+                    .background(AppDesign.Placeholder, AdminCatalogAvatarShape)
                     .border(
                         width = AppDesign.EmphasisStroke,
                         color = avatarBorderColor(item),
-                        shape = avatarShape
+                        shape = AdminCatalogAvatarShape
                     )
             ) {
                 Icon(
@@ -2376,37 +2372,44 @@ internal fun AdminRentCard(
                         .size(32.dp)
                 )
             }
-            androidx.compose.material3.DropdownMenu(
-                expanded = isPipelineMenuOpen,
-                onDismissRequest = { isPipelineMenuOpen = false }
-            ) {
-                androidx.compose.material3.DropdownMenuItem(
-                    text = { Text("Долгосрочная аренда") },
-                    modifier = Modifier.testTag("admin_pipeline_mode_long_term"),
-                    onClick = {
-                        isPipelineMenuOpen = false
-                        onSetLongTerm()
-                    },
-                    enabled = item.rentalIsActive && !isLongTermSelected
-                )
-                androidx.compose.material3.DropdownMenuItem(
-                    text = { Text("Вернут в течении недели") },
-                    modifier = Modifier.testTag("admin_pipeline_mode_soon_return"),
-                    onClick = {
-                        isPipelineMenuOpen = false
-                        onSetSoonReturn()
-                    },
-                    enabled = item.rentalIsActive && !isSoonReturnSelected
-                )
-                androidx.compose.material3.DropdownMenuItem(
-                    text = { Text("Велосипед у меня") },
-                    modifier = Modifier.testTag("admin_pipeline_mode_mine"),
-                    onClick = {
-                        isPipelineMenuOpen = false
-                        onSetMine()
-                    },
-                    enabled = item.rentalIsActive && !isMineSelected
-                )
+            if (isPipelineMenuOpen) {
+                val normalizedPipelineStatus = item.rentalPipelineStatus.orEmpty().trim().lowercase()
+                val isLongTermSelected = item.rentalIsActive && normalizedPipelineStatus != "soon_return"
+                val isSoonReturnSelected = item.rentalIsActive && normalizedPipelineStatus == "soon_return"
+                val isMineSelected = !item.rentalIsActive
+
+                androidx.compose.material3.DropdownMenu(
+                    expanded = true,
+                    onDismissRequest = { isPipelineMenuOpen = false }
+                ) {
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text("Долгосрочная аренда") },
+                        modifier = Modifier.testTag("admin_pipeline_mode_long_term"),
+                        onClick = {
+                            isPipelineMenuOpen = false
+                            onSetLongTerm()
+                        },
+                        enabled = item.rentalIsActive && !isLongTermSelected
+                    )
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text("Вернут в течении недели") },
+                        modifier = Modifier.testTag("admin_pipeline_mode_soon_return"),
+                        onClick = {
+                            isPipelineMenuOpen = false
+                            onSetSoonReturn()
+                        },
+                        enabled = item.rentalIsActive && !isSoonReturnSelected
+                    )
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text("Велосипед у меня") },
+                        modifier = Modifier.testTag("admin_pipeline_mode_mine"),
+                        onClick = {
+                            isPipelineMenuOpen = false
+                            onSetMine()
+                        },
+                        enabled = item.rentalIsActive && !isMineSelected
+                    )
+                }
             }
         }
 
