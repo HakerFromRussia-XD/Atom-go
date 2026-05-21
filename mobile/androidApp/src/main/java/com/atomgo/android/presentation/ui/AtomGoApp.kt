@@ -99,6 +99,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.drawWithContent
@@ -147,6 +148,18 @@ fun AtomGoApp(
     adminHomeViewModel: AdminHomeViewModel
 ) {
     val route by appViewModel.route.collectAsStateWithLifecycle()
+    val focusManager = LocalFocusManager.current
+    var lastInsideRoute by remember { mutableStateOf<AppRoute?>(null) }
+    val activeInsideRoute = route.takeIf { it.isInsideRoute() }
+    val insideVisible = activeInsideRoute != null
+
+    LaunchedEffect(activeInsideRoute) {
+        if (activeInsideRoute != null) {
+            focusManager.clearFocus(force = true)
+            lastInsideRoute = activeInsideRoute
+        }
+    }
+
     Surface(modifier = Modifier.fillMaxSize(), color = AppDesign.PageBackground) {
         when (val current = route) {
             AppRoute.Launching -> {
@@ -161,19 +174,48 @@ fun AtomGoApp(
                 }
             }
 
-            AppRoute.Login -> LoginScreen(loginViewModel = loginViewModel, onAuthenticated = appViewModel::onAuthenticated)
-            is AppRoute.ClientHome -> ClientHomeScreen(
-                session = current.session,
-                clientHomeViewModel = clientHomeViewModel,
-                onLogout = { appViewModel.logout(loginViewModel::resetForNextLogin) }
-            )
-            is AppRoute.AdminHome -> AdminHomeScreen(
-                session = current.session,
-                adminHomeViewModel = adminHomeViewModel,
-                onLogout = { appViewModel.logout(loginViewModel::resetForNextLogin) }
-            )
+            else -> {
+                Box(Modifier.fillMaxSize()) {
+                    LoginScreen(
+                        loginViewModel = loginViewModel,
+                        onAuthenticated = appViewModel::onAuthenticated,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .zIndex(1f)
+                            .motoricaUnderlyingOffset(
+                                active = insideVisible,
+                                label = "rootLoginUnderlyingOffset"
+                            )
+                    )
+
+                    MotoricaStackVisibility(
+                        visible = insideVisible,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .zIndex(2f)
+                    ) {
+                        when (val insideRoute = activeInsideRoute ?: lastInsideRoute) {
+                            is AppRoute.ClientHome -> ClientHomeScreen(
+                                session = insideRoute.session,
+                                clientHomeViewModel = clientHomeViewModel,
+                                onLogout = { appViewModel.logout(loginViewModel::resetForNextLogin) }
+                            )
+                            is AppRoute.AdminHome -> AdminHomeScreen(
+                                session = insideRoute.session,
+                                adminHomeViewModel = adminHomeViewModel,
+                                onLogout = { appViewModel.logout(loginViewModel::resetForNextLogin) }
+                            )
+                            else -> Unit
+                        }
+                    }
+                }
+            }
         }
     }
+}
+
+private fun AppRoute.isInsideRoute(): Boolean {
+    return this is AppRoute.ClientHome || this is AppRoute.AdminHome
 }
 
 @Composable
@@ -398,7 +440,8 @@ private fun requiresClientReceiptEmailBeforePayment(dashboard: ClientDashboardRe
 @Composable
 private fun LoginScreen(
     loginViewModel: LoginViewModel,
-    onAuthenticated: (AuthSession) -> Unit
+    onAuthenticated: (AuthSession) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val state by loginViewModel.uiState.collectAsStateWithLifecycle()
     var showPassword by remember { mutableStateOf(false) }
@@ -415,7 +458,7 @@ private fun LoginScreen(
         }
     }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val poppins = FontFamily(Font(R.font.poppins_medium, FontWeight.Medium))
         val urbanist = FontFamily(Font(R.font.urbanist_variable, FontWeight.Bold))
         val density = LocalDensity.current
