@@ -2,21 +2,20 @@ package com.atomgo.android.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.atomgo.android.data.repository.DefaultAdminRepository
-import com.atomgo.android.domain.repository.AdminRepository
+import com.atomgo.android.domain.usecase.AdminUseCases
 import com.atomgo.shared.api.AdminBikeResponse
 import com.atomgo.shared.api.AdminClientDetailsResponse
 import com.atomgo.shared.api.AdminClientSummaryResponse
 import kotlinx.coroutines.launch
 
 class AdminHomeViewModel(
-    private val adminRepository: AdminRepository = DefaultAdminRepository()
+    private val adminUseCases: AdminUseCases
 ) : ViewModel() {
 
     fun fetchAdminRents(accessToken: String, onResult: (Result<List<AdminClientSummaryResponse>>) -> Unit) {
         viewModelScope.launch {
             runCatching {
-                adminRepository.fetchRents(accessToken)
+                adminUseCases.fetchRents(accessToken)
             }.also(onResult)
         }
     }
@@ -24,7 +23,7 @@ class AdminHomeViewModel(
     fun fetchAdminClients(accessToken: String, onResult: (Result<List<AdminClientSummaryResponse>>) -> Unit) {
         viewModelScope.launch {
             runCatching {
-                adminRepository.fetchClients(accessToken)
+                adminUseCases.fetchClients(accessToken)
             }.also(onResult)
         }
     }
@@ -32,7 +31,7 @@ class AdminHomeViewModel(
     fun fetchAdminBikes(accessToken: String, onResult: (Result<List<AdminBikeResponse>>) -> Unit) {
         viewModelScope.launch {
             runCatching {
-                adminRepository.fetchBikes(accessToken)
+                adminUseCases.fetchBikes(accessToken)
             }.also(onResult)
         }
     }
@@ -48,7 +47,7 @@ class AdminHomeViewModel(
     ) {
         viewModelScope.launch {
             runCatching {
-                adminRepository.createClient(
+                adminUseCases.createClient(
                     accessToken = accessToken,
                     fullName = fullName,
                     address = address,
@@ -72,7 +71,7 @@ class AdminHomeViewModel(
     ) {
         viewModelScope.launch {
             runCatching {
-                adminRepository.createBike(
+                adminUseCases.createBike(
                     accessToken = accessToken,
                     bikeModel = bikeModel,
                     weeklyRateRub = weeklyRateRub,
@@ -96,7 +95,7 @@ class AdminHomeViewModel(
     ) {
         viewModelScope.launch {
             runCatching {
-                adminRepository.createRental(
+                adminUseCases.createRental(
                     accessToken = accessToken,
                     clientId = clientId,
                     bikeId = bikeId,
@@ -115,7 +114,7 @@ class AdminHomeViewModel(
     ) {
         viewModelScope.launch {
             runCatching {
-                adminRepository.fetchClientDetails(accessToken = accessToken, clientId = clientId)
+                adminUseCases.fetchClientDetails(accessToken = accessToken, clientId = clientId)
             }.also(onResult)
         }
     }
@@ -127,7 +126,7 @@ class AdminHomeViewModel(
     ) {
         viewModelScope.launch {
             runCatching {
-                adminRepository.deleteRental(accessToken = accessToken, rentalId = rentalId)
+                adminUseCases.deleteRental(accessToken = accessToken, rentalId = rentalId)
             }.also(onResult)
         }
     }
@@ -139,7 +138,7 @@ class AdminHomeViewModel(
     ) {
         viewModelScope.launch {
             runCatching {
-                adminRepository.deleteClient(accessToken = accessToken, clientId = clientId)
+                adminUseCases.deleteClient(accessToken = accessToken, clientId = clientId)
             }.also(onResult)
         }
     }
@@ -157,7 +156,7 @@ class AdminHomeViewModel(
     ) {
         viewModelScope.launch {
             runCatching {
-                adminRepository.updateClient(
+                adminUseCases.updateClient(
                     accessToken = accessToken,
                     clientId = clientId,
                     fullName = fullName,
@@ -184,7 +183,7 @@ class AdminHomeViewModel(
     ) {
         viewModelScope.launch {
             runCatching {
-                adminRepository.updateBike(
+                adminUseCases.updateBike(
                     accessToken = accessToken,
                     bikeId = bikeId,
                     bikeModel = bikeModel,
@@ -210,7 +209,7 @@ class AdminHomeViewModel(
     ) {
         viewModelScope.launch {
             runCatching {
-                adminRepository.updateRental(
+                adminUseCases.updateRental(
                     accessToken = accessToken,
                     rentalId = rentalId,
                     bikeId = bikeId,
@@ -271,7 +270,7 @@ class AdminHomeViewModel(
     ) {
         viewModelScope.launch {
             runCatching {
-                adminRepository.updateRentalPipelineStatus(
+                adminUseCases.updateRentalPipelineStatus(
                     accessToken = accessToken,
                     rentalId = rentalId,
                     pipelineStatus = pipelineStatus
@@ -287,7 +286,7 @@ class AdminHomeViewModel(
     ) {
         viewModelScope.launch {
             runCatching {
-                adminRepository.finishRentalByLifecycle(accessToken = accessToken, rentalId = rentalId)
+                adminUseCases.finishRentalByLifecycle(accessToken = accessToken, rentalId = rentalId)
             }.also(onResult)
         }
     }
@@ -302,7 +301,7 @@ class AdminHomeViewModel(
     ) {
         viewModelScope.launch {
             runCatching {
-                adminRepository.adjustClientRentalDebt(
+                adminUseCases.adjustClientRentalDebt(
                     accessToken = accessToken,
                     clientRentalId = clientRentalId,
                     amountRub = amountRub,
@@ -323,7 +322,7 @@ class AdminHomeViewModel(
     ) {
         viewModelScope.launch {
             runCatching {
-                adminRepository.adjustClientDebt(
+                adminUseCases.adjustClientDebt(
                     accessToken = accessToken,
                     clientId = clientId,
                     amountRub = amountRub,

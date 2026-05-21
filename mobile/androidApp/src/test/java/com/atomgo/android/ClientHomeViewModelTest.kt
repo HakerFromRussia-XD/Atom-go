@@ -1,6 +1,7 @@
 package com.atomgo.android
 
 import com.atomgo.android.domain.repository.ClientRepository
+import com.atomgo.android.domain.usecase.ClientUseCases
 import com.atomgo.android.presentation.viewmodel.ClientHomeViewModel
 import com.atomgo.shared.api.ClientDashboardResponse
 import com.atomgo.shared.api.ClientPaymentPresetsResponse
@@ -42,7 +43,8 @@ class ClientHomeViewModelTest {
             requiresReceiptEmail = false
         )
         val vm = ClientHomeViewModel(
-            clientRepository = object : ClientRepository {
+            clientUseCases = ClientUseCases(
+                clientRepository = object : ClientRepository {
                 override suspend fun fetchDashboard(accessToken: String): ClientDashboardResponse = expected
                 override suspend fun createPayment(accessToken: String, paymentType: String, receiptEmail: String?): CreatePaymentResponse {
                     error("unused")
@@ -51,6 +53,7 @@ class ClientHomeViewModelTest {
                     error("unused")
                 }
             }
+            )
         )
 
         var actual: ClientDashboardResponse? = null

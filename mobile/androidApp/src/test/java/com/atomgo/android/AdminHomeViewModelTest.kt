@@ -1,6 +1,7 @@
 package com.atomgo.android
 
 import com.atomgo.android.domain.repository.AdminRepository
+import com.atomgo.android.domain.usecase.AdminUseCases
 import com.atomgo.android.presentation.viewmodel.AdminHomeViewModel
 import com.atomgo.shared.api.AdminBikeResponse
 import com.atomgo.shared.api.AdminClientDetailsResponse
@@ -40,7 +41,8 @@ class AdminHomeViewModelTest {
         )
 
         val vm = AdminHomeViewModel(
-            adminRepository = object : AdminRepository {
+            adminUseCases = AdminUseCases(
+                adminRepository = object : AdminRepository {
                 override suspend fun fetchRents(accessToken: String): List<AdminClientSummaryResponse> = expected
                 override suspend fun fetchClients(accessToken: String): List<AdminClientSummaryResponse> = emptyList()
                 override suspend fun fetchBikes(accessToken: String): List<AdminBikeResponse> = emptyList()
@@ -58,6 +60,7 @@ class AdminHomeViewModelTest {
                 override suspend fun adjustClientRentalDebt(accessToken: String, clientRentalId: String, amountRub: Int, sign: String, comment: String?) = Unit
                 override suspend fun adjustClientDebt(accessToken: String, clientId: String, amountRub: Int, sign: String, comment: String?) = Unit
             }
+            )
         )
 
         var actual: List<AdminClientSummaryResponse> = emptyList()

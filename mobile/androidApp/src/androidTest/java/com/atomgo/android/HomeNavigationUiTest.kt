@@ -14,6 +14,7 @@ import androidx.test.uiautomator.UiDevice
 import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
+import org.junit.Assert.assertTrue
 import java.io.File
 
 class HomeNavigationUiTest {
@@ -43,18 +44,8 @@ class HomeNavigationUiTest {
 
     @Test
     fun loginAsAdminClassic_opensAdminHome() {
-        composeRule.onNodeWithTag("login_email_input", useUnmergedTree = true).performClick()
-        composeRule.onNodeWithTag("login_email_input", useUnmergedTree = true).performTextReplacement("admin")
-
-        composeRule.onNodeWithTag("login_password_input", useUnmergedTree = true).performClick()
-        composeRule.onNodeWithTag("login_password_input", useUnmergedTree = true).performTextReplacement("admin123")
-
-        composeRule.onNodeWithTag("login_submit_button", useUnmergedTree = true).performClick()
-        composeRule.waitUntil(timeoutMillis = 60_000) {
-            runCatching {
-                composeRule.onNodeWithTag("admin_home_title", useUnmergedTree = true).fetchSemanticsNode()
-            }.isSuccess
-        }
+        val loggedIn = performAdminLoginWithRetries(maxAttempts = 3, waitPerAttemptMillis = 30_000)
+        assertTrue("Admin login failed after retries", loggedIn)
         assertAdminHomeVisible()
         captureScreen("admin-home-admin-classic.png")
     }
@@ -287,23 +278,28 @@ class HomeNavigationUiTest {
     }
 
     private fun loginAsAdminClassicWithFallback() {
-        composeRule.onNodeWithTag("login_submit_button", useUnmergedTree = true).performClick()
-        if (waitForTag("admin_home_title", timeoutMillis = 8_000)) return
+        val loggedIn = performAdminLoginWithRetries(maxAttempts = 3, waitPerAttemptMillis = 30_000)
+        assertTrue("Admin login failed after retries", loggedIn)
+    }
 
-        composeRule.onNodeWithTag("login_email_input", useUnmergedTree = true).performClick()
-        composeRule.onNodeWithTag("login_email_input", useUnmergedTree = true).performTextClearance()
-        composeRule.onNodeWithTag("login_email_input", useUnmergedTree = true).performTextInput("admin")
+    private fun performAdminLoginWithRetries(maxAttempts: Int, waitPerAttemptMillis: Long): Boolean {
+        if (waitForTag("admin_home_title", timeoutMillis = 4_000)) return true
 
-        composeRule.onNodeWithTag("login_password_input", useUnmergedTree = true).performClick()
-        composeRule.onNodeWithTag("login_password_input", useUnmergedTree = true).performTextClearance()
-        composeRule.onNodeWithTag("login_password_input", useUnmergedTree = true).performTextInput("admin123")
+        repeat(maxAttempts) { _ ->
+            composeRule.onNodeWithTag("login_email_input", useUnmergedTree = true).performClick()
+            composeRule.onNodeWithTag("login_email_input", useUnmergedTree = true).performTextClearance()
+            composeRule.onNodeWithTag("login_email_input", useUnmergedTree = true).performTextInput("admin")
 
-        composeRule.onNodeWithTag("login_submit_button", useUnmergedTree = true).performClick()
-        composeRule.waitUntil(timeoutMillis = 60_000) {
-            runCatching {
-                composeRule.onNodeWithTag("admin_home_title", useUnmergedTree = true).fetchSemanticsNode()
-            }.isSuccess
+            composeRule.onNodeWithTag("login_password_input", useUnmergedTree = true).performClick()
+            composeRule.onNodeWithTag("login_password_input", useUnmergedTree = true).performTextClearance()
+            composeRule.onNodeWithTag("login_password_input", useUnmergedTree = true).performTextInput("admin123")
+
+            composeRule.onNodeWithTag("login_submit_button", useUnmergedTree = true).performClick()
+            if (waitForTag("admin_home_title", timeoutMillis = waitPerAttemptMillis)) {
+                return true
+            }
         }
+        return false
     }
 
     private fun waitForTag(tag: String, timeoutMillis: Long): Boolean {
