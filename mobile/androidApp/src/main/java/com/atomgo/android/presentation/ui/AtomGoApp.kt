@@ -664,14 +664,18 @@ private fun LoginField(
     visualTransformation: VisualTransformation = VisualTransformation.None,
     trailing: @Composable (() -> Unit)? = null
 ) {
+    val fieldShape = RoundedCornerShape(12.84.dp)
+
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         modifier = modifier
+            .background(AppDesign.CardBackground, fieldShape)
+            .border(AppDesign.HairlineStroke, AppDesign.Black, fieldShape)
             .testTag(a11yId)
             .semantics { contentDescription = a11yId },
         singleLine = true,
-        shape = RoundedCornerShape(12.84.dp),
+        shape = fieldShape,
         textStyle = TextStyle(fontFamily = fontFamily, fontSize = ((24f * textScale) / 1.7f).sp, color = AppDesign.TitleText),
         placeholder = {
             Text(
@@ -694,8 +698,8 @@ private fun LoginField(
         },
         trailingIcon = trailing,
         colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = AppDesign.Black,
-            unfocusedBorderColor = AppDesign.Black,
+            focusedBorderColor = AppDesign.Transparent,
+            unfocusedBorderColor = AppDesign.Transparent,
             focusedContainerColor = AppDesign.CardBackground,
             unfocusedContainerColor = AppDesign.CardBackground
         )
