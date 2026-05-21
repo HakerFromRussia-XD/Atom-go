@@ -336,13 +336,14 @@ private fun ClientTariffCard(
         animationSpec = tween(180),
         label = "client_tariff_card_alpha"
     )
+    val cardShape = RoundedCornerShape(d(14))
 
     Surface(
         modifier = modifier
             .height(animatedHeight)
             .alpha(animatedAlpha)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(d(14)),
+            .adminClickable(shape = cardShape, onClick = onClick),
+        shape = cardShape,
         color = cardColor,
         border = androidx.compose.foundation.BorderStroke(animatedBorderWidth, animatedBorderColor)
     ) {
@@ -494,7 +495,9 @@ private fun LoginScreen(
                     Image(
                         painter = painterResource(if (showPassword) R.drawable.ic_eye_on else R.drawable.ic_eye_off),
                         contentDescription = null,
-                        modifier = Modifier.size(sw(20f)).clickable { showPassword = !showPassword }
+                        modifier = Modifier
+                            .size(sw(20f))
+                            .adminClickable(shape = RoundedCornerShape(999.dp)) { showPassword = !showPassword }
                     )
                 },
                 modifier = Modifier
@@ -515,7 +518,7 @@ private fun LoginScreen(
                     contentDescription = null,
                     modifier = Modifier
                         .size((17f * textScale).dp)
-                        .clickable { loginViewModel.setRememberMe(!state.rememberMe) }
+                        .adminClickable(shape = RoundedCornerShape(999.dp)) { loginViewModel.setRememberMe(!state.rememberMe) }
                 )
                 Spacer(Modifier.width((8f * xScale).dp))
                 Text("Запомнить меня", fontFamily = poppins, fontSize = (13f * textScale).sp, color = AppDesign.SubtleText)

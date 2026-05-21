@@ -7,15 +7,7 @@ import android.net.Uri
 import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.core.LinearOutSlowInEasing
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -175,7 +167,6 @@ internal fun AdminCreateClientDialog(
             toastMessage = null
         }
     }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -343,7 +334,6 @@ internal fun AdminCreateBikeDialog(
             toastMessage = null
         }
     }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -520,6 +510,7 @@ internal fun AdminCreateRentalDialog(
             toastMessage = null
         }
     }
+    val pickerVisible = isClientPickerPresented || isBikePickerPresented
 
     Box(
         modifier = Modifier
@@ -528,6 +519,10 @@ internal fun AdminCreateRentalDialog(
             .testTag("create_rental_sheet")
     ) {
         AdminFormSheetScaffold(
+            modifier = Modifier.motoricaUnderlyingOffset(
+                active = pickerVisible,
+                label = "createRentalUnderlyingOffset"
+            ),
             title = "Новая аренда",
             onBack = onDismiss,
             onSubmit = {
@@ -716,10 +711,8 @@ internal fun AdminCreateRentalDialog(
             bottomPadding = 96
         )
 
-        AnimatedVisibility(
+        MotoricaStackVisibility(
             visible = isClientPickerPresented,
-            enter = fadeIn(animationSpec = tween(220)) + slideInVertically(initialOffsetY = { it }, animationSpec = tween(220)),
-            exit = fadeOut(animationSpec = tween(180)) + slideOutVertically(targetOffsetY = { it }, animationSpec = tween(180)),
             modifier = Modifier.fillMaxSize().zIndex(15f)
         ) {
             RentalClientPickerSheet(
@@ -739,10 +732,8 @@ internal fun AdminCreateRentalDialog(
             )
         }
 
-        AnimatedVisibility(
+        MotoricaStackVisibility(
             visible = isBikePickerPresented,
-            enter = fadeIn(animationSpec = tween(220)) + slideInVertically(initialOffsetY = { it }, animationSpec = tween(220)),
-            exit = fadeOut(animationSpec = tween(180)) + slideOutVertically(targetOffsetY = { it }, animationSpec = tween(180)),
             modifier = Modifier.fillMaxSize().zIndex(15f)
         ) {
             RentalBikePickerSheet(
@@ -762,6 +753,7 @@ internal fun AdminCreateRentalDialog(
 
 @Composable
 internal fun AdminFormSheetScaffold(
+    modifier: Modifier = Modifier,
     title: String,
     onBack: () -> Unit,
     onSubmit: () -> Unit,
@@ -777,7 +769,7 @@ internal fun AdminFormSheetScaffold(
     content: @Composable () -> Unit
 ) {
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .statusBarsPadding()
             .navigationBarsPadding()
@@ -838,16 +830,17 @@ internal fun AdminSheetTopButton(
     iconRes: Int,
     iconSize: androidx.compose.ui.unit.Dp
 ) {
+    val shape = RoundedCornerShape(14.dp)
     Box(
         modifier = Modifier
             .size(47.dp)
-            .background(if (dark) AppDesign.Accent else AppDesign.SurfaceBackground, RoundedCornerShape(14.dp))
+            .adminClickable(shape = shape, onClick = onClick)
+            .background(if (dark) AppDesign.Accent else AppDesign.SurfaceBackground, shape)
             .border(
                 width = AppDesign.ThinStroke,
                 color = AppDesign.Accent,
-                shape = RoundedCornerShape(14.dp)
+                shape = shape
             )
-            .clickable(onClick = onClick)
             .testTag(testTag),
         contentAlignment = Alignment.Center
     ) {
@@ -992,14 +985,15 @@ internal fun AdminSelectorField(
     leadingMarkerColor: Color = AppDesign.Transparent,
     onClick: () -> Unit
 ) {
+    val shape = RoundedCornerShape(12.84.dp)
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(58.dp)
-            .background(AppDesign.SurfaceBackground, RoundedCornerShape(12.84.dp))
-            .border(AppDesign.ThinStroke, AppDesign.Accent, RoundedCornerShape(12.84.dp))
+            .adminClickable(shape = shape, onClick = onClick)
+            .background(AppDesign.SurfaceBackground, shape)
+            .border(AppDesign.ThinStroke, AppDesign.Accent, shape)
             .testTag(testTag)
-            .clickable(onClick = onClick)
     ) {
         Row(
             modifier = Modifier
@@ -1061,11 +1055,13 @@ internal fun AdminDashedActionButton(
     onClick: () -> Unit,
     testTag: String
 ) {
+    val shape = RoundedCornerShape(16.dp)
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(52.dp)
-            .background(AppDesign.SurfaceBackground, RoundedCornerShape(16.dp))
+            .adminClickable(shape = shape, enabled = enabled, onClick = onClick)
+            .background(AppDesign.SurfaceBackground, shape)
             .drawWithContent {
                 drawContent()
                 drawRoundRect(
@@ -1077,7 +1073,6 @@ internal fun AdminDashedActionButton(
                     )
                 )
             }
-            .clickable(enabled = enabled, onClick = onClick)
             .testTag(testTag),
         contentAlignment = Alignment.Center
     ) {
@@ -1098,12 +1093,13 @@ internal fun AdminBikePhotoCard(
     onClick: (() -> Unit)? = null
 ) {
     val normalizedPhotoUrl = photoUrl?.trim().orEmpty().takeIf { it.isNotEmpty() }
+    val shape = RoundedCornerShape(14.dp)
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(202.dp)
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .background(AppDesign.InputFill, RoundedCornerShape(14.dp))
+            .then(if (onClick != null) Modifier.adminClickable(shape = shape, onClick = onClick) else Modifier.clip(shape))
+            .background(AppDesign.InputFill, shape)
             .drawWithContent {
                 drawContent()
                 drawRoundRect(
@@ -1286,10 +1282,11 @@ internal fun RentalClientPickerSheet(
                     items(visibleClients.size) { index ->
                         val client = visibleClients[index]
                         val isSelected = selectedId == client.clientId
+                        val rowShape = RoundedCornerShape(12.dp)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { onSelect(client.clientId) }
+                                .adminClickable(shape = rowShape) { onSelect(client.clientId) }
                                 .padding(horizontal = 12.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -1425,10 +1422,11 @@ internal fun RentalBikePickerSheet(
                     items(visibleBikes.size) { index ->
                         val bike = visibleBikes[index]
                         val isSelected = selectedId == bike.bikeId
+                        val rowShape = RoundedCornerShape(12.dp)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { onSelect(bike.bikeId) }
+                                .adminClickable(shape = rowShape) { onSelect(bike.bikeId) }
                                 .padding(horizontal = 12.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -1475,6 +1473,7 @@ internal fun RentalPickerHeader(
     onConfirm: () -> Unit,
     confirmEnabled: Boolean
 ) {
+    val buttonShape = RoundedCornerShape(14.dp)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1485,9 +1484,9 @@ internal fun RentalPickerHeader(
         Box(
             modifier = Modifier
                 .size(47.dp)
-                .background(AppDesign.SurfaceBackground, RoundedCornerShape(14.dp))
-                .border(AppDesign.ThinStroke, AppDesign.Accent, RoundedCornerShape(14.dp))
-                .clickable(onClick = onClose)
+                .adminClickable(shape = buttonShape, onClick = onClose)
+                .background(AppDesign.SurfaceBackground, buttonShape)
+                .border(AppDesign.ThinStroke, AppDesign.Accent, buttonShape)
                 .testTag("selection_picker_close_button"),
             contentAlignment = Alignment.Center
         ) {
@@ -1499,9 +1498,9 @@ internal fun RentalPickerHeader(
         Box(
             modifier = Modifier
                 .size(47.dp)
-                .background(AppDesign.Accent, RoundedCornerShape(14.dp))
-                .border(AppDesign.ThinStroke, AppDesign.Accent, RoundedCornerShape(14.dp))
-                .clickable(enabled = confirmEnabled, onClick = onConfirm)
+                .adminClickable(shape = buttonShape, enabled = confirmEnabled, onClick = onConfirm)
+                .background(AppDesign.Accent, buttonShape)
+                .border(AppDesign.ThinStroke, AppDesign.Accent, buttonShape)
                 .testTag("selection_picker_confirm_button")
                 .alpha(if (confirmEnabled) 1f else 0.45f),
             contentAlignment = Alignment.Center
@@ -1564,13 +1563,14 @@ internal fun RentalPickerFilterChip(
     val bg = if (selected) AppDesign.Accent else AppDesign.SurfaceBackground
     val textColor = if (selected) AppDesign.SurfaceBackground else AppDesign.Accent
     val countBg = if (selected) AppDesign.SurfaceBackground.copy(alpha = 0.2f) else AppDesign.Black.copy(alpha = 0.08f)
+    val shape = RoundedCornerShape(999.dp)
 
     Row(
         modifier = Modifier
             .height(36.dp)
-            .background(bg, RoundedCornerShape(999.dp))
-            .border(AppDesign.ThinStroke, AppDesign.Accent, RoundedCornerShape(999.dp))
-            .clickable(onClick = onClick)
+            .adminClickable(shape = shape, onClick = onClick)
+            .background(bg, shape)
+            .border(AppDesign.ThinStroke, AppDesign.Accent, shape)
             .padding(horizontal = 15.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -1613,7 +1613,6 @@ internal fun AdminUpdateClientDialog(
             toastMessage = null
         }
     }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -1967,6 +1966,8 @@ internal fun AdminUpdateRentalDialog(
         }
     }
 
+    val editRentalPickerVisible = isClientPickerPresented || isBikePickerPresented
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -1974,6 +1975,10 @@ internal fun AdminUpdateRentalDialog(
             .testTag("edit_rental_sheet")
     ) {
         AdminFormSheetScaffold(
+            modifier = Modifier.motoricaUnderlyingOffset(
+                active = editRentalPickerVisible,
+                label = "editRentalUnderlyingOffset"
+            ),
             title = "Ред. аренду",
             onBack = onDismiss,
             onSubmit = {
@@ -2156,10 +2161,8 @@ internal fun AdminUpdateRentalDialog(
             bottomPadding = 96
         )
 
-        AnimatedVisibility(
+        MotoricaStackVisibility(
             visible = isClientPickerPresented,
-            enter = fadeIn(animationSpec = tween(220)) + slideInVertically(initialOffsetY = { it }, animationSpec = tween(220)),
-            exit = fadeOut(animationSpec = tween(180)) + slideOutVertically(targetOffsetY = { it }, animationSpec = tween(180)),
             modifier = Modifier.fillMaxSize().zIndex(15f)
         ) {
             RentalClientPickerSheet(
@@ -2175,10 +2178,8 @@ internal fun AdminUpdateRentalDialog(
             )
         }
 
-        AnimatedVisibility(
+        MotoricaStackVisibility(
             visible = isBikePickerPresented,
-            enter = fadeIn(animationSpec = tween(220)) + slideInVertically(initialOffsetY = { it }, animationSpec = tween(220)),
-            exit = fadeOut(animationSpec = tween(180)) + slideOutVertically(targetOffsetY = { it }, animationSpec = tween(180)),
             modifier = Modifier.fillMaxSize().zIndex(15f)
         ) {
             RentalBikePickerSheet(

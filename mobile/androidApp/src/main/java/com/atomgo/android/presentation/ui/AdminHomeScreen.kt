@@ -1,14 +1,7 @@
 package com.atomgo.android.presentation.ui
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.core.LinearOutSlowInEasing
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -42,7 +35,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DirectionsBike
@@ -94,6 +86,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
@@ -139,6 +132,28 @@ internal data class RentStatusPill(
     val color: Color,
     val widthDp: Int
 )
+
+@Composable
+private fun AdminHomeTabLayer(
+    active: Boolean,
+    content: @Composable () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .zIndex(if (active) 1f else 0f)
+            .layout { measurable, constraints ->
+                val placeable = measurable.measure(constraints)
+                layout(placeable.width, placeable.height) {
+                    if (active) {
+                        placeable.placeRelative(0, 0)
+                    }
+                }
+            }
+    ) {
+        content()
+    }
+}
 
 @Composable
 internal fun AdminSquareTopButton(
@@ -283,11 +298,12 @@ internal fun AdminFilterHitTarget(
     enabled: Boolean,
     onClick: () -> Unit
 ) {
+    val shape = RoundedCornerShape(999.dp)
     Box(
         modifier = Modifier
             .width(width)
             .height(36.dp)
-            .clickable(enabled = enabled, onClick = onClick)
+            .adminClickable(shape = shape, enabled = enabled, onClick = onClick)
     )
 }
 
@@ -429,10 +445,12 @@ internal fun AdminBottomTabItem(
 ) {
     val isSelected = selectedTab == tab
     val color = if (isSelected) AppDesign.DarkText else AppDesign.IconSoft
+    val shape = RoundedCornerShape(18.dp)
 
     Column(
         modifier = modifier
-            .clickable { onClick(tab) }
+            .padding(horizontal = 4.dp)
+            .adminClickable(shape = shape) { onClick(tab) }
             .testTag(tag)
             .padding(vertical = 1.dp),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -544,6 +562,7 @@ internal fun AdminHomeScreen(
     var rentalAdjustmentTarget by remember { mutableStateOf<AdminRentalPreview?>(null) }
     var isRentalAdjustmentVisible by remember { mutableStateOf(false) }
     var toastMessage by remember { mutableStateOf<String?>(null) }
+    var bikeForEditTransition by remember { mutableStateOf<AdminBikeResponse?>(null) }
 
     LaunchedEffect(isRentalAdjustmentVisible) {
         if (!isRentalAdjustmentVisible && rentalAdjustmentTarget != null) {
@@ -691,18 +710,37 @@ internal fun AdminHomeScreen(
             toastMessage = null
         }
     }
+    LaunchedEffect(selectedBikeForEdit) {
+        selectedBikeForEdit?.let { bikeForEditTransition = it }
+        if (selectedBikeForEdit == null && bikeForEditTransition != null) {
+            delay(400)
+            bikeForEditTransition = null
+        }
+    }
 
-    val derivedData = AdminCatalogFilterEngine.derive(
-        rents = rents,
-        rentsSearch = rentsSearch,
-        rentsFilter = rentsFilter,
-        clientsCatalog = clientsCatalog,
-        clientsSearch = clientsSearch,
-        clientsFilter = clientsFilter,
-        bikesCatalog = bikesCatalog,
-        bikesSearch = bikesSearch,
-        bikesFilter = bikesFilter
-    )
+    val derivedData = remember(
+        rents,
+        rentsSearch,
+        rentsFilter,
+        clientsCatalog,
+        clientsSearch,
+        clientsFilter,
+        bikesCatalog,
+        bikesSearch,
+        bikesFilter
+    ) {
+        AdminCatalogFilterEngine.derive(
+            rents = rents,
+            rentsSearch = rentsSearch,
+            rentsFilter = rentsFilter,
+            clientsCatalog = clientsCatalog,
+            clientsSearch = clientsSearch,
+            clientsFilter = clientsFilter,
+            bikesCatalog = bikesCatalog,
+            bikesSearch = bikesSearch,
+            bikesFilter = bikesFilter
+        )
+    }
     val filteredRents = derivedData.filteredRents
     val filteredClients = derivedData.filteredClients
     val filteredBikes = derivedData.filteredBikes
@@ -711,11 +749,22 @@ internal fun AdminHomeScreen(
     val bikesFilterCounts = derivedData.bikeCounters
     val density = LocalDensity.current
     val statusBarTop = with(density) { WindowInsets.statusBars.getTop(this).toDp() }
+    val stackScreenVisible =
+        showCreateClient ||
+            showCreateBike ||
+            showCreateRental ||
+            selectedBikeForEdit != null ||
+            detailClientId != null ||
+            selectedRentalDetails != null
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(AppDesign.PageBackground)
+            .motoricaUnderlyingOffset(
+                active = stackScreenVisible,
+                label = "adminHomeUnderlyingOffset"
+            )
     ) {
         when (selectedTab) {
             AdminHomeTab.Rents -> {
@@ -788,10 +837,7 @@ internal fun AdminHomeScreen(
                         }
 
                         else -> {
-                            Crossfade(
-                                targetState = filteredRents,
-                                animationSpec = tween(durationMillis = 180),
-                                label = "admin_rents_crossfade",
+                            LazyColumn(
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .drawWithContent {
@@ -805,62 +851,57 @@ internal fun AdminHomeScreen(
                                         }
                                     }
                                     .zIndex(2f)
-                            ) { visibleRents ->
-                                LazyColumn(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .testTag("admin_rents_list"),
-                                    state = rentsListState,
-                                    contentPadding = PaddingValues(bottom = bottomCardsInset)
-                                ) {
-                                    item("admin_rents_top_spacer") {
-                                        Spacer(Modifier.height(cardsInitialTop))
-                                    }
-                                    if (visibleRents.isEmpty()) {
-                                        item("admin_rents_empty") {
-                                            Surface(
+                                    .testTag("admin_rents_list"),
+                                state = rentsListState,
+                                contentPadding = PaddingValues(bottom = bottomCardsInset)
+                            ) {
+                                item("admin_rents_top_spacer") {
+                                    Spacer(Modifier.height(cardsInitialTop))
+                                }
+                                if (filteredRents.isEmpty()) {
+                                    item("admin_rents_empty") {
+                                        Surface(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(top = 14.dp),
+                                            shape = RoundedCornerShape(15.dp),
+                                            color = AppDesign.BlackHaze,
+                                            border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, AppDesign.Accent)
+                                        ) {
+                                            Column(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
-                                                    .padding(top = 14.dp),
-                                                shape = RoundedCornerShape(15.dp),
-                                                color = AppDesign.BlackHaze,
-                                                border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, AppDesign.Accent)
+                                                    .padding(vertical = 30.dp),
+                                                horizontalAlignment = Alignment.CenterHorizontally
                                             ) {
-                                                Column(
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .padding(vertical = 30.dp),
-                                                    horizontalAlignment = Alignment.CenterHorizontally
-                                                ) {
-                                                    Text("Аренд пока нет", color = AppDesign.TitleText, fontWeight = FontWeight.Bold)
-                                                    Spacer(Modifier.height(4.dp))
-                                                    Text("Клиентов в каталоге: ${rents.size}", color = AppDesign.SubtleText, fontSize = 13.sp)
-                                                }
+                                                Text("Аренд пока нет", color = AppDesign.TitleText, fontWeight = FontWeight.Bold)
+                                                Spacer(Modifier.height(4.dp))
+                                                Text("Клиентов в каталоге: ${rents.size}", color = AppDesign.SubtleText, fontSize = 13.sp)
                                             }
                                         }
-                                    } else {
-                                        item("admin_rents_container") {
-                                            Surface(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .testTag("admin_rents_container"),
-                                                shape = RoundedCornerShape(15.dp),
-                                                color = AppDesign.BlackHaze,
-                                                border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, AppDesign.Accent)
-                                            ) {
-                                                Column(modifier = Modifier.padding(vertical = 5.dp)) {
-                                                    visibleRents.forEachIndexed { index, item ->
-                                                        AdminRentCard(
-                                                            item = item,
-                                                            isFirst = index == 0,
-                                                            onDetails = { openRentalDetailsFromSummary(item) },
-                                                            onSetLongTerm = { updateRentalPipelineStatus(item, "long_term") },
-                                                            onSetSoonReturn = { updateRentalPipelineStatus(item, "soon_return") },
-                                                            onSetMine = { finishRentalToMine(item) }
-                                                        )
-                                                        if (index < visibleRents.lastIndex) {
-                                                            HorizontalDivider(color = AppDesign.LightStroke, thickness = AppDesign.HairlineStroke)
-                                                        }
+                                    }
+                                } else {
+                                    item("admin_rents_container") {
+                                        Surface(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .testTag("admin_rents_container"),
+                                            shape = RoundedCornerShape(15.dp),
+                                            color = AppDesign.BlackHaze,
+                                            border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, AppDesign.Accent)
+                                        ) {
+                                            Column(modifier = Modifier.padding(vertical = 5.dp)) {
+                                                filteredRents.forEachIndexed { index, item ->
+                                                    AdminRentCard(
+                                                        item = item,
+                                                        isFirst = index == 0,
+                                                        onDetails = { openRentalDetailsFromSummary(item) },
+                                                        onSetLongTerm = { updateRentalPipelineStatus(item, "long_term") },
+                                                        onSetSoonReturn = { updateRentalPipelineStatus(item, "soon_return") },
+                                                        onSetMine = { finishRentalToMine(item) }
+                                                    )
+                                                    if (index < filteredRents.lastIndex) {
+                                                        HorizontalDivider(color = AppDesign.LightStroke, thickness = AppDesign.HairlineStroke)
                                                     }
                                                 }
                                             }
@@ -982,11 +1023,19 @@ internal fun AdminHomeScreen(
             }
         }
 
-        AdminBottomTabBar(
-            selectedTab = selectedTab,
-            onTabSelected = { selectedTab = it },
+        AnimatedVisibility(
+            visible = !stackScreenVisible,
+            enter = motoricaBottomNavEnter(),
+            exit = motoricaBottomNavExit(),
             modifier = Modifier.align(Alignment.BottomCenter)
-        )
+        ) {
+            AdminBottomTabBar(
+                selectedTab = selectedTab,
+                onTabSelected = { tab ->
+                    if (selectedTab != tab) selectedTab = tab
+                }
+            )
+        }
 
         AppToast(
             message = toastMessage,
@@ -995,10 +1044,8 @@ internal fun AdminHomeScreen(
         )
     }
 
-    AnimatedVisibility(
+    MotoricaStackVisibility(
         visible = showCreateClient,
-        enter = fadeIn(animationSpec = tween(220)) + slideInVertically(initialOffsetY = { it }, animationSpec = tween(220)),
-        exit = fadeOut(animationSpec = tween(180)) + slideOutVertically(targetOffsetY = { it }, animationSpec = tween(180)),
         modifier = Modifier.fillMaxSize().zIndex(12f)
     ) {
         AdminCreateClientDialog(
@@ -1022,10 +1069,8 @@ internal fun AdminHomeScreen(
         )
     }
 
-    AnimatedVisibility(
+    MotoricaStackVisibility(
         visible = showCreateBike,
-        enter = fadeIn(animationSpec = tween(220)) + slideInVertically(initialOffsetY = { it }, animationSpec = tween(220)),
-        exit = fadeOut(animationSpec = tween(180)) + slideOutVertically(targetOffsetY = { it }, animationSpec = tween(180)),
         modifier = Modifier.fillMaxSize().zIndex(12f)
     ) {
         AdminCreateBikeDialog(
@@ -1050,10 +1095,8 @@ internal fun AdminHomeScreen(
         )
     }
 
-    AnimatedVisibility(
+    MotoricaStackVisibility(
         visible = showCreateRental,
-        enter = fadeIn(animationSpec = tween(220)) + slideInVertically(initialOffsetY = { it }, animationSpec = tween(220)),
-        exit = fadeOut(animationSpec = tween(180)) + slideOutVertically(targetOffsetY = { it }, animationSpec = tween(180)),
         modifier = Modifier.fillMaxSize().zIndex(12f)
     ) {
         AdminCreateRentalDialog(
@@ -1083,7 +1126,11 @@ internal fun AdminHomeScreen(
         )
     }
 
-    selectedBikeForEdit?.let { editingBike ->
+    MotoricaStackVisibility(
+        visible = selectedBikeForEdit != null,
+        modifier = Modifier.fillMaxSize().zIndex(12f)
+    ) {
+        val editingBike = selectedBikeForEdit ?: bikeForEditTransition ?: return@MotoricaStackVisibility
         AdminUpdateBikeDialog(
             bike = editingBike,
             bikes = bikesCatalog,
@@ -1197,11 +1244,15 @@ internal fun AdminHomeScreen(
         )
     }
 
-    AnimatedVisibility(
+    MotoricaStackVisibility(
         visible = detailClientId != null,
-        enter = fadeIn(animationSpec = tween(220)) + slideInVertically(initialOffsetY = { it }, animationSpec = tween(220)),
-        exit = fadeOut(animationSpec = tween(180)) + slideOutVertically(targetOffsetY = { it }, animationSpec = tween(180)),
-        modifier = Modifier.fillMaxSize().zIndex(21f)
+        modifier = Modifier
+            .fillMaxSize()
+            .zIndex(21f)
+            .motoricaUnderlyingOffset(
+                active = showUpdateClient,
+                label = "adminClientDetailUnderlyingOffset"
+            )
     ) {
         AdminClientDetailsScreen(
             details = detailPayload,
@@ -1220,11 +1271,15 @@ internal fun AdminHomeScreen(
         )
     }
 
-    AnimatedVisibility(
+    MotoricaStackVisibility(
         visible = selectedRentalDetails != null,
-        enter = fadeIn(animationSpec = tween(220)) + slideInVertically(initialOffsetY = { it }, animationSpec = tween(220)),
-        exit = fadeOut(animationSpec = tween(180)) + slideOutVertically(targetOffsetY = { it }, animationSpec = tween(180)),
-        modifier = Modifier.fillMaxSize().zIndex(22f)
+        modifier = Modifier
+            .fillMaxSize()
+            .zIndex(22f)
+            .motoricaUnderlyingOffset(
+                active = showUpdateRental,
+                label = "adminRentalDetailUnderlyingOffset"
+            )
     ) {
         AdminRentalDetailsScreenAndroid(
             details = selectedRentalDetails,
@@ -1291,68 +1346,70 @@ internal fun AdminHomeScreen(
         )
     }
 
-    if (showUpdateClient) {
+    MotoricaStackVisibility(
+        visible = showUpdateClient && detailPayload != null,
+        modifier = Modifier.fillMaxSize().zIndex(31f)
+    ) {
         val details = detailPayload
         if (details != null) {
-            Box(modifier = Modifier.fillMaxSize().zIndex(31f)) {
-                AdminUpdateClientDialog(
-                    details = details,
-                    onDismiss = { showUpdateClient = false },
-                    onUpdate = { clientId, fullName, address, passport, phones, comment ->
-                        adminHomeViewModel.updateAdminClient(
-                            accessToken = session.accessToken,
-                            clientId = clientId,
-                            fullName = fullName,
-                            address = address,
-                            passportData = passport,
-                            phones = phones,
-                            comment = comment.ifBlank { null }
-                        ) { result ->
-                            result.onSuccess {
-                                adminMessage = "Клиент обновлен"
-                                showUpdateClient = false
-                                refreshAllCatalogs()
-                                openClientDetails(clientId)
-                            }.onFailure { adminMessage = "Ошибка обновления клиента: ${it.message}" }
-                        }
+            AdminUpdateClientDialog(
+                details = details,
+                onDismiss = { showUpdateClient = false },
+                onUpdate = { clientId, fullName, address, passport, phones, comment ->
+                    adminHomeViewModel.updateAdminClient(
+                        accessToken = session.accessToken,
+                        clientId = clientId,
+                        fullName = fullName,
+                        address = address,
+                        passportData = passport,
+                        phones = phones,
+                        comment = comment.ifBlank { null }
+                    ) { result ->
+                        result.onSuccess {
+                            adminMessage = "Клиент обновлен"
+                            showUpdateClient = false
+                            refreshAllCatalogs()
+                            openClientDetails(clientId)
+                        }.onFailure { adminMessage = "Ошибка обновления клиента: ${it.message}" }
                     }
-                )
-            }
+                }
+            )
         }
     }
 
-    if (showUpdateRental) {
+    MotoricaStackVisibility(
+        visible = showUpdateRental && selectedRentalDetails != null,
+        modifier = Modifier.fillMaxSize().zIndex(32f)
+    ) {
         val details = selectedRentalDetails
         if (details != null) {
-            Box(modifier = Modifier.fillMaxSize().zIndex(32f)) {
-                AdminUpdateRentalDialog(
-                    details = details,
-                    clients = clientsCatalog,
-                    bikes = bikesCatalog,
-                    onDismiss = { showUpdateRental = false },
-                    onUpdate = { rentalId, _, bikeId, periodStart, periodEnd, login, password, videoUrl, contractUrl, comment ->
-                        adminHomeViewModel.updateAdminRental(
-                            accessToken = session.accessToken,
-                            rentalId = rentalId,
-                            bikeId = bikeId,
-                            periodStart = periodStart,
-                            periodEnd = periodEnd.ifBlank { null },
-                            login = login.ifBlank { null },
-                            password = password.ifBlank { null },
-                            videoUrl = videoUrl.ifBlank { null },
-                            contractUrl = contractUrl.ifBlank { null },
-                            comment = comment.ifBlank { null }
-                        ) { result ->
-                            result.onSuccess {
-                                adminMessage = "Аренда обновлена"
-                                showUpdateRental = false
-                                refreshAllCatalogs()
-                                refreshSelectedRentalDetails()
-                            }.onFailure { adminMessage = "Ошибка обновления аренды: ${it.message}" }
-                        }
+            AdminUpdateRentalDialog(
+                details = details,
+                clients = clientsCatalog,
+                bikes = bikesCatalog,
+                onDismiss = { showUpdateRental = false },
+                onUpdate = { rentalId, _, bikeId, periodStart, periodEnd, login, password, videoUrl, contractUrl, comment ->
+                    adminHomeViewModel.updateAdminRental(
+                        accessToken = session.accessToken,
+                        rentalId = rentalId,
+                        bikeId = bikeId,
+                        periodStart = periodStart,
+                        periodEnd = periodEnd.ifBlank { null },
+                        login = login.ifBlank { null },
+                        password = password.ifBlank { null },
+                        videoUrl = videoUrl.ifBlank { null },
+                        contractUrl = contractUrl.ifBlank { null },
+                        comment = comment.ifBlank { null }
+                    ) { result ->
+                        result.onSuccess {
+                            adminMessage = "Аренда обновлена"
+                            showUpdateRental = false
+                            refreshAllCatalogs()
+                            refreshSelectedRentalDetails()
+                        }.onFailure { adminMessage = "Ошибка обновления аренды: ${it.message}" }
                     }
-                )
-            }
+                }
+            )
         }
     }
 

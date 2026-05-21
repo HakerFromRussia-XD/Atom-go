@@ -1,7 +1,6 @@
 package com.atomgo.android.presentation.ui
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -45,7 +44,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DirectionsBike
@@ -403,6 +401,8 @@ internal fun AdminBikesCatalogScreen(
     val searchMaskHeight = statusBarTop + topBarHeight + searchTopPadding + (searchHeight / 2)
     val searchMaskHeightPx = with(density) { searchMaskHeight.toPx() }
     val listState = rememberLazyListState()
+    val bikeRuntimeByModel = remember(rentals) { bikeCatalogRuntimeSnapshots(rentals) }
+    val freeBikeRuntime = remember { BikeCatalogRuntimeSnapshot(borderColor = AppDesign.IdlePurple, subtitle = "-") }
     val filtersInteractive by remember {
         derivedStateOf {
             when (listState.firstVisibleItemIndex) {
@@ -532,7 +532,7 @@ internal fun AdminBikesCatalogScreen(
                                     visibleBikes.forEachIndexed { index, bike ->
                                         AdminBikeCatalogRow(
                                             bike = bike,
-                                            runtime = bikeCatalogRuntimeSnapshot(bike = bike, rentals = rentals),
+                                            runtime = bikeRuntimeByModel[normalizeCatalogSearchText(bike.bikeModel)] ?: freeBikeRuntime,
                                             onClick = { onOpenBike(bike) }
                                         )
                                         if (index < visibleBikes.lastIndex) {
@@ -615,12 +615,14 @@ internal fun AdminClientCatalogRow(
     val uriHandler = LocalUriHandler.current
     val telUri = remember(item.primaryPhone) { telUriString(item.primaryPhone) }
     val isCallEnabled = telUri != null
+    val rowShape = RoundedCornerShape(15.dp)
+    val callShape = RoundedCornerShape(12.dp)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(60.dp)
-            .clickable(onClick = onClick)
+            .adminClickable(shape = rowShape, onClick = onClick)
             .padding(horizontal = 9.dp)
             .testTag(if (isFirst) "admin_client_row_first" else "admin_client_row_${item.clientId}"),
         verticalAlignment = Alignment.CenterVertically
@@ -628,12 +630,12 @@ internal fun AdminClientCatalogRow(
         Box(
             modifier = Modifier
                 .size(36.dp)
-                .clickable(enabled = isCallEnabled) {
+                .adminClickable(shape = callShape, enabled = isCallEnabled) {
                     telUri?.let(uriHandler::openUri)
                 }
                 .alpha(if (isCallEnabled) 1f else 0.45f)
-                .background(AppDesign.SurfaceBackground, RoundedCornerShape(12.dp))
-                .border(AppDesign.ThinStroke, AppDesign.PaidGreen, RoundedCornerShape(12.dp)),
+                .background(AppDesign.SurfaceBackground, callShape)
+                .border(AppDesign.ThinStroke, AppDesign.PaidGreen, callShape),
             contentAlignment = Alignment.Center
         ) {
             Icon(
@@ -1131,6 +1133,7 @@ private fun ClientRentalHistoryRow(
     isFirst: Boolean,
     onOpenRental: (AdminRentalPreview) -> Unit
 ) {
+    val shape = RoundedCornerShape(15.dp)
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -1138,10 +1141,10 @@ private fun ClientRentalHistoryRow(
                 if (isFirst) "admin_client_history_row_first"
                 else "admin_client_history_row_${rental.rentalId}"
             )
-            .clickable {
+            .adminClickable(shape = shape) {
                 onOpenRental(AdminRentalPreview.fromHistory(client = details, rental = rental))
             },
-        shape = RoundedCornerShape(15.dp),
+        shape = shape,
         color = AppDesign.BlackHaze,
         border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, AppDesign.LightStroke)
     ) {
@@ -1540,7 +1543,7 @@ internal fun AdminRentalDetailsScreenAndroid(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(68.dp)
-                                        .clickable(enabled = details.clientId.isNotBlank()) { onOpenClient() }
+                                        .adminClickable(shape = RoundedCornerShape(12.dp), enabled = details.clientId.isNotBlank()) { onOpenClient() }
                                         .padding(horizontal = 19.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
@@ -1717,10 +1720,8 @@ internal fun AdminRentalDetailsScreenAndroid(
             }
         }
 
-        AnimatedVisibility(
+        MotoricaStackVisibility(
             visible = isClientPickerPresented,
-            enter = fadeIn(animationSpec = tween(220)) + slideInVertically(initialOffsetY = { it }, animationSpec = tween(220)),
-            exit = fadeOut(animationSpec = tween(180)) + slideOutVertically(targetOffsetY = { it }, animationSpec = tween(180)),
             modifier = Modifier.fillMaxSize().zIndex(35f)
         ) {
             RentalClientPickerSheet(
@@ -1762,16 +1763,12 @@ private fun RentalCredentialActionButton(
     backgroundColor: Color,
     onClick: () -> Unit
 ) {
-    val interaction = remember { MutableInteractionSource() }
+    val shape = RoundedCornerShape(15.dp)
     Box(
         modifier = Modifier
             .size(width = 110.dp, height = 47.dp)
-            .background(backgroundColor, RoundedCornerShape(15.dp))
-            .clickable(
-                interactionSource = interaction,
-                indication = null,
-                onClick = onClick
-            )
+            .adminClickable(shape = shape, onClick = onClick)
+            .background(backgroundColor, shape)
             .testTag("admin_rental_details_generate_credentials"),
         contentAlignment = Alignment.Center
     ) {
@@ -1790,16 +1787,12 @@ private fun RentalCredentialCopyButton(
     backgroundColor: Color,
     onClick: () -> Unit
 ) {
-    val interaction = remember { MutableInteractionSource() }
+    val shape = RoundedCornerShape(15.dp)
     Box(
         modifier = Modifier
             .size(47.dp)
-            .background(backgroundColor, RoundedCornerShape(15.dp))
-            .clickable(
-                interactionSource = interaction,
-                indication = null,
-                onClick = onClick
-            )
+            .adminClickable(shape = shape, onClick = onClick)
+            .background(backgroundColor, shape)
             .testTag("admin_rental_details_copy_credentials"),
         contentAlignment = Alignment.Center
     ) {
@@ -1871,13 +1864,14 @@ internal fun RentalStartClientSelectorRow(
     modifier: Modifier = Modifier
 ) {
     val hasSelectedClient = !selectedClientName.isNullOrBlank()
+    val shape = RoundedCornerShape(12.84.dp)
     Row(
         modifier = modifier
             .fillMaxWidth()
             .height(58.dp)
-            .background(AppDesign.SurfaceBackground, RoundedCornerShape(12.84.dp))
-            .border(AppDesign.HairlineStroke, borderColor, RoundedCornerShape(12.84.dp))
-            .clickable(onClick = onClick)
+            .adminClickable(shape = shape, onClick = onClick)
+            .background(AppDesign.SurfaceBackground, shape)
+            .border(AppDesign.HairlineStroke, borderColor, shape)
             .testTag("admin_rental_details_client_selector"),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -2136,11 +2130,12 @@ internal fun AdminBikeCatalogRow(
     runtime: BikeCatalogRuntimeSnapshot,
     onClick: () -> Unit
 ) {
+    val rowShape = RoundedCornerShape(15.dp)
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(77.dp)
-            .clickable(onClick = onClick)
+            .adminClickable(shape = rowShape, onClick = onClick)
             .padding(horizontal = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -2217,12 +2212,14 @@ internal fun AdminRentCard(
     val isLongTermSelected = item.rentalIsActive && normalizedPipelineStatus != "soon_return"
     val isSoonReturnSelected = item.rentalIsActive && normalizedPipelineStatus == "soon_return"
     val isMineSelected = !item.rentalIsActive
+    val rowShape = RoundedCornerShape(15.dp)
+    val avatarShape = RoundedCornerShape(12.dp)
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(77.dp)
-            .clickable { onDetails() }
+            .adminClickable(shape = rowShape) { onDetails() }
             .padding(horizontal = 9.dp)
             .testTag(if (isFirst) "admin_rent_card_first" else "admin_rent_card_${item.rentalId ?: item.clientId}"),
         verticalAlignment = Alignment.CenterVertically
@@ -2231,13 +2228,13 @@ internal fun AdminRentCard(
             Box(
                 modifier = Modifier
                     .size(59.dp)
-                    .clickable { isPipelineMenuOpen = true }
+                    .adminClickable(shape = avatarShape) { isPipelineMenuOpen = true }
                     .testTag(avatarTag)
-                    .background(AppDesign.Placeholder, RoundedCornerShape(12.dp))
+                    .background(AppDesign.Placeholder, avatarShape)
                     .border(
                         width = AppDesign.EmphasisStroke,
                         color = avatarBorderColor(item),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = avatarShape
                     )
             ) {
                 Icon(
@@ -2353,7 +2350,6 @@ internal fun AdminRentalDebtAdjustmentDialog(
     var selectedSign by remember { mutableStateOf("minus") }
     var toastMessage by remember { mutableStateOf<String?>(null) }
     val overlayInteraction = remember { MutableInteractionSource() }
-    val closeInteraction = remember { MutableInteractionSource() }
     val mainTextColor = AppDesign.DarkControl
     val density = LocalDensity.current
     val scrimAlpha by animateFloatAsState(
@@ -2464,11 +2460,9 @@ internal fun AdminRentalDebtAdjustmentDialog(
                                     color = AppDesign.SubtleText,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium,
-                                    modifier = Modifier.clickable(
-                                        interactionSource = closeInteraction,
-                                        indication = null,
-                                        onClick = onDismiss
-                                    )
+                                    modifier = Modifier
+                                        .adminClickable(shape = RoundedCornerShape(999.dp), onClick = onDismiss)
+                                        .padding(horizontal = 4.dp, vertical = 2.dp)
                                 )
                             }
                             Row(
@@ -2551,17 +2545,18 @@ private fun AdjustmentSegmentButton(
     modifier: Modifier = Modifier
 ) {
     val mainTextColor = AppDesign.DarkControl
+    val shape = RoundedCornerShape(15.dp)
     Box(
         modifier = modifier
             .padding(4.dp)
             .fillMaxHeight()
-            .background(if (selected) AppDesign.SurfaceBackground else AppDesign.Transparent, RoundedCornerShape(15.dp))
+            .adminClickable(shape = shape, onClick = onClick)
+            .background(if (selected) AppDesign.SurfaceBackground else AppDesign.Transparent, shape)
             .border(
                 width = if (selected) 1.5.dp else 0.dp,
                 color = if (selected) mainTextColor else AppDesign.Transparent,
-                shape = RoundedCornerShape(15.dp)
-            )
-            .clickable(onClick = onClick),
+                shape = shape
+            ),
         contentAlignment = Alignment.Center
     ) {
         Text(

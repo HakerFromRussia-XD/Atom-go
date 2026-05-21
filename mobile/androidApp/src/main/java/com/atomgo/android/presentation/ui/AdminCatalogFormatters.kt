@@ -18,17 +18,28 @@ internal fun bikeCatalogRuntimeSnapshot(
     bike: AdminBikeResponse,
     rentals: List<AdminClientSummaryResponse>
 ): BikeCatalogRuntimeSnapshot {
-    val normalizedBikeModel = normalizeCatalogSearchText(bike.bikeModel)
-    val activeRentals = rentals.filter {
-        it.rentalIsActive && normalizeCatalogSearchText(it.bikeModel) == normalizedBikeModel
-    }
-    if (activeRentals.isEmpty()) {
-        return BikeCatalogRuntimeSnapshot(
-            borderColor = AppDesign.IdlePurple,
-            subtitle = "-"
-        )
-    }
+    return bikeCatalogRuntimeSnapshots(rentals)[normalizeCatalogSearchText(bike.bikeModel)]
+        ?: freeBikeCatalogRuntimeSnapshot()
+}
 
+internal fun bikeCatalogRuntimeSnapshots(
+    rentals: List<AdminClientSummaryResponse>
+): Map<String, BikeCatalogRuntimeSnapshot> {
+    return rentals
+        .asSequence()
+        .filter { it.rentalIsActive }
+        .groupBy { normalizeCatalogSearchText(it.bikeModel) }
+        .mapValues { (_, activeRentals) -> activeBikeCatalogRuntimeSnapshot(activeRentals) }
+}
+
+internal fun freeBikeCatalogRuntimeSnapshot(): BikeCatalogRuntimeSnapshot {
+    return BikeCatalogRuntimeSnapshot(
+        borderColor = AppDesign.IdlePurple,
+        subtitle = "-"
+    )
+}
+
+private fun activeBikeCatalogRuntimeSnapshot(activeRentals: List<AdminClientSummaryResponse>): BikeCatalogRuntimeSnapshot {
     val hasSoonReturn = activeRentals.any { it.rentalPipelineStatus == "soon_return" }
     val borderColor = if (hasSoonReturn) AppDesign.WarningYellow else AppDesign.PaidGreen
     val activeRental = activeRentals.first()
