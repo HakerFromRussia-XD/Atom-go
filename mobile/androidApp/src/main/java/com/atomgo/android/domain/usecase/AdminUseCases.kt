@@ -4,6 +4,7 @@ import com.atomgo.android.domain.repository.AdminRepository
 import com.atomgo.shared.api.AdminBikeResponse
 import com.atomgo.shared.api.AdminClientDetailsResponse
 import com.atomgo.shared.api.AdminClientSummaryResponse
+import com.atomgo.shared.api.AdminRentalDetailsResponse
 
 class AdminUseCases(
     private val adminRepository: AdminRepository
@@ -78,6 +79,10 @@ class AdminUseCases(
 
     suspend fun fetchClientDetails(accessToken: String, clientId: String): AdminClientDetailsResponse {
         return adminRepository.fetchClientDetails(accessToken = accessToken, clientId = clientId)
+    }
+
+    suspend fun fetchRentalDetails(accessToken: String, rentalId: String): AdminRentalDetailsResponse {
+        return adminRepository.fetchRentalDetails(accessToken = accessToken, rentalId = rentalId)
     }
 
     suspend fun deleteRental(accessToken: String, rentalId: String) {
@@ -166,6 +171,24 @@ class AdminUseCases(
 
     suspend fun finishRentalByLifecycle(accessToken: String, rentalId: String) {
         adminRepository.finishRentalByLifecycle(accessToken = accessToken, rentalId = rentalId)
+    }
+
+    suspend fun startClientRentalInExisting(
+        accessToken: String,
+        rentalId: String,
+        clientId: String,
+        login: String,
+        password: String,
+        periodStart: String
+    ) {
+        adminRepository.startClientRentalInExisting(
+            accessToken = accessToken,
+            rentalId = rentalId,
+            clientId = clientId,
+            login = login,
+            password = password,
+            periodStart = periodStart
+        )
     }
 
     suspend fun adjustClientRentalDebt(

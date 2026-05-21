@@ -14,6 +14,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -859,10 +860,11 @@ internal fun AdminSheetInputField(
     valueWeight: FontWeight = FontWeight.Normal,
     capitalization: KeyboardCapitalization = KeyboardCapitalization.Sentences,
     isDashed: Boolean = false,
-    accentBorder: Boolean = false
+    accentBorder: Boolean = false,
+    borderColor: Color = AppDesign.Accent
 ) {
     val dashedColor = Color(0xFF98A1AD)
-    val borderColor = if (accentBorder) AppDesign.Accent else AppDesign.Accent
+    val resolvedBorderColor = if (accentBorder) AppDesign.Accent else borderColor
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
@@ -891,7 +893,7 @@ internal fun AdminSheetInputField(
                         )
                     } else {
                         drawRoundRect(
-                            color = borderColor,
+                            color = resolvedBorderColor,
                             cornerRadius = corner,
                             style = Stroke(width = 1.5.dp.toPx())
                         )
@@ -1107,6 +1109,7 @@ internal fun RentalClientPickerSheet(
 ) {
     var searchText by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf(RentalClientPickerFilter.All) }
+    val overlayInteraction = remember { MutableInteractionSource() }
     val baseClients = remember(clients) { clients.filter { !it.rentalIsActive } }
     val visibleClients = remember(baseClients, searchText, selectedFilter) {
         val query = searchText.trim().lowercase()
@@ -1128,11 +1131,22 @@ internal fun RentalClientPickerSheet(
             .fillMaxSize()
             .background(AppDesign.PageBackground)
     ) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clickable(
+                    interactionSource = overlayInteraction,
+                    indication = null,
+                    onClick = {}
+                )
+                .zIndex(0f)
+        )
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
+                .zIndex(1f)
         ) {
             RentalPickerHeader(
                 title = "Клиенты",
@@ -1266,6 +1280,7 @@ internal fun RentalBikePickerSheet(
     listTag: String
 ) {
     var searchText by remember { mutableStateOf("") }
+    val overlayInteraction = remember { MutableInteractionSource() }
     val availableBikes = remember(bikes) { bikes.filter { !it.bikeIsInRental } }
     val visibleBikes = remember(availableBikes, searchText) {
         val query = searchText.trim().lowercase()
@@ -1284,11 +1299,22 @@ internal fun RentalBikePickerSheet(
             .fillMaxSize()
             .background(AppDesign.PageBackground)
     ) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clickable(
+                    interactionSource = overlayInteraction,
+                    indication = null,
+                    onClick = {}
+                )
+                .zIndex(0f)
+        )
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
+                .zIndex(1f)
         ) {
             RentalPickerHeader(
                 title = "Велосипеды",

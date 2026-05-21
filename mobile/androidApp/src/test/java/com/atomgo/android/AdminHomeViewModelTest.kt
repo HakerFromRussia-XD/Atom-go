@@ -6,6 +6,7 @@ import com.atomgo.android.presentation.viewmodel.AdminHomeViewModel
 import com.atomgo.shared.api.AdminBikeResponse
 import com.atomgo.shared.api.AdminClientDetailsResponse
 import com.atomgo.shared.api.AdminClientSummaryResponse
+import com.atomgo.shared.api.AdminRentalDetailsResponse
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -50,6 +51,7 @@ class AdminHomeViewModelTest {
                 override suspend fun createBike(accessToken: String, bikeModel: String, weeklyRateRub: Int, frameSerialNumber: String, motorSerialNumber: String, batterySerialNumber1: String, batterySerialNumber2: String?) = Unit
                 override suspend fun createRental(accessToken: String, clientId: String?, bikeId: String, login: String, password: String, periodStart: String) = Unit
                 override suspend fun fetchClientDetails(accessToken: String, clientId: String): AdminClientDetailsResponse = error("unused")
+                override suspend fun fetchRentalDetails(accessToken: String, rentalId: String): AdminRentalDetailsResponse = error("unused")
                 override suspend fun deleteRental(accessToken: String, rentalId: String) = Unit
                 override suspend fun deleteClient(accessToken: String, clientId: String) = Unit
                 override suspend fun updateClient(accessToken: String, clientId: String, fullName: String, address: String, passportData: String, phoneLabel: String, phoneNumber: String, comment: String?) = Unit
@@ -57,6 +59,7 @@ class AdminHomeViewModelTest {
                 override suspend fun updateRental(accessToken: String, rentalId: String, bikeId: String, periodStart: String, periodEnd: String?, login: String?, password: String?) = Unit
                 override suspend fun updateRentalPipelineStatus(accessToken: String, rentalId: String, pipelineStatus: String) = Unit
                 override suspend fun finishRentalByLifecycle(accessToken: String, rentalId: String) = Unit
+                override suspend fun startClientRentalInExisting(accessToken: String, rentalId: String, clientId: String, login: String, password: String, periodStart: String) = Unit
                 override suspend fun adjustClientRentalDebt(accessToken: String, clientRentalId: String, amountRub: Int, sign: String, comment: String?) = Unit
                 override suspend fun adjustClientDebt(accessToken: String, clientId: String, amountRub: Int, sign: String, comment: String?) = Unit
             }

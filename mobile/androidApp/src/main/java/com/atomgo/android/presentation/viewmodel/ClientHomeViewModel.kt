@@ -6,6 +6,7 @@ import com.atomgo.android.domain.usecase.ClientUseCases
 import com.atomgo.shared.api.ClientDashboardResponse
 import com.atomgo.shared.api.CreatePaymentResponse
 import com.atomgo.shared.api.PaymentStatusResponse
+import com.atomgo.shared.api.UpdateClientReceiptEmailResponse
 import kotlinx.coroutines.launch
 
 class ClientHomeViewModel(
@@ -45,6 +46,18 @@ class ClientHomeViewModel(
         viewModelScope.launch {
             runCatching {
                 clientUseCases.fetchPaymentStatus(accessToken = accessToken, paymentId = paymentId)
+            }.also(onResult)
+        }
+    }
+
+    fun updateReceiptEmail(
+        accessToken: String,
+        email: String,
+        onResult: (Result<UpdateClientReceiptEmailResponse>) -> Unit
+    ) {
+        viewModelScope.launch {
+            runCatching {
+                clientUseCases.updateReceiptEmail(accessToken = accessToken, email = email)
             }.also(onResult)
         }
     }

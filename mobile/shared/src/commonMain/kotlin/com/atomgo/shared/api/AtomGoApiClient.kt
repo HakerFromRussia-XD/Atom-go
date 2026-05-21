@@ -249,6 +249,16 @@ class AtomGoApiClient private constructor(
     }
 
     @Throws(AtomGoApiException::class, CancellationException::class)
+    suspend fun fetchAdminRentalDetails(accessToken: String, rentalId: String): AdminRentalDetailsResponse {
+        val response = executeRequest {
+            httpClient.get("$apiBaseUrl/admin/rentals/$rentalId") {
+                header(HttpHeaders.Authorization, "Bearer $accessToken")
+            }
+        }
+        return decodeResponse(response)
+    }
+
+    @Throws(AtomGoApiException::class, CancellationException::class)
     suspend fun adjustAdminClientDebt(
         accessToken: String,
         clientId: String,
@@ -289,6 +299,32 @@ class AtomGoApiClient private constructor(
                         amountRub = amountRub,
                         sign = sign,
                         comment = comment
+                    )
+                )
+            }
+        }
+        return decodeResponse(response)
+    }
+
+    @Throws(AtomGoApiException::class, CancellationException::class)
+    suspend fun startAdminClientRentalInExisting(
+        accessToken: String,
+        rentalId: String,
+        clientId: String,
+        login: String,
+        password: String,
+        periodStart: String
+    ): AdminStartClientRentalResponse {
+        val response = executeRequest {
+            httpClient.post("$apiBaseUrl/admin/rentals/$rentalId/client-rentals") {
+                header(HttpHeaders.Authorization, "Bearer $accessToken")
+                header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                setBody(
+                    AdminStartClientRentalRequest(
+                        clientId = clientId,
+                        login = login,
+                        password = password,
+                        periodStart = periodStart
                     )
                 )
             }

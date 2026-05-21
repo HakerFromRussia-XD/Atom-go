@@ -59,6 +59,10 @@ data class ClientDashboardResponse(
     val rentalStart: String,
     @SerialName("paid_until")
     val paidUntil: String,
+    @SerialName("completed_at")
+    val completedAt: String? = null,
+    @SerialName("rental_is_active")
+    val rentalIsActive: Boolean = false,
     @SerialName("debt_rub")
     val debtRub: Int,
     @SerialName("balance_rub")
@@ -69,7 +73,9 @@ data class ClientDashboardResponse(
     @SerialName("tax_mode")
     val taxMode: String? = null,
     @SerialName("requires_receipt_email")
-    val requiresReceiptEmail: Boolean = false
+    val requiresReceiptEmail: Boolean = false,
+    @SerialName("receipt_email")
+    val receiptEmail: String? = null
 )
 
 @Serializable
@@ -174,6 +180,62 @@ data class AdminClientDetailsResponse(
 )
 
 @Serializable
+data class AdminRentalJournalEntryResponse(
+    val type: String,
+    @SerialName("amount_rub")
+    val amountRub: Int,
+    @SerialName("created_at")
+    val createdAt: String
+)
+
+@Serializable
+data class AdminRentalDetailsResponse(
+    @SerialName("rental_id")
+    val rentalId: String,
+    @SerialName("client_id")
+    val clientId: String = "",
+    @SerialName("client_full_name")
+    val clientFullName: String = "",
+    @SerialName("client_login")
+    val clientLogin: String? = null,
+    @SerialName("client_password")
+    val clientPassword: String? = null,
+    @SerialName("bike_id")
+    val bikeId: String,
+    @SerialName("bike_model")
+    val bikeModel: String,
+    @SerialName("bike_avatar_url")
+    val bikeAvatarUrl: String = "",
+    @SerialName("weekly_rate_rub")
+    val weeklyRateRub: Int = 0,
+    @SerialName("rental_start")
+    val rentalStart: String = "",
+    @SerialName("completed_at")
+    val completedAt: String? = null,
+    @SerialName("paid_until")
+    val paidUntil: String = "",
+    @SerialName("total_paid_rub")
+    val totalPaidRub: Int = 0,
+    @SerialName("debt_rub")
+    val debtRub: Int = 0,
+    @SerialName("total_adjustment_rub")
+    val totalAdjustmentRub: Int = 0,
+    @SerialName("rental_pipeline_status")
+    val rentalPipelineStatus: String = "",
+    @SerialName("rental_is_active")
+    val rentalIsActive: Boolean = false,
+    @SerialName("journal_entries")
+    val journalEntries: List<AdminRentalJournalEntryResponse> = emptyList(),
+    @SerialName("video_url")
+    val videoUrl: String? = null,
+    @SerialName("contract_url")
+    val contractUrl: String? = null,
+    val comment: String? = null,
+    @SerialName("client_rental_id")
+    val clientRentalId: String? = null
+)
+
+@Serializable
 data class AdminCreateClientRequest(
     @SerialName("full_name")
     val fullName: String,
@@ -213,6 +275,28 @@ data class AdminCreateRentalRequest(
     @SerialName("contract_url")
     val contractUrl: String? = null,
     val comment: String? = null
+)
+
+@Serializable
+data class AdminStartClientRentalRequest(
+    @SerialName("client_id")
+    val clientId: String,
+    val login: String,
+    val password: String,
+    @SerialName("period_start")
+    val periodStart: String
+)
+
+@Serializable
+data class AdminStartClientRentalResponse(
+    @SerialName("rental_id")
+    val rentalId: String,
+    @SerialName("client_id")
+    val clientId: String,
+    @SerialName("period_start")
+    val periodStart: String,
+    @SerialName("pipeline_status")
+    val pipelineStatus: String
 )
 
 @Serializable

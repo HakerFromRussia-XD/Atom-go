@@ -5,6 +5,8 @@ import com.atomgo.shared.api.AdminBikeResponse
 import com.atomgo.shared.api.AdminClientDetailsResponse
 import com.atomgo.shared.api.AdminClientSummaryResponse
 import java.text.DecimalFormat
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 
 internal data class BikeCatalogRuntimeSnapshot(
     val borderColor: Color,
@@ -118,6 +120,14 @@ internal fun formatLongRuDate(value: String): String {
     }.getOrDefault(value)
 }
 
+internal fun formatJournalDateLabel(value: String): String {
+    val datePart = value.trim().take(10)
+    if (datePart.count { it == '-' } == 2) {
+        return formatShortRuDate(datePart)
+    }
+    return "—"
+}
+
 internal fun rentStatus(item: AdminClientSummaryResponse): RentStatusPill {
     if (!item.rentalIsActive) {
         return RentStatusPill(
@@ -162,6 +172,15 @@ internal fun paidDaysText(item: AdminClientSummaryResponse): String {
     val daysFromStatus = Regex("\\d+").find(item.statusText.lowercase())?.value?.toIntOrNull()
     if (daysFromStatus != null) {
         return dayWord(daysFromStatus)
+    }
+    val paidUntil = item.paidUntil?.trim().orEmpty()
+    if (paidUntil.isNotEmpty()) {
+        val daysFromDate = runCatching {
+            ChronoUnit.DAYS.between(LocalDate.now(), LocalDate.parse(paidUntil)).coerceAtLeast(0).toInt()
+        }.getOrNull()
+        if (daysFromDate != null) {
+            return dayWord(daysFromDate)
+        }
     }
     return "—"
 }

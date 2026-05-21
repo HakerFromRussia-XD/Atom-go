@@ -9,6 +9,7 @@ import com.atomgo.shared.api.AdminClientSummaryResponse
 import com.atomgo.shared.api.AdminCreateBikeRequest
 import com.atomgo.shared.api.AdminCreateClientRequest
 import com.atomgo.shared.api.AdminCreateRentalRequest
+import com.atomgo.shared.api.AdminRentalDetailsResponse
 import com.atomgo.shared.api.AdminUpdateBikeRequest
 import com.atomgo.shared.api.AdminUpdateClientRequest
 import com.atomgo.shared.api.AdminUpdateRentalRequest
@@ -92,6 +93,10 @@ class DefaultAdminRepository : AdminRepository {
 
     override suspend fun fetchClientDetails(accessToken: String, clientId: String): AdminClientDetailsResponse {
         return apiClient.fetchAdminClientDetails(accessToken = accessToken, clientId = clientId)
+    }
+
+    override suspend fun fetchRentalDetails(accessToken: String, rentalId: String): AdminRentalDetailsResponse {
+        return apiClient.fetchAdminRentalDetails(accessToken = accessToken, rentalId = rentalId)
     }
 
     override suspend fun deleteRental(accessToken: String, rentalId: String) {
@@ -181,6 +186,24 @@ class DefaultAdminRepository : AdminRepository {
 
     override suspend fun finishRentalByLifecycle(accessToken: String, rentalId: String) {
         apiClient.finishAdminRental(accessToken = accessToken, rentalId = rentalId)
+    }
+
+    override suspend fun startClientRentalInExisting(
+        accessToken: String,
+        rentalId: String,
+        clientId: String,
+        login: String,
+        password: String,
+        periodStart: String
+    ) {
+        apiClient.startAdminClientRentalInExisting(
+            accessToken = accessToken,
+            rentalId = rentalId,
+            clientId = clientId,
+            login = login,
+            password = password,
+            periodStart = periodStart
+        )
     }
 
     override suspend fun adjustClientRentalDebt(

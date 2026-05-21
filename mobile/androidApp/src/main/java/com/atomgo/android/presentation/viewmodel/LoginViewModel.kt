@@ -27,9 +27,9 @@ class LoginViewModel(
 ) : ViewModel() {
     companion object {
         private const val CLIENT_SELF_EMPLOYED_LOGIN = "user286525"
-        private const val CLIENT_SELF_EMPLOYED_PASSWORD = "hXwVeC35Hedvц"
-        private const val CLIENT_IP_LOGIN = "client2"
-        private const val CLIENT_IP_PASSWORD = "client234"
+        private const val CLIENT_SELF_EMPLOYED_PASSWORD = "hXwVeC35Hedv"
+        private const val CLIENT_IP_LOGIN = "client3"
+        private const val CLIENT_IP_PASSWORD = "3"
         private const val ADMIN_LOGIN = "admin"
         private const val ADMIN_PASSWORD = "admin123"
         private const val ADMIN_IP_LOGIN = "admin_ip"

@@ -6,6 +6,7 @@ import com.atomgo.android.domain.usecase.AdminUseCases
 import com.atomgo.shared.api.AdminBikeResponse
 import com.atomgo.shared.api.AdminClientDetailsResponse
 import com.atomgo.shared.api.AdminClientSummaryResponse
+import com.atomgo.shared.api.AdminRentalDetailsResponse
 import kotlinx.coroutines.launch
 
 class AdminHomeViewModel(
@@ -115,6 +116,18 @@ class AdminHomeViewModel(
         viewModelScope.launch {
             runCatching {
                 adminUseCases.fetchClientDetails(accessToken = accessToken, clientId = clientId)
+            }.also(onResult)
+        }
+    }
+
+    fun fetchAdminRentalDetails(
+        accessToken: String,
+        rentalId: String,
+        onResult: (Result<AdminRentalDetailsResponse>) -> Unit
+    ) {
+        viewModelScope.launch {
+            runCatching {
+                adminUseCases.fetchRentalDetails(accessToken = accessToken, rentalId = rentalId)
             }.also(onResult)
         }
     }
@@ -287,6 +300,29 @@ class AdminHomeViewModel(
         viewModelScope.launch {
             runCatching {
                 adminUseCases.finishRentalByLifecycle(accessToken = accessToken, rentalId = rentalId)
+            }.also(onResult)
+        }
+    }
+
+    fun startClientRentalInExisting(
+        accessToken: String,
+        rentalId: String,
+        clientId: String,
+        login: String,
+        password: String,
+        periodStart: String,
+        onResult: (Result<Unit>) -> Unit
+    ) {
+        viewModelScope.launch {
+            runCatching {
+                adminUseCases.startClientRentalInExisting(
+                    accessToken = accessToken,
+                    rentalId = rentalId,
+                    clientId = clientId,
+                    login = login,
+                    password = password,
+                    periodStart = periodStart
+                )
             }.also(onResult)
         }
     }

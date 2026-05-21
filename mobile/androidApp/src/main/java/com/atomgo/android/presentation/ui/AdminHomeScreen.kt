@@ -144,16 +144,17 @@ internal data class RentStatusPill(
 internal fun AdminSquareTopButton(
     iconRes: Int,
     testTag: String,
+    borderColor: Color = AppDesign.Accent,
     onClick: () -> Unit
 ) {
     OutlinedButton(
         onClick = onClick,
         contentPadding = PaddingValues(0.dp),
         shape = RoundedCornerShape(14.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, AppDesign.Accent),
+        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
         colors = ButtonDefaults.outlinedButtonColors(
             containerColor = Color.White,
-            contentColor = AppDesign.Accent
+            contentColor = borderColor
         ),
         modifier = Modifier
             .size(47.dp)
@@ -601,28 +602,40 @@ internal fun AdminHomeScreen(
             }
         }
     }
-    fun openRentalDetailsFromSummary(summary: AdminClientSummaryResponse) {
-        selectedRentalDetails = summary.rentalId?.let { rentalId ->
-            AdminRentalPreview.fromSummary(summary = summary, rentalId = rentalId)
+    fun openRentalDetails(rentalId: String, fallback: AdminRentalPreview? = null) {
+        val normalizedRentalId = rentalId.trim()
+        if (normalizedRentalId.isEmpty()) {
+            adminMessage = "Аренда не найдена"
+            return
         }
+        selectedRentalDetails = fallback
         isRentalDetailsLoading = true
-        if (summary.clientId.isNotBlank()) {
-            adminHomeViewModel.fetchAdminClientDetails(session.accessToken, summary.clientId) { result ->
-                result.onSuccess { client ->
-                    val matching = client.rentals.firstOrNull { it.rentalId == summary.rentalId }
-                    selectedRentalDetails = if (matching != null) {
-                        AdminRentalPreview.fromHistory(client = client, rental = matching)
-                    } else {
-                        selectedRentalDetails ?: AdminRentalPreview.fromSummary(summary = summary, rentalId = summary.rentalId.orEmpty())
-                    }
-                    isRentalDetailsLoading = false
-                }.onFailure {
-                    adminMessage = "Ошибка загрузки аренды: ${it.message}"
-                    isRentalDetailsLoading = false
+        adminHomeViewModel.fetchAdminRentalDetails(session.accessToken, normalizedRentalId) { result ->
+            result.onSuccess {
+                selectedRentalDetails = AdminRentalPreview.fromDetails(it)
+                isRentalDetailsLoading = false
+            }.onFailure {
+                if (fallback == null) {
+                    selectedRentalDetails = null
                 }
+                adminMessage = "Ошибка загрузки аренды: ${it.message}"
+                isRentalDetailsLoading = false
             }
-        } else {
-            isRentalDetailsLoading = false
+        }
+    }
+    fun openRentalDetailsFromSummary(summary: AdminClientSummaryResponse) {
+        val rentalId = summary.rentalId.orEmpty()
+        openRentalDetails(
+            rentalId = rentalId,
+            fallback = rentalId.takeIf { it.isNotBlank() }?.let {
+                AdminRentalPreview.fromSummary(summary = summary, rentalId = it)
+            }
+        )
+    }
+    fun refreshSelectedRentalDetails() {
+        val rentalId = selectedRentalDetails?.rentalId.orEmpty()
+        if (rentalId.isNotBlank()) {
+            openRentalDetails(rentalId = rentalId, fallback = selectedRentalDetails)
         }
     }
     fun updateRentalPipelineStatus(item: AdminClientSummaryResponse, pipelineStatus: String) {
@@ -1234,8 +1247,7 @@ internal fun AdminHomeScreen(
                 confirmDeleteClientId = clientId
             },
             onOpenRental = { preview ->
-                selectedRentalDetails = preview
-                isRentalDetailsLoading = false
+                openRentalDetails(rentalId = preview.rentalId, fallback = preview)
             }
         )
     }
@@ -1248,6 +1260,7 @@ internal fun AdminHomeScreen(
     ) {
         AdminRentalDetailsScreenAndroid(
             details = selectedRentalDetails,
+            clients = clientsCatalog,
             isLoading = isRentalDetailsLoading,
             onClose = { selectedRentalDetails = null },
             onEdit = { showUpdateRental = true },
@@ -1272,12 +1285,27 @@ internal fun AdminHomeScreen(
                     result.onSuccess {
                         adminMessage = "Аренда завершена"
                         refreshAllCatalogs()
-                        selectedRentalDetails = selectedRentalDetails?.copy(
-                            rentalPipelineStatus = "in_stock",
-                            rentalIsActive = false
-                        )
+                        refreshSelectedRentalDetails()
                     }.onFailure {
                         adminMessage = "Ошибка завершения аренды: ${it.message}"
+                    }
+                }
+            },
+            onStartRental = { rentalId, clientId, login, password, periodStart ->
+                adminHomeViewModel.startClientRentalInExisting(
+                    accessToken = session.accessToken,
+                    rentalId = rentalId,
+                    clientId = clientId,
+                    login = login,
+                    password = password,
+                    periodStart = periodStart
+                ) { result ->
+                    result.onSuccess {
+                        adminMessage = "Новая клиентская аренда запущена"
+                        refreshAllCatalogs()
+                        refreshSelectedRentalDetails()
+                    }.onFailure {
+                        adminMessage = "Ошибка запуска аренды: ${it.message}"
                     }
                 }
             },
@@ -1300,43 +1328,26 @@ internal fun AdminHomeScreen(
             onDismiss = { rentalAdjustmentTarget = null },
             onApply = { amountRub, sign, comment ->
                 val target = rentalAdjustmentTarget ?: return@AdminRentalDebtAdjustmentDialog
-                if (target.sourceLabel == "lifecycle") {
-                    val clientId = target.clientId.trim()
-                    if (clientId.isEmpty()) {
-                        adminMessage = "Клиент для корректировки не найден"
+                val clientRentalId = target.clientRentalId?.trim().orEmpty()
+                if (clientRentalId.isEmpty()) {
+                    adminMessage = "Клиентская аренда для корректировки не найдена"
+                    rentalAdjustmentTarget = null
+                    return@AdminRentalDebtAdjustmentDialog
+                }
+                adminHomeViewModel.adjustAdminClientRentalDebt(
+                    accessToken = session.accessToken,
+                    clientRentalId = clientRentalId,
+                    amountRub = amountRub,
+                    sign = sign,
+                    comment = comment.ifBlank { null }
+                ) { result ->
+                    result.onSuccess {
+                        adminMessage = "Корректировка сохранена"
                         rentalAdjustmentTarget = null
-                        return@AdminRentalDebtAdjustmentDialog
-                    }
-                    adminHomeViewModel.adjustAdminClientDebt(
-                        accessToken = session.accessToken,
-                        clientId = clientId,
-                        amountRub = amountRub,
-                        sign = sign,
-                        comment = comment.ifBlank { null }
-                    ) { result ->
-                        result.onSuccess {
-                            adminMessage = "Корректировка сохранена"
-                            rentalAdjustmentTarget = null
-                            refreshAllCatalogs()
-                        }.onFailure {
-                            adminMessage = "Ошибка корректировки: ${it.message}"
-                        }
-                    }
-                } else {
-                    adminHomeViewModel.adjustAdminClientRentalDebt(
-                        accessToken = session.accessToken,
-                        clientRentalId = target.rentalId,
-                        amountRub = amountRub,
-                        sign = sign,
-                        comment = comment.ifBlank { null }
-                    ) { result ->
-                        result.onSuccess {
-                            adminMessage = "Корректировка сохранена"
-                            rentalAdjustmentTarget = null
-                            refreshAllCatalogs()
-                        }.onFailure {
-                            adminMessage = "Ошибка корректировки: ${it.message}"
-                        }
+                        refreshAllCatalogs()
+                        refreshSelectedRentalDetails()
+                    }.onFailure {
+                        adminMessage = "Ошибка корректировки: ${it.message}"
                     }
                 }
             }

@@ -4,6 +4,7 @@ import com.atomgo.android.domain.repository.ClientRepository
 import com.atomgo.shared.api.ClientDashboardResponse
 import com.atomgo.shared.api.CreatePaymentResponse
 import com.atomgo.shared.api.PaymentStatusResponse
+import com.atomgo.shared.api.UpdateClientReceiptEmailResponse
 
 class ClientUseCases(
     private val clientRepository: ClientRepository
@@ -22,6 +23,10 @@ class ClientUseCases(
             paymentType = paymentType,
             receiptEmail = receiptEmail
         )
+    }
+
+    suspend fun updateReceiptEmail(accessToken: String, email: String): UpdateClientReceiptEmailResponse {
+        return clientRepository.updateReceiptEmail(accessToken = accessToken, email = email)
     }
 
     suspend fun fetchPaymentStatus(accessToken: String, paymentId: String): PaymentStatusResponse {

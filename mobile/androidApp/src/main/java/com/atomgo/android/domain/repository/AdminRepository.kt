@@ -3,6 +3,7 @@ package com.atomgo.android.domain.repository
 import com.atomgo.shared.api.AdminBikeResponse
 import com.atomgo.shared.api.AdminClientDetailsResponse
 import com.atomgo.shared.api.AdminClientSummaryResponse
+import com.atomgo.shared.api.AdminRentalDetailsResponse
 
 interface AdminRepository {
     suspend fun fetchRents(accessToken: String): List<AdminClientSummaryResponse>
@@ -38,6 +39,7 @@ interface AdminRepository {
     )
 
     suspend fun fetchClientDetails(accessToken: String, clientId: String): AdminClientDetailsResponse
+    suspend fun fetchRentalDetails(accessToken: String, rentalId: String): AdminRentalDetailsResponse
     suspend fun deleteRental(accessToken: String, rentalId: String)
     suspend fun deleteClient(accessToken: String, clientId: String)
 
@@ -75,6 +77,15 @@ interface AdminRepository {
 
     suspend fun updateRentalPipelineStatus(accessToken: String, rentalId: String, pipelineStatus: String)
     suspend fun finishRentalByLifecycle(accessToken: String, rentalId: String)
+
+    suspend fun startClientRentalInExisting(
+        accessToken: String,
+        rentalId: String,
+        clientId: String,
+        login: String,
+        password: String,
+        periodStart: String
+    )
 
     suspend fun adjustClientRentalDebt(
         accessToken: String,
