@@ -176,7 +176,8 @@ data class AdminClientDetailsResponse(
     val phones: List<AdminClientPhone>,
     val rentals: List<AdminRentalHistoryItemResponse>,
     @SerialName("carried_debt_rub")
-    val carriedDebtRub: Int = 0
+    val carriedDebtRub: Int = 0,
+    val comment: String? = null
 )
 
 @Serializable

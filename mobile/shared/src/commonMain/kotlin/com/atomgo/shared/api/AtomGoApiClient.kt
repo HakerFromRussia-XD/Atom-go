@@ -473,12 +473,16 @@ sealed class AtomGoApiException(message: String) : Exception(message) {
         AtomGoApiException(cause.message ?: "Invalid response")
 }
 
+private const val REQUEST_TIMEOUT_MILLIS = 12_000L
+private const val CONNECT_TIMEOUT_MILLIS = 5_000L
+private const val SOCKET_TIMEOUT_MILLIS = 12_000L
+
 private fun defaultHttpClient(): HttpClient {
     return HttpClient {
         install(HttpTimeout) {
-            requestTimeoutMillis = 5_000
-            connectTimeoutMillis = 3_000
-            socketTimeoutMillis = 5_000
+            requestTimeoutMillis = REQUEST_TIMEOUT_MILLIS
+            connectTimeoutMillis = CONNECT_TIMEOUT_MILLIS
+            socketTimeoutMillis = SOCKET_TIMEOUT_MILLIS
         }
         install(ContentNegotiation) {
             json(
