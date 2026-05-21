@@ -35,6 +35,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DirectionsBike
@@ -86,7 +87,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
@@ -138,20 +139,20 @@ private fun AdminHomeTabLayer(
     active: Boolean,
     content: @Composable () -> Unit
 ) {
-    Box(
+    Layout(
+        content = content,
         modifier = Modifier
             .fillMaxSize()
             .zIndex(if (active) 1f else 0f)
-            .layout { measurable, constraints ->
-                val placeable = measurable.measure(constraints)
-                layout(placeable.width, placeable.height) {
-                    if (active) {
-                        placeable.placeRelative(0, 0)
-                    }
-                }
+    ) { measurables, constraints ->
+        if (!active) {
+            layout(constraints.maxWidth, constraints.maxHeight) {}
+        } else {
+            val placeable = measurables.firstOrNull()?.measure(constraints)
+            layout(constraints.maxWidth, constraints.maxHeight) {
+                placeable?.placeRelative(0, 0)
             }
-    ) {
-        content()
+        }
     }
 }
 
@@ -766,8 +767,7 @@ internal fun AdminHomeScreen(
                 label = "adminHomeUnderlyingOffset"
             )
     ) {
-        when (selectedTab) {
-            AdminHomeTab.Rents -> {
+        AdminHomeTabLayer(active = selectedTab == AdminHomeTab.Rents) {
                 val horizontalInset = 8.dp
                 val topBarHeight = 62.dp
                 val searchTopPadding = 6.dp
@@ -881,29 +881,31 @@ internal fun AdminHomeScreen(
                                         }
                                     }
                                 } else {
-                                    item("admin_rents_container") {
-                                        Surface(
+                                    itemsIndexed(
+                                        items = filteredRents,
+                                        key = { _, item -> item.rentalId ?: item.clientId },
+                                        contentType = { _, _ -> "admin_rent_row" }
+                                    ) { index, item ->
+                                        Column(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .testTag("admin_rents_container"),
-                                            shape = RoundedCornerShape(15.dp),
-                                            color = AppDesign.BlackHaze,
-                                            border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, AppDesign.Accent)
+                                                .adminCatalogListSegmentFrame(index, filteredRents.lastIndex)
+                                                .then(if (index == 0) Modifier.testTag("admin_rents_container") else Modifier)
+                                                .padding(
+                                                    top = if (index == 0) 5.dp else 0.dp,
+                                                    bottom = if (index == filteredRents.lastIndex) 5.dp else 0.dp
+                                                )
                                         ) {
-                                            Column(modifier = Modifier.padding(vertical = 5.dp)) {
-                                                filteredRents.forEachIndexed { index, item ->
-                                                    AdminRentCard(
-                                                        item = item,
-                                                        isFirst = index == 0,
-                                                        onDetails = { openRentalDetailsFromSummary(item) },
-                                                        onSetLongTerm = { updateRentalPipelineStatus(item, "long_term") },
-                                                        onSetSoonReturn = { updateRentalPipelineStatus(item, "soon_return") },
-                                                        onSetMine = { finishRentalToMine(item) }
-                                                    )
-                                                    if (index < filteredRents.lastIndex) {
-                                                        HorizontalDivider(color = AppDesign.LightStroke, thickness = AppDesign.HairlineStroke)
-                                                    }
-                                                }
+                                            AdminRentCard(
+                                                item = item,
+                                                isFirst = index == 0,
+                                                onDetails = { openRentalDetailsFromSummary(item) },
+                                                onSetLongTerm = { updateRentalPipelineStatus(item, "long_term") },
+                                                onSetSoonReturn = { updateRentalPipelineStatus(item, "soon_return") },
+                                                onSetMine = { finishRentalToMine(item) }
+                                            )
+                                            if (index < filteredRents.lastIndex) {
+                                                HorizontalDivider(color = AppDesign.LightStroke, thickness = AppDesign.HairlineStroke)
                                             }
                                         }
                                     }
@@ -981,10 +983,10 @@ internal fun AdminHomeScreen(
                         )
                     }
                 }
-            }
+        }
 
-            AdminHomeTab.Clients -> {
-                AdminClientsCatalogScreen(
+        AdminHomeTabLayer(active = selectedTab == AdminHomeTab.Clients) {
+            AdminClientsCatalogScreen(
                     statusBarTop = statusBarTop,
                     clients = clientsCatalog,
                     isLoading = isClientsLoading,
@@ -1000,10 +1002,10 @@ internal fun AdminHomeScreen(
                     onOpenClient = { client -> openClientDetails(client.clientId) },
                     visibleClients = filteredClients
                 )
-            }
+        }
 
-            AdminHomeTab.Bikes -> {
-                AdminBikesCatalogScreen(
+        AdminHomeTabLayer(active = selectedTab == AdminHomeTab.Bikes) {
+            AdminBikesCatalogScreen(
                     statusBarTop = statusBarTop,
                     bikes = bikesCatalog,
                     rentals = clientsCatalog,
@@ -1020,14 +1022,15 @@ internal fun AdminHomeScreen(
                     onOpenBike = { bike -> selectedBikeForEdit = bike },
                     visibleBikes = filteredBikes
                 )
-            }
         }
 
         AnimatedVisibility(
             visible = !stackScreenVisible,
             enter = motoricaBottomNavEnter(),
             exit = motoricaBottomNavExit(),
-            modifier = Modifier.align(Alignment.BottomCenter)
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .zIndex(8f)
         ) {
             AdminBottomTabBar(
                 selectedTab = selectedTab,
@@ -1039,7 +1042,9 @@ internal fun AdminHomeScreen(
 
         AppToast(
             message = toastMessage,
-            modifier = Modifier.align(Alignment.BottomCenter),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .zIndex(9f),
             bottomPadding = 96
         )
     }

@@ -44,6 +44,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DirectionsBike
@@ -90,6 +91,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
@@ -100,6 +102,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -139,6 +142,125 @@ import kotlinx.coroutines.delay
 import java.text.DecimalFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+
+internal fun Modifier.adminCatalogListSegmentFrame(
+    index: Int,
+    lastIndex: Int
+): Modifier {
+    return drawBehind {
+        val strokeWidth = AppDesign.HairlineStroke.toPx()
+        val halfStroke = strokeWidth / 2f
+        val radius = 15.dp.toPx()
+        val corner = CornerRadius(radius, radius)
+        val isFirst = index == 0
+        val isLast = index == lastIndex
+
+        when {
+            isFirst && isLast -> drawRoundRect(
+                color = AppDesign.BlackHaze,
+                topLeft = Offset.Zero,
+                size = size,
+                cornerRadius = corner
+            )
+            isFirst -> drawRoundRect(
+                color = AppDesign.BlackHaze,
+                topLeft = Offset.Zero,
+                size = Size(size.width, size.height + radius),
+                cornerRadius = corner
+            )
+            isLast -> drawRoundRect(
+                color = AppDesign.BlackHaze,
+                topLeft = Offset(0f, -radius),
+                size = Size(size.width, size.height + radius),
+                cornerRadius = corner
+            )
+            else -> drawRect(color = AppDesign.BlackHaze)
+        }
+
+        if (isFirst && isLast) {
+            drawRoundRect(
+                color = AppDesign.Accent,
+                topLeft = Offset(halfStroke, halfStroke),
+                size = Size(size.width - strokeWidth, size.height - strokeWidth),
+                cornerRadius = CornerRadius(radius - halfStroke, radius - halfStroke),
+                style = Stroke(strokeWidth)
+            )
+            return@drawBehind
+        }
+
+        val leftX = halfStroke
+        val rightX = size.width - halfStroke
+        val topY = halfStroke
+        val bottomY = size.height - halfStroke
+
+        if (isFirst) {
+            drawLine(
+                color = AppDesign.Accent,
+                start = Offset(radius, topY),
+                end = Offset(size.width - radius, topY),
+                strokeWidth = strokeWidth
+            )
+            drawArc(
+                color = AppDesign.Accent,
+                startAngle = 180f,
+                sweepAngle = 90f,
+                useCenter = false,
+                topLeft = Offset(halfStroke, halfStroke),
+                size = Size(radius * 2f - strokeWidth, radius * 2f - strokeWidth),
+                style = Stroke(strokeWidth)
+            )
+            drawArc(
+                color = AppDesign.Accent,
+                startAngle = 270f,
+                sweepAngle = 90f,
+                useCenter = false,
+                topLeft = Offset(size.width - radius * 2f + halfStroke, halfStroke),
+                size = Size(radius * 2f - strokeWidth, radius * 2f - strokeWidth),
+                style = Stroke(strokeWidth)
+            )
+        }
+
+        drawLine(
+            color = AppDesign.Accent,
+            start = Offset(leftX, if (isFirst) radius else 0f),
+            end = Offset(leftX, if (isLast) size.height - radius else size.height),
+            strokeWidth = strokeWidth
+        )
+        drawLine(
+            color = AppDesign.Accent,
+            start = Offset(rightX, if (isFirst) radius else 0f),
+            end = Offset(rightX, if (isLast) size.height - radius else size.height),
+            strokeWidth = strokeWidth
+        )
+
+        if (isLast) {
+            drawLine(
+                color = AppDesign.Accent,
+                start = Offset(radius, bottomY),
+                end = Offset(size.width - radius, bottomY),
+                strokeWidth = strokeWidth
+            )
+            drawArc(
+                color = AppDesign.Accent,
+                startAngle = 90f,
+                sweepAngle = 90f,
+                useCenter = false,
+                topLeft = Offset(halfStroke, size.height - radius * 2f + halfStroke),
+                size = Size(radius * 2f - strokeWidth, radius * 2f - strokeWidth),
+                style = Stroke(strokeWidth)
+            )
+            drawArc(
+                color = AppDesign.Accent,
+                startAngle = 0f,
+                sweepAngle = 90f,
+                useCenter = false,
+                topLeft = Offset(size.width - radius * 2f + halfStroke, size.height - radius * 2f + halfStroke),
+                size = Size(radius * 2f - strokeWidth, radius * 2f - strokeWidth),
+                style = Stroke(strokeWidth)
+            )
+        }
+    }
+}
 
 @Composable
 internal fun AdminClientsCatalogScreen(
@@ -287,24 +409,28 @@ internal fun AdminClientsCatalogScreen(
                             }
                         }
                     } else {
-                        item("admin_clients_container") {
-                            Surface(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(15.dp),
-                                color = AppDesign.BlackHaze,
-                                border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, AppDesign.Accent)
+                        itemsIndexed(
+                            items = visibleClients,
+                            key = { _, item -> item.clientId },
+                            contentType = { _, _ -> "admin_client_row" }
+                        ) { index, item ->
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .adminCatalogListSegmentFrame(index, visibleClients.lastIndex)
+                                    .then(if (index == 0) Modifier.testTag("admin_clients_container") else Modifier)
+                                    .padding(
+                                        top = if (index == 0) 5.dp else 0.dp,
+                                        bottom = if (index == visibleClients.lastIndex) 5.dp else 0.dp
+                                    )
                             ) {
-                                Column(modifier = Modifier.padding(vertical = 5.dp)) {
-                                    visibleClients.forEachIndexed { index, item ->
-                                        AdminClientCatalogRow(
-                                            item = item,
-                                            isFirst = index == 0,
-                                            onClick = { onOpenClient(item) }
-                                        )
-                                        if (index < visibleClients.lastIndex) {
-                                            HorizontalDivider(color = AppDesign.LightStroke, thickness = AppDesign.HairlineStroke)
-                                        }
-                                    }
+                                AdminClientCatalogRow(
+                                    item = item,
+                                    isFirst = index == 0,
+                                    onClick = { onOpenClient(item) }
+                                )
+                                if (index < visibleClients.lastIndex) {
+                                    HorizontalDivider(color = AppDesign.LightStroke, thickness = AppDesign.HairlineStroke)
                                 }
                             }
                         }
@@ -521,24 +647,28 @@ internal fun AdminBikesCatalogScreen(
                             }
                         }
                     } else {
-                        item("admin_bikes_container") {
-                            Surface(
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(15.dp),
-                                color = AppDesign.BlackHaze,
-                                border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, AppDesign.Accent)
+                        itemsIndexed(
+                            items = visibleBikes,
+                            key = { _, bike -> bike.bikeId },
+                            contentType = { _, _ -> "admin_bike_row" }
+                        ) { index, bike ->
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .adminCatalogListSegmentFrame(index, visibleBikes.lastIndex)
+                                    .then(if (index == 0) Modifier.testTag("admin_bikes_container") else Modifier)
+                                    .padding(
+                                        top = if (index == 0) 5.dp else 0.dp,
+                                        bottom = if (index == visibleBikes.lastIndex) 5.dp else 0.dp
+                                    )
                             ) {
-                                Column(modifier = Modifier.padding(vertical = 5.dp)) {
-                                    visibleBikes.forEachIndexed { index, bike ->
-                                        AdminBikeCatalogRow(
-                                            bike = bike,
-                                            runtime = bikeRuntimeByModel[normalizeCatalogSearchText(bike.bikeModel)] ?: freeBikeRuntime,
-                                            onClick = { onOpenBike(bike) }
-                                        )
-                                        if (index < visibleBikes.lastIndex) {
-                                            HorizontalDivider(color = AppDesign.LightStroke, thickness = AppDesign.HairlineStroke)
-                                        }
-                                    }
+                                AdminBikeCatalogRow(
+                                    bike = bike,
+                                    runtime = bikeRuntimeByModel[normalizeCatalogSearchText(bike.bikeModel)] ?: freeBikeRuntime,
+                                    onClick = { onOpenBike(bike) }
+                                )
+                                if (index < visibleBikes.lastIndex) {
+                                    HorizontalDivider(color = AppDesign.LightStroke, thickness = AppDesign.HairlineStroke)
                                 }
                             }
                         }
