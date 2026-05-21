@@ -35,7 +35,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DirectionsBike
@@ -80,19 +79,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.drawscope.clipRect
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -543,6 +537,9 @@ internal fun AdminHomeScreen(
     var bikesFilter by remember { mutableStateOf(AdminBikeFilter.All) }
     var bikesSearch by remember { mutableStateOf("") }
     var selectedTab by remember { mutableStateOf(AdminHomeTab.Rents) }
+    val rentsListState = rememberLazyListState()
+    val clientsListState = rememberLazyListState()
+    val bikesListState = rememberLazyListState()
     var adminMessage by remember { mutableStateOf<String?>(null) }
     var showCreateClient by remember { mutableStateOf(false) }
     var showCreateBike by remember { mutableStateOf(false) }
@@ -777,8 +774,6 @@ internal fun AdminHomeScreen(
                 val cardsInitialTop = chipsTop + chipsHeight + chipsTopGap
                 val searchMaskHeight = statusBarTop + topBarHeight + searchTopPadding + (searchHeight / 2)
                 val bottomCardsInset = 120.dp
-                val searchMaskHeightPx = with(density) { searchMaskHeight.toPx() }
-                val rentsListState = rememberLazyListState()
                 val filtersInteractive by remember {
                     derivedStateOf {
                         when (rentsListState.firstVisibleItemIndex) {
@@ -839,16 +834,6 @@ internal fun AdminHomeScreen(
                             LazyColumn(
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .drawWithContent {
-                                        clipRect(
-                                            left = 0f,
-                                            top = searchMaskHeightPx,
-                                            right = size.width,
-                                            bottom = size.height
-                                        ) {
-                                            this@drawWithContent.drawContent()
-                                        }
-                                    }
                                     .zIndex(2f)
                                     .testTag("admin_rents_list"),
                                 state = rentsListState,
@@ -880,31 +865,29 @@ internal fun AdminHomeScreen(
                                         }
                                     }
                                 } else {
-                                    itemsIndexed(
-                                        items = filteredRents,
-                                        key = { _, item -> item.rentalId ?: item.clientId },
-                                        contentType = { _, _ -> "admin_rent_row" }
-                                    ) { index, item ->
-                                        Column(
+                                    item("admin_rents_container") {
+                                        Surface(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .adminCatalogListSegmentFrame(index, filteredRents.lastIndex)
-                                                .then(if (index == 0) Modifier.testTag("admin_rents_container") else Modifier)
-                                                .padding(
-                                                    top = if (index == 0) 5.dp else 0.dp,
-                                                    bottom = if (index == filteredRents.lastIndex) 5.dp else 0.dp
-                                                )
+                                                .testTag("admin_rents_container"),
+                                            shape = RoundedCornerShape(15.dp),
+                                            color = AppDesign.BlackHaze,
+                                            border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, AppDesign.Accent)
                                         ) {
-                                            AdminRentCard(
-                                                item = item,
-                                                isFirst = index == 0,
-                                                onDetails = { openRentalDetailsFromSummary(item) },
-                                                onSetLongTerm = { updateRentalPipelineStatus(item, "long_term") },
-                                                onSetSoonReturn = { updateRentalPipelineStatus(item, "soon_return") },
-                                                onSetMine = { finishRentalToMine(item) }
-                                            )
-                                            if (index < filteredRents.lastIndex) {
-                                                HorizontalDivider(color = AppDesign.LightStroke, thickness = AppDesign.HairlineStroke)
+                                            Column(modifier = Modifier.padding(vertical = 5.dp)) {
+                                                filteredRents.forEachIndexed { index, item ->
+                                                    AdminRentCard(
+                                                        item = item,
+                                                        isFirst = index == 0,
+                                                        onDetails = { openRentalDetailsFromSummary(item) },
+                                                        onSetLongTerm = { updateRentalPipelineStatus(item, "long_term") },
+                                                        onSetSoonReturn = { updateRentalPipelineStatus(item, "soon_return") },
+                                                        onSetMine = { finishRentalToMine(item) }
+                                                    )
+                                                    if (index < filteredRents.lastIndex) {
+                                                        HorizontalDivider(color = AppDesign.LightStroke, thickness = AppDesign.HairlineStroke)
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -999,7 +982,8 @@ internal fun AdminHomeScreen(
                     onLogout = onLogout,
                     onCreate = { showCreateClient = true },
                     onOpenClient = { client -> openClientDetails(client.clientId) },
-                    visibleClients = filteredClients
+                    visibleClients = filteredClients,
+                    listState = clientsListState
                 )
         }
 
@@ -1019,7 +1003,8 @@ internal fun AdminHomeScreen(
                     onLogout = onLogout,
                     onCreate = { showCreateBike = true },
                     onOpenBike = { bike -> selectedBikeForEdit = bike },
-                    visibleBikes = filteredBikes
+                    visibleBikes = filteredBikes,
+                    listState = bikesListState
                 )
         }
 
