@@ -7,12 +7,18 @@ import com.atomgo.shared.api.ClientDashboardResponse
 import com.atomgo.shared.api.CreatePaymentResponse
 import com.atomgo.shared.api.PaymentStatusResponse
 import com.atomgo.shared.api.UpdateClientReceiptEmailResponse
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class DefaultClientRepository : ClientRepository {
     private val apiClient = AtomGoApiClient(BackendConfig.BASE_URL)
 
+    private suspend fun <T> onIo(block: suspend () -> T): T {
+        return withContext(Dispatchers.IO) { block() }
+    }
+
     override suspend fun fetchDashboard(accessToken: String): ClientDashboardResponse {
-        return apiClient.fetchClientDashboard(accessToken)
+        return onIo { apiClient.fetchClientDashboard(accessToken) }
     }
 
     override suspend fun createPayment(
@@ -20,17 +26,19 @@ class DefaultClientRepository : ClientRepository {
         paymentType: String,
         receiptEmail: String?
     ): CreatePaymentResponse {
-        if (!receiptEmail.isNullOrBlank()) {
-            apiClient.updateClientReceiptEmail(accessToken = accessToken, email = receiptEmail)
+        return onIo {
+            if (!receiptEmail.isNullOrBlank()) {
+                apiClient.updateClientReceiptEmail(accessToken = accessToken, email = receiptEmail)
+            }
+            apiClient.createPayment(accessToken = accessToken, paymentType = paymentType)
         }
-        return apiClient.createPayment(accessToken = accessToken, paymentType = paymentType)
     }
 
     override suspend fun updateReceiptEmail(accessToken: String, email: String): UpdateClientReceiptEmailResponse {
-        return apiClient.updateClientReceiptEmail(accessToken = accessToken, email = email)
+        return onIo { apiClient.updateClientReceiptEmail(accessToken = accessToken, email = email) }
     }
 
     override suspend fun fetchPaymentStatus(accessToken: String, paymentId: String): PaymentStatusResponse {
-        return apiClient.fetchPaymentStatus(accessToken = accessToken, paymentId = paymentId)
+        return onIo { apiClient.fetchPaymentStatus(accessToken = accessToken, paymentId = paymentId) }
     }
 }

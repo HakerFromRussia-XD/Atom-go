@@ -59,7 +59,44 @@ class YooKassaPaymentProviderTest {
         }
     }
 
-    private fun providerFor(server: CaptureServer): YooKassaPaymentProvider {
+    @Test
+    fun `admin override credentials are selected by tax mode and login`() {
+        withCaptureServer { server ->
+            val provider = providerFor(
+                server = server,
+                adminOverrides = mapOf(
+                    AdminTaxMode.INDIVIDUAL_ENTREPRENEUR to mapOf(
+                        "new_ip_admin" to YooKassaConfig(
+                            shopId = "new-ip-shop",
+                            secretKey = "new-ip-secret",
+                            apiBaseUrl = server.baseUrl,
+                            publicBaseUrl = "https://atom-od.ru"
+                        )
+                    )
+                )
+            )
+
+            provider.createPayment(
+                request = baseRequest(
+                    receipt = ProviderReceipt(
+                        customerEmail = "client@example.com",
+                        taxSystemCode = 2,
+                        vatCode = 1,
+                        paymentMode = "full_payment",
+                        paymentSubject = "service"
+                    )
+                ).copy(adminLogin = "new_ip_admin"),
+                taxMode = AdminTaxMode.INDIVIDUAL_ENTREPRENEUR
+            )
+
+            assertEquals("Basic ${basicAuth("new-ip-shop", "new-ip-secret")}", server.lastAuthorization)
+        }
+    }
+
+    private fun providerFor(
+        server: CaptureServer,
+        adminOverrides: Map<AdminTaxMode, Map<String, YooKassaConfig>> = emptyMap()
+    ): YooKassaPaymentProvider {
         return YooKassaPaymentProvider(
             defaultConfig = YooKassaConfig(
                 shopId = "default-shop",
@@ -73,7 +110,7 @@ class YooKassaPaymentProviderTest {
                 apiBaseUrl = server.baseUrl,
                 publicBaseUrl = "https://atom-od.ru"
             ),
-            selfEmployedOverrides = emptyMap(),
+            adminOverrides = adminOverrides,
             json = Json { ignoreUnknownKeys = true }
         )
     }

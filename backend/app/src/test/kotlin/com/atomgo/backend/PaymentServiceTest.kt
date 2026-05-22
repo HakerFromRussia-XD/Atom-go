@@ -239,7 +239,7 @@ private class FakePaymentProvider(
         return info
     }
 
-    override fun fetchPayment(providerPaymentId: String, taxMode: AdminTaxMode): ProviderPaymentInfo? {
+    override fun fetchPayment(providerPaymentId: String, taxMode: AdminTaxMode, adminLogin: String?): ProviderPaymentInfo? {
         return payments[providerPaymentId]
     }
 

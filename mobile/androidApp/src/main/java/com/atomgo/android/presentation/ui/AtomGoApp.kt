@@ -150,6 +150,7 @@ fun AtomGoApp(
     val route by appViewModel.route.collectAsStateWithLifecycle()
     val focusManager = LocalFocusManager.current
     var lastInsideRoute by remember { mutableStateOf<AppRoute?>(null) }
+    var renderLoginLayer by remember { mutableStateOf(true) }
     val activeInsideRoute = route.takeIf { it.isInsideRoute() }
     val insideVisible = activeInsideRoute != null
 
@@ -157,6 +158,14 @@ fun AtomGoApp(
         if (activeInsideRoute != null) {
             focusManager.clearFocus(force = true)
             lastInsideRoute = activeInsideRoute
+        }
+    }
+    LaunchedEffect(insideVisible) {
+        if (insideVisible) {
+            delay(AppStackTransitionMillis.toLong())
+            renderLoginLayer = false
+        } else {
+            renderLoginLayer = true
         }
     }
 
@@ -176,19 +185,21 @@ fun AtomGoApp(
 
             else -> {
                 Box(Modifier.fillMaxSize()) {
-                    LoginScreen(
-                        loginViewModel = loginViewModel,
-                        onAuthenticated = appViewModel::onAuthenticated,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .zIndex(1f)
-                            .motoricaUnderlyingOffset(
-                                active = insideVisible,
-                                label = "rootLoginUnderlyingOffset"
-                            )
-                    )
+                    if (renderLoginLayer) {
+                        LoginScreen(
+                            loginViewModel = loginViewModel,
+                            onAuthenticated = appViewModel::onAuthenticated,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .zIndex(1f)
+                                .appStackUnderlyingOffset(
+                                    active = insideVisible,
+                                    label = "rootLoginUnderlyingOffset"
+                                )
+                        )
+                    }
 
-                    MotoricaStackVisibility(
+                    AppStackVisibility(
                         visible = insideVisible,
                         modifier = Modifier
                             .fillMaxSize()
@@ -784,7 +795,10 @@ private fun ClientHomeScreen(
             }
         }
     }
-    LaunchedEffect(Unit) { refresh() }
+    LaunchedEffect(Unit) {
+        delay(AppStackDeferredWorkMillis.toLong())
+        refresh()
+    }
     LaunchedEffect(paymentStatus) {
         val text = paymentStatus?.trim().orEmpty()
         if (text.isNotEmpty()) {

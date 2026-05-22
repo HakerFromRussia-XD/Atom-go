@@ -1072,10 +1072,43 @@ private fun currentAdminTaxMode(store: InMemoryStore, adminId: String): AdminTax
         ?: AdminTaxMode.SELF_EMPLOYED
 }
 
+private data class BackendAdminConfig(
+    val id: String,
+    val login: String,
+    val password: String,
+    val taxMode: AdminTaxMode
+)
+
+private fun loadBackendAdminConfigs(): List<BackendAdminConfig> {
+    val defaults = listOf(
+        BackendAdminConfig("admin-001", "admin", "admin123", AdminTaxMode.SELF_EMPLOYED),
+        BackendAdminConfig("admin-ip-001", "admin_ip", "adminip123", AdminTaxMode.INDIVIDUAL_ENTREPRENEUR)
+    )
+    val env = System.getenv()
+    val configured = env["ATOMGO_ADMINS"]
+        ?.split(",")
+        ?.mapNotNull { rawSuffix ->
+            val suffix = rawSuffix.trim()
+            if (suffix.isBlank()) return@mapNotNull null
+            val prefix = "ATOMGO_ADMIN_${suffix}_"
+            val login = env["${prefix}LOGIN"]?.trim()?.ifBlank { null } ?: return@mapNotNull null
+            val password = env["${prefix}PASSWORD"]?.trim()?.ifBlank { null } ?: return@mapNotNull null
+            val id = env["${prefix}ID"]?.trim()?.ifBlank { null }
+                ?: "admin-${suffix.lowercase().replace('_', '-')}"
+            val taxMode = when (env["${prefix}TAX_MODE"]?.trim()?.lowercase()) {
+                "ip", "individual_entrepreneur", "individual-entrepreneur" -> AdminTaxMode.INDIVIDUAL_ENTREPRENEUR
+                else -> AdminTaxMode.SELF_EMPLOYED
+            }
+            BackendAdminConfig(id = id, login = login, password = password, taxMode = taxMode)
+        }
+        .orEmpty()
+
+    return defaults + configured
+}
+
 private fun ensureDefaultAdminsAndOwnership(store: InMemoryStore): Boolean {
     var changed = false
     val selfEmployedAdminId = "admin-001"
-    val ipAdminId = "admin-ip-001"
 
     fun upsertAdmin(id: String, login: String, password: String, taxMode: AdminTaxMode) {
         val index = store.users.indexOfFirst { it.id == id }
@@ -1100,8 +1133,9 @@ private fun ensureDefaultAdminsAndOwnership(store: InMemoryStore): Boolean {
         }
     }
 
-    upsertAdmin(selfEmployedAdminId, "admin", "admin123", AdminTaxMode.SELF_EMPLOYED)
-    upsertAdmin(ipAdminId, "admin_ip", "adminip123", AdminTaxMode.INDIVIDUAL_ENTREPRENEUR)
+    loadBackendAdminConfigs().forEach { admin ->
+        upsertAdmin(admin.id, admin.login, admin.password, admin.taxMode)
+    }
 
     store.clients.replaceAll { client ->
         if (client.adminId == null) {

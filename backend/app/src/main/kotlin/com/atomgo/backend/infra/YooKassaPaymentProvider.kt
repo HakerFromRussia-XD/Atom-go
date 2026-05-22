@@ -21,7 +21,7 @@ import java.util.Base64
 
 interface PaymentProvider {
     fun createPayment(request: ProviderCreatePaymentRequest, taxMode: AdminTaxMode): ProviderPaymentInfo
-    fun fetchPayment(providerPaymentId: String, taxMode: AdminTaxMode): ProviderPaymentInfo?
+    fun fetchPayment(providerPaymentId: String, taxMode: AdminTaxMode, adminLogin: String? = null): ProviderPaymentInfo?
 }
 
 data class ProviderCreatePaymentRequest(
@@ -72,7 +72,7 @@ class MockYooKassaPaymentProvider : PaymentProvider {
         )
     }
 
-    override fun fetchPayment(providerPaymentId: String, taxMode: AdminTaxMode): ProviderPaymentInfo? {
+    override fun fetchPayment(providerPaymentId: String, taxMode: AdminTaxMode, adminLogin: String?): ProviderPaymentInfo? {
         return null
     }
 }
@@ -82,7 +82,7 @@ class DisabledYooKassaPaymentProvider(private val reason: String) : PaymentProvi
         throw YooKassaException("YooKassa is not configured", 0, reason)
     }
 
-    override fun fetchPayment(providerPaymentId: String, taxMode: AdminTaxMode): ProviderPaymentInfo? {
+    override fun fetchPayment(providerPaymentId: String, taxMode: AdminTaxMode, adminLogin: String?): ProviderPaymentInfo? {
         throw YooKassaException("YooKassa is not configured", 0, reason)
     }
 }
@@ -90,7 +90,7 @@ class DisabledYooKassaPaymentProvider(private val reason: String) : PaymentProvi
 class YooKassaPaymentProvider internal constructor(
     private val defaultConfig: YooKassaConfig,
     private val ipConfig: YooKassaConfig?,
-    private val selfEmployedOverrides: Map<String, YooKassaConfig>,
+    private val adminOverrides: Map<AdminTaxMode, Map<String, YooKassaConfig>>,
     private val json: Json,
     private val httpClient: HttpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(10))
@@ -133,8 +133,8 @@ class YooKassaPaymentProvider internal constructor(
         return created.toProviderInfo()
     }
 
-    override fun fetchPayment(providerPaymentId: String, taxMode: AdminTaxMode): ProviderPaymentInfo? {
-        val selectedConfig = configForTaxMode(taxMode, null)
+    override fun fetchPayment(providerPaymentId: String, taxMode: AdminTaxMode, adminLogin: String?): ProviderPaymentInfo? {
+        val selectedConfig = configForTaxMode(taxMode, adminLogin)
         val httpRequest = baseRequest("${selectedConfig.apiBaseUrl}/payments/$providerPaymentId", selectedConfig)
             .GET()
             .build()
@@ -183,15 +183,13 @@ class YooKassaPaymentProvider internal constructor(
     }
 
     private fun configForTaxMode(taxMode: AdminTaxMode, adminLogin: String?): YooKassaConfig {
-        return if (taxMode == AdminTaxMode.INDIVIDUAL_ENTREPRENEUR && ipConfig != null) {
-            ipConfig
-        } else {
-            val normalizedLogin = adminLogin?.trim()?.lowercase()
-            if (!normalizedLogin.isNullOrBlank()) {
-                selfEmployedOverrides[normalizedLogin] ?: defaultConfig
-            } else {
-                defaultConfig
-            }
+        val normalizedLogin = adminLogin?.trim()?.lowercase()
+        if (!normalizedLogin.isNullOrBlank()) {
+            adminOverrides[taxMode]?.get(normalizedLogin)?.let { return it }
+        }
+        return when (taxMode) {
+            AdminTaxMode.INDIVIDUAL_ENTREPRENEUR -> ipConfig ?: defaultConfig
+            AdminTaxMode.SELF_EMPLOYED -> defaultConfig
         }
     }
 
@@ -234,7 +232,7 @@ class YooKassaPaymentProvider internal constructor(
 
             val trimmedApiBaseUrl = apiBaseUrl.trimEnd('/')
             val trimmedPublicBaseUrl = publicBaseUrl!!.trimEnd('/')
-            val selfEmployedOverrides = loadSelfEmployedOverrides(
+            val adminOverrides = loadAdminOverrides(
                 apiBaseUrl = trimmedApiBaseUrl,
                 publicBaseUrl = trimmedPublicBaseUrl
             )
@@ -257,19 +255,19 @@ class YooKassaPaymentProvider internal constructor(
                     publicBaseUrl = trimmedPublicBaseUrl
                 ),
                 ipConfig = ipConfig,
-                selfEmployedOverrides = selfEmployedOverrides,
+                adminOverrides = adminOverrides,
                 json = json
             )
         }
 
-        private fun loadSelfEmployedOverrides(
+        private fun loadAdminOverrides(
             apiBaseUrl: String,
             publicBaseUrl: String
-        ): Map<String, YooKassaConfig> {
+        ): Map<AdminTaxMode, Map<String, YooKassaConfig>> {
             val env = System.getenv()
             val shopPrefix = "YOOKASSA_SHOP_ID_"
             val secretPrefix = "YOOKASSA_SECRET_KEY_"
-            val result = linkedMapOf<String, YooKassaConfig>()
+            val result = linkedMapOf<AdminTaxMode, MutableMap<String, YooKassaConfig>>()
 
             for ((key, shopIdRaw) in env) {
                 if (!key.startsWith(shopPrefix)) continue
@@ -280,16 +278,37 @@ class YooKassaPaymentProvider internal constructor(
                 val shopId = shopIdRaw.trim()
                 if (shopId.isBlank() || secretRaw.isBlank()) continue
 
-                val loginAlias = suffix.lowercase().replace('_', '-')
-                result[loginAlias] = YooKassaConfig(
+                val config = YooKassaConfig(
                     shopId = shopId,
                     secretKey = secretRaw,
                     apiBaseUrl = apiBaseUrl,
                     publicBaseUrl = publicBaseUrl
                 )
+                val taxMode = adminTaxModeForSuffix(env, suffix)
+                val aliases = adminLoginAliasesForSuffix(env, suffix)
+                val taxModeOverrides = result.getOrPut(taxMode) { linkedMapOf() }
+                aliases.forEach { alias ->
+                    taxModeOverrides[alias] = config
+                }
             }
 
-            return result
+            return result.mapValues { (_, value) -> value.toMap() }
+        }
+
+        private fun adminTaxModeForSuffix(env: Map<String, String>, suffix: String): AdminTaxMode {
+            return when (env["ATOMGO_ADMIN_${suffix}_TAX_MODE"]?.trim()?.lowercase()) {
+                "ip", "individual_entrepreneur", "individual-entrepreneur" -> AdminTaxMode.INDIVIDUAL_ENTREPRENEUR
+                else -> AdminTaxMode.SELF_EMPLOYED
+            }
+        }
+
+        private fun adminLoginAliasesForSuffix(env: Map<String, String>, suffix: String): Set<String> {
+            val configuredLogin = env["ATOMGO_ADMIN_${suffix}_LOGIN"]?.trim()?.lowercase()?.ifBlank { null }
+            return buildSet {
+                if (configuredLogin != null) add(configuredLogin)
+                add(suffix.lowercase())
+                add(suffix.lowercase().replace('_', '-'))
+            }
         }
     }
 }

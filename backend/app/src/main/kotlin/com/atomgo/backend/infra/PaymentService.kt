@@ -208,7 +208,11 @@ class PaymentService(
 
         payment.providerPaymentId = providerPaymentId
 
-        val providerInfo = provider.fetchPayment(providerPaymentId, payment.taxMode) ?: ProviderPaymentInfo(
+        val providerInfo = provider.fetchPayment(
+            providerPaymentId = providerPaymentId,
+            taxMode = payment.taxMode,
+            adminLogin = adminLoginForPayment(payment)
+        ) ?: ProviderPaymentInfo(
             providerPaymentId = providerPaymentId,
             status = providerStatusFromWebhook ?: statusFromEvent(event),
             amountRub = amountRubFromWebhook,
@@ -242,7 +246,11 @@ class PaymentService(
             return PaymentStatusResult(payment = payment, applied = false, message = "No provider payment id")
         }
 
-        val providerInfo = provider.fetchPayment(providerPaymentId, payment.taxMode)
+        val providerInfo = provider.fetchPayment(
+            providerPaymentId = providerPaymentId,
+            taxMode = payment.taxMode,
+            adminLogin = adminLoginForPayment(payment)
+        )
             ?: return PaymentStatusResult(payment = payment, applied = false, message = "Provider payment status unavailable")
 
         val validationError = validateProviderPaymentOrMessage(payment, providerInfo)
@@ -402,6 +410,14 @@ class PaymentService(
             taxMode = lifecycleRental?.taxMode ?: activeRental.taxMode,
             adminLogin = adminLogin
         )
+    }
+
+    private fun adminLoginForPayment(payment: PaymentRecord): String? {
+        val rentalId = payment.rentalId ?: return null
+        val clientRental = store.clientRentals.firstOrNull { it.id == rentalId }
+        val lifecycleRental = clientRental?.rentalId?.let { id -> store.rentals.firstOrNull { it.id == id } }
+        val adminId = lifecycleRental?.adminId ?: clientRental?.adminId
+        return adminId?.let { id -> store.users.firstOrNull { it.id == id }?.login }
     }
 }
 

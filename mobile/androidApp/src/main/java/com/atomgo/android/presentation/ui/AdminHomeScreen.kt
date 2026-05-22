@@ -1,5 +1,6 @@
 package com.atomgo.android.presentation.ui
 
+import android.os.SystemClock
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -76,6 +77,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -117,6 +119,7 @@ import com.atomgo.shared.api.AdminClientDetailsResponse
 import com.atomgo.shared.api.AdminRentalHistoryItemResponse
 import com.atomgo.shared.api.ClientDashboardResponse
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -560,6 +563,23 @@ internal fun AdminHomeScreen(
     var isRentalAdjustmentVisible by remember { mutableStateOf(false) }
     var toastMessage by remember { mutableStateOf<String?>(null) }
     var bikeForEditTransition by remember { mutableStateOf<AdminBikeResponse?>(null) }
+    var rentalDetailsTransition by remember { mutableStateOf<AdminRentalPreview?>(null) }
+    var stackDeferredWorkAllowedAfterMillis by remember { mutableStateOf(0L) }
+    val transitionWorkScope = rememberCoroutineScope()
+
+    fun markStackTransitionWindow() {
+        stackDeferredWorkAllowedAfterMillis = SystemClock.uptimeMillis() + AppStackDeferredWorkMillis
+    }
+
+    fun runWhenStackTransitionSettled(block: () -> Unit) {
+        transitionWorkScope.launch {
+            val delayMillis = stackDeferredWorkAllowedAfterMillis - SystemClock.uptimeMillis()
+            if (delayMillis > 0L) {
+                delay(delayMillis)
+            }
+            block()
+        }
+    }
 
     LaunchedEffect(isRentalAdjustmentVisible) {
         if (!isRentalAdjustmentVisible && rentalAdjustmentTarget != null) {
@@ -572,12 +592,14 @@ internal fun AdminHomeScreen(
         isRentsLoading = true
         rentsError = null
         adminHomeViewModel.fetchAdminRents(session.accessToken) { result ->
-            result.onSuccess {
-                rents = it
-                isRentsLoading = false
-            }.onFailure {
-                rentsError = it.message ?: "Ошибка загрузки"
-                isRentsLoading = false
+            runWhenStackTransitionSettled {
+                result.onSuccess {
+                    rents = it
+                    isRentsLoading = false
+                }.onFailure {
+                    rentsError = it.message ?: "Ошибка загрузки"
+                    isRentsLoading = false
+                }
             }
         }
     }
@@ -585,12 +607,14 @@ internal fun AdminHomeScreen(
         isClientsLoading = true
         clientsError = null
         adminHomeViewModel.fetchAdminClients(session.accessToken) { result ->
-            result.onSuccess {
-                clientsCatalog = it
-                isClientsLoading = false
-            }.onFailure {
-                clientsError = it.message ?: "Ошибка загрузки"
-                isClientsLoading = false
+            runWhenStackTransitionSettled {
+                result.onSuccess {
+                    clientsCatalog = it
+                    isClientsLoading = false
+                }.onFailure {
+                    clientsError = it.message ?: "Ошибка загрузки"
+                    isClientsLoading = false
+                }
             }
         }
     }
@@ -598,12 +622,14 @@ internal fun AdminHomeScreen(
         isBikesLoading = true
         bikesError = null
         adminHomeViewModel.fetchAdminBikes(session.accessToken) { result ->
-            result.onSuccess {
-                bikesCatalog = it
-                isBikesLoading = false
-            }.onFailure {
-                bikesError = it.message ?: "Ошибка загрузки"
-                isBikesLoading = false
+            runWhenStackTransitionSettled {
+                result.onSuccess {
+                    bikesCatalog = it
+                    isBikesLoading = false
+                }.onFailure {
+                    bikesError = it.message ?: "Ошибка загрузки"
+                    isBikesLoading = false
+                }
             }
         }
     }
@@ -612,17 +638,36 @@ internal fun AdminHomeScreen(
         refreshClients()
         refreshBikes()
     }
+    fun refreshAllCatalogsAfterStackTransition() {
+        markStackTransitionWindow()
+        runWhenStackTransitionSettled { refreshAllCatalogs() }
+    }
     fun openClientDetails(clientId: String) {
-        isDetailLoading = true
-        detailPayload = null
-        detailClientId = clientId
-        adminHomeViewModel.fetchAdminClientDetails(session.accessToken, clientId) { result ->
-            result.onSuccess {
-                detailPayload = it
-                isDetailLoading = false
-            }.onFailure {
-                adminMessage = "Ошибка загрузки деталей клиента: ${it.message}"
-                isDetailLoading = false
+        val normalizedClientId = clientId.trim()
+        if (normalizedClientId.isEmpty()) {
+            adminMessage = "Клиент не найден"
+            return
+        }
+        if (detailClientId != normalizedClientId) {
+            isDetailLoading = true
+            detailPayload = null
+            detailClientId = normalizedClientId
+            markStackTransitionWindow()
+        }
+        runWhenStackTransitionSettled {
+            if (detailClientId != normalizedClientId) return@runWhenStackTransitionSettled
+            isDetailLoading = true
+            adminHomeViewModel.fetchAdminClientDetails(session.accessToken, normalizedClientId) { result ->
+                runWhenStackTransitionSettled {
+                    if (detailClientId != normalizedClientId) return@runWhenStackTransitionSettled
+                    result.onSuccess {
+                        detailPayload = it
+                        isDetailLoading = false
+                    }.onFailure {
+                        adminMessage = "Ошибка загрузки деталей клиента: ${it.message}"
+                        isDetailLoading = false
+                    }
+                }
             }
         }
     }
@@ -632,18 +677,28 @@ internal fun AdminHomeScreen(
             adminMessage = "Аренда не найдена"
             return
         }
-        selectedRentalDetails = fallback
-        isRentalDetailsLoading = true
-        adminHomeViewModel.fetchAdminRentalDetails(session.accessToken, normalizedRentalId) { result ->
-            result.onSuccess {
-                selectedRentalDetails = AdminRentalPreview.fromDetails(it)
-                isRentalDetailsLoading = false
-            }.onFailure {
-                if (fallback == null) {
-                    selectedRentalDetails = null
+        if (selectedRentalDetails?.rentalId != normalizedRentalId) {
+            selectedRentalDetails = fallback
+            isRentalDetailsLoading = true
+            markStackTransitionWindow()
+        }
+        runWhenStackTransitionSettled {
+            if (selectedRentalDetails?.rentalId != normalizedRentalId) return@runWhenStackTransitionSettled
+            isRentalDetailsLoading = true
+            adminHomeViewModel.fetchAdminRentalDetails(session.accessToken, normalizedRentalId) { result ->
+                runWhenStackTransitionSettled {
+                    if (selectedRentalDetails?.rentalId != normalizedRentalId) return@runWhenStackTransitionSettled
+                    result.onSuccess {
+                        selectedRentalDetails = AdminRentalPreview.fromDetails(it)
+                        isRentalDetailsLoading = false
+                    }.onFailure {
+                        if (fallback == null) {
+                            selectedRentalDetails = null
+                        }
+                        adminMessage = "Ошибка загрузки аренды: ${it.message}"
+                        isRentalDetailsLoading = false
+                    }
                 }
-                adminMessage = "Ошибка загрузки аренды: ${it.message}"
-                isRentalDetailsLoading = false
             }
         }
     }
@@ -685,13 +740,16 @@ internal fun AdminHomeScreen(
         ) { result ->
             result.onSuccess {
                 adminMessage = "Аренда завершена"
-                refreshAllCatalogs()
+                refreshAllCatalogsAfterStackTransition()
             }.onFailure {
                 adminMessage = "Ошибка завершения аренды: ${it.message}"
             }
         }
     }
-    LaunchedEffect(Unit) { refreshAllCatalogs() }
+    LaunchedEffect(Unit) {
+        delay(AppStackDeferredWorkMillis.toLong())
+        refreshAllCatalogs()
+    }
     LaunchedEffect(selectedTab) {
         when (selectedTab) {
             AdminHomeTab.Clients -> if (clientsCatalog.isEmpty() && !isClientsLoading) refreshClients()
@@ -710,8 +768,15 @@ internal fun AdminHomeScreen(
     LaunchedEffect(selectedBikeForEdit) {
         selectedBikeForEdit?.let { bikeForEditTransition = it }
         if (selectedBikeForEdit == null && bikeForEditTransition != null) {
-            delay(400)
+            delay(AppStackTransitionMillis.toLong())
             bikeForEditTransition = null
+        }
+    }
+    LaunchedEffect(selectedRentalDetails) {
+        selectedRentalDetails?.let { rentalDetailsTransition = it }
+        if (selectedRentalDetails == null && rentalDetailsTransition != null) {
+            delay(AppStackTransitionMillis.toLong())
+            rentalDetailsTransition = null
         }
     }
 
@@ -754,11 +819,17 @@ internal fun AdminHomeScreen(
             detailClientId != null ||
             selectedRentalDetails != null
 
+    LaunchedEffect(stackScreenVisible, showUpdateClient, showUpdateRental) {
+        if (stackScreenVisible || showUpdateClient || showUpdateRental) {
+            markStackTransitionWindow()
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(AppDesign.PageBackground)
-            .motoricaUnderlyingOffset(
+            .appStackUnderlyingOffset(
                 active = stackScreenVisible,
                 label = "adminHomeUnderlyingOffset"
             )
@@ -1010,8 +1081,8 @@ internal fun AdminHomeScreen(
 
         AnimatedVisibility(
             visible = !stackScreenVisible,
-            enter = motoricaBottomNavEnter(),
-            exit = motoricaBottomNavExit(),
+            enter = appBottomNavEnter(),
+            exit = appBottomNavExit(),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .zIndex(8f)
@@ -1033,7 +1104,7 @@ internal fun AdminHomeScreen(
         )
     }
 
-    MotoricaStackVisibility(
+    AppStackVisibility(
         visible = showCreateClient,
         modifier = Modifier.fillMaxSize().zIndex(12f)
     ) {
@@ -1051,14 +1122,14 @@ internal fun AdminHomeScreen(
                     result.onSuccess {
                         adminMessage = "Клиент создан"
                         showCreateClient = false
-                        refreshAllCatalogs()
+                        refreshAllCatalogsAfterStackTransition()
                     }.onFailure { adminMessage = "Ошибка создания клиента: ${it.message}" }
                 }
             }
         )
     }
 
-    MotoricaStackVisibility(
+    AppStackVisibility(
         visible = showCreateBike,
         modifier = Modifier.fillMaxSize().zIndex(12f)
     ) {
@@ -1077,14 +1148,14 @@ internal fun AdminHomeScreen(
                     result.onSuccess {
                         adminMessage = "Велосипед создан"
                         showCreateBike = false
-                        refreshAllCatalogs()
+                        refreshAllCatalogsAfterStackTransition()
                     }.onFailure { adminMessage = "Ошибка создания велосипеда: ${it.message}" }
                 }
             }
         )
     }
 
-    MotoricaStackVisibility(
+    AppStackVisibility(
         visible = showCreateRental,
         modifier = Modifier.fillMaxSize().zIndex(12f)
     ) {
@@ -1108,18 +1179,18 @@ internal fun AdminHomeScreen(
                     result.onSuccess {
                         adminMessage = "Аренда создана"
                         showCreateRental = false
-                        refreshAllCatalogs()
+                        refreshAllCatalogsAfterStackTransition()
                     }.onFailure { adminMessage = "Ошибка создания аренды: ${it.message}" }
                 }
             }
         )
     }
 
-    MotoricaStackVisibility(
+    AppStackVisibility(
         visible = selectedBikeForEdit != null,
         modifier = Modifier.fillMaxSize().zIndex(12f)
     ) {
-        val editingBike = selectedBikeForEdit ?: bikeForEditTransition ?: return@MotoricaStackVisibility
+        val editingBike = selectedBikeForEdit ?: bikeForEditTransition ?: return@AppStackVisibility
         AdminUpdateBikeDialog(
             bike = editingBike,
             bikes = bikesCatalog,
@@ -1139,7 +1210,7 @@ internal fun AdminHomeScreen(
                     result.onSuccess {
                         adminMessage = "Велосипед обновлен"
                         selectedBikeForEdit = null
-                        refreshAllCatalogs()
+                        refreshAllCatalogsAfterStackTransition()
                     }.onFailure { adminMessage = "Ошибка обновления велосипеда: ${it.message}" }
                 }
             }
@@ -1162,7 +1233,7 @@ internal fun AdminHomeScreen(
                     result.onSuccess {
                         adminMessage = "Аренда завершена"
                         showFinishRentalFor = null
-                        refreshAllCatalogs()
+                        refreshAllCatalogsAfterStackTransition()
                     }.onFailure { adminMessage = "Ошибка завершения аренды: ${it.message}" }
                 }
             }
@@ -1184,7 +1255,7 @@ internal fun AdminHomeScreen(
                     result.onSuccess {
                         adminMessage = "Аренда запущена"
                         showStartRental = false
-                        refreshAllCatalogs()
+                        refreshAllCatalogsAfterStackTransition()
                     }.onFailure { adminMessage = "Ошибка запуска аренды: ${it.message}" }
                 }
             }
@@ -1203,7 +1274,7 @@ internal fun AdminHomeScreen(
                         result.onSuccess {
                             adminMessage = "Аренда удалена"
                             confirmDeleteRentalId = null
-                            refreshAllCatalogs()
+                            refreshAllCatalogsAfterStackTransition()
                         }.onFailure { adminMessage = "Ошибка удаления аренды: ${it.message}" }
                     }
                 }) { Text("Удалить") }
@@ -1224,7 +1295,7 @@ internal fun AdminHomeScreen(
                         result.onSuccess {
                             adminMessage = "Клиент удален"
                             confirmDeleteClientId = null
-                            refreshAllCatalogs()
+                            refreshAllCatalogsAfterStackTransition()
                         }.onFailure { adminMessage = "Ошибка удаления клиента: ${it.message}" }
                     }
                 }) { Text("Удалить") }
@@ -1233,12 +1304,12 @@ internal fun AdminHomeScreen(
         )
     }
 
-    MotoricaStackVisibility(
+    AppStackVisibility(
         visible = detailClientId != null,
         modifier = Modifier
             .fillMaxSize()
             .zIndex(21f)
-            .motoricaUnderlyingOffset(
+            .appStackUnderlyingOffset(
                 active = showUpdateClient,
                 label = "adminClientDetailUnderlyingOffset"
             )
@@ -1260,24 +1331,25 @@ internal fun AdminHomeScreen(
         )
     }
 
-    MotoricaStackVisibility(
+    AppStackVisibility(
         visible = selectedRentalDetails != null,
         modifier = Modifier
             .fillMaxSize()
             .zIndex(22f)
-            .motoricaUnderlyingOffset(
+            .appStackUnderlyingOffset(
                 active = showUpdateRental,
                 label = "adminRentalDetailUnderlyingOffset"
             )
     ) {
+        val rentalDetails = selectedRentalDetails ?: rentalDetailsTransition
         AdminRentalDetailsScreenAndroid(
-            details = selectedRentalDetails,
+            details = rentalDetails,
             clients = clientsCatalog,
             isLoading = isRentalDetailsLoading,
             onClose = { selectedRentalDetails = null },
             onEdit = { showUpdateRental = true },
             onOpenClient = {
-                val clientId = selectedRentalDetails?.clientId?.trim().orEmpty()
+                val clientId = rentalDetails?.clientId?.trim().orEmpty()
                 selectedRentalDetails = null
                 if (clientId.isNotEmpty()) {
                     openClientDetails(clientId)
@@ -1297,7 +1369,7 @@ internal fun AdminHomeScreen(
                 ) { result ->
                     result.onSuccess {
                         adminMessage = "Аренда завершена"
-                        refreshAllCatalogs()
+                        refreshAllCatalogsAfterStackTransition()
                         refreshSelectedRentalDetails()
                     }.onFailure {
                         adminMessage = "Ошибка завершения аренды: ${it.message}"
@@ -1315,7 +1387,7 @@ internal fun AdminHomeScreen(
                 ) { result ->
                     result.onSuccess {
                         adminMessage = "Новая клиентская аренда запущена"
-                        refreshAllCatalogs()
+                        refreshAllCatalogsAfterStackTransition()
                         refreshSelectedRentalDetails()
                     }.onFailure {
                         adminMessage = "Ошибка запуска аренды: ${it.message}"
@@ -1323,19 +1395,19 @@ internal fun AdminHomeScreen(
                 }
             },
             onDelete = {
-                val rentalId = selectedRentalDetails?.rentalId ?: return@AdminRentalDetailsScreenAndroid
+                val rentalId = rentalDetails?.rentalId ?: return@AdminRentalDetailsScreenAndroid
                 adminHomeViewModel.deleteAdminRental(session.accessToken, rentalId) { result ->
                     result.onSuccess {
                         adminMessage = "Аренда удалена"
                         selectedRentalDetails = null
-                        refreshAllCatalogs()
+                        refreshAllCatalogsAfterStackTransition()
                     }.onFailure { adminMessage = "Ошибка удаления аренды: ${it.message}" }
                 }
             }
         )
     }
 
-    MotoricaStackVisibility(
+    AppStackVisibility(
         visible = showUpdateClient && detailPayload != null,
         modifier = Modifier.fillMaxSize().zIndex(31f)
     ) {
@@ -1357,7 +1429,7 @@ internal fun AdminHomeScreen(
                         result.onSuccess {
                             adminMessage = "Клиент обновлен"
                             showUpdateClient = false
-                            refreshAllCatalogs()
+                            refreshAllCatalogsAfterStackTransition()
                             openClientDetails(clientId)
                         }.onFailure { adminMessage = "Ошибка обновления клиента: ${it.message}" }
                     }
@@ -1366,7 +1438,7 @@ internal fun AdminHomeScreen(
         }
     }
 
-    MotoricaStackVisibility(
+    AppStackVisibility(
         visible = showUpdateRental && selectedRentalDetails != null,
         modifier = Modifier.fillMaxSize().zIndex(32f)
     ) {
@@ -1393,7 +1465,7 @@ internal fun AdminHomeScreen(
                         result.onSuccess {
                             adminMessage = "Аренда обновлена"
                             showUpdateRental = false
-                            refreshAllCatalogs()
+                            refreshAllCatalogsAfterStackTransition()
                             refreshSelectedRentalDetails()
                         }.onFailure { adminMessage = "Ошибка обновления аренды: ${it.message}" }
                     }
@@ -1425,7 +1497,7 @@ internal fun AdminHomeScreen(
                     result.onSuccess {
                         adminMessage = "Корректировка сохранена"
                         isRentalAdjustmentVisible = false
-                        refreshAllCatalogs()
+                        refreshAllCatalogsAfterStackTransition()
                         refreshSelectedRentalDetails()
                     }.onFailure {
                         adminMessage = "Ошибка корректировки: ${it.message}"

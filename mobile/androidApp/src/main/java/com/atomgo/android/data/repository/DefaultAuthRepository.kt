@@ -6,6 +6,8 @@ import com.atomgo.android.domain.model.AuthorizedSession
 import com.atomgo.android.domain.model.LoginRememberState
 import com.atomgo.android.domain.repository.AuthRepository
 import com.atomgo.shared.api.AtomGoApiClient
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class DefaultAuthRepository(
     application: Application
@@ -14,7 +16,9 @@ class DefaultAuthRepository(
     private val apiClient = AtomGoApiClient(BackendConfig.BASE_URL)
 
     override suspend fun login(login: String, password: String): AuthorizedSession {
-        val session = apiClient.login(login, password)
+        val session = withContext(Dispatchers.IO) {
+            apiClient.login(login, password)
+        }
         return AuthorizedSession(accessToken = session.accessToken, role = session.role)
     }
 

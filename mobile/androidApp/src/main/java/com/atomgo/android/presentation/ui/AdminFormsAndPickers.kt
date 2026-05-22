@@ -518,7 +518,7 @@ internal fun AdminCreateRentalDialog(
             .testTag("create_rental_sheet")
     ) {
         AdminFormSheetScaffold(
-            modifier = Modifier.motoricaUnderlyingOffset(
+            modifier = Modifier.appStackUnderlyingOffset(
                 active = pickerVisible,
                 label = "createRentalUnderlyingOffset"
             ),
@@ -710,7 +710,7 @@ internal fun AdminCreateRentalDialog(
             bottomPadding = 96
         )
 
-        MotoricaStackVisibility(
+        AppStackVisibility(
             visible = isClientPickerPresented,
             modifier = Modifier.fillMaxSize().zIndex(15f)
         ) {
@@ -731,7 +731,7 @@ internal fun AdminCreateRentalDialog(
             )
         }
 
-        MotoricaStackVisibility(
+        AppStackVisibility(
             visible = isBikePickerPresented,
             modifier = Modifier.fillMaxSize().zIndex(15f)
         ) {
@@ -1974,7 +1974,7 @@ internal fun AdminUpdateRentalDialog(
             .testTag("edit_rental_sheet")
     ) {
         AdminFormSheetScaffold(
-            modifier = Modifier.motoricaUnderlyingOffset(
+            modifier = Modifier.appStackUnderlyingOffset(
                 active = editRentalPickerVisible,
                 label = "editRentalUnderlyingOffset"
             ),
@@ -2160,7 +2160,7 @@ internal fun AdminUpdateRentalDialog(
             bottomPadding = 96
         )
 
-        MotoricaStackVisibility(
+        AppStackVisibility(
             visible = isClientPickerPresented,
             modifier = Modifier.fillMaxSize().zIndex(15f)
         ) {
@@ -2177,7 +2177,7 @@ internal fun AdminUpdateRentalDialog(
             )
         }
 
-        MotoricaStackVisibility(
+        AppStackVisibility(
             visible = isBikePickerPresented,
             modifier = Modifier.fillMaxSize().zIndex(15f)
         ) {

@@ -1696,7 +1696,7 @@ internal fun AdminRentalDetailsScreenAndroid(
             }
         }
 
-        MotoricaStackVisibility(
+        AppStackVisibility(
             visible = isClientPickerPresented,
             modifier = Modifier.fillMaxSize().zIndex(35f)
         ) {

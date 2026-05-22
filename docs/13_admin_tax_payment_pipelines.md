@@ -49,6 +49,48 @@ YOOKASSA_RECEIPT_PAYMENT_SUBJECT=service
 
 `YOOKASSA_SHOP_ID` and `YOOKASSA_SECRET_KEY` remain reserved for the self-employed shop. IP client-rental payments must use the `_IP` credentials and must include `receipt`.
 
+## Adding admins
+
+Default local admins are still available when no extra config is provided:
+
+```text
+admin / admin123     -> SELF_EMPLOYED
+admin_ip / adminip123 -> INDIVIDUAL_ENTREPRENEUR
+```
+
+Additional admins should be added through environment variables, not by changing Kotlin code. Use the same suffix for the admin config and its YooKassa keys:
+
+```bash
+ATOMGO_ADMINS=NEW_SELF,NEW_IP
+
+ATOMGO_ADMIN_NEW_SELF_ID=admin-self-002
+ATOMGO_ADMIN_NEW_SELF_LOGIN=Every-XD
+ATOMGO_ADMIN_NEW_SELF_PASSWORD=...
+ATOMGO_ADMIN_NEW_SELF_TAX_MODE=SELF_EMPLOYED
+YOOKASSA_SHOP_ID_NEW_SELF=...
+YOOKASSA_SECRET_KEY_NEW_SELF=...
+
+ATOMGO_ADMIN_NEW_IP_ID=admin-ip-002
+ATOMGO_ADMIN_NEW_IP_LOGIN=new_ip_admin
+ATOMGO_ADMIN_NEW_IP_PASSWORD=...
+ATOMGO_ADMIN_NEW_IP_TAX_MODE=INDIVIDUAL_ENTREPRENEUR
+YOOKASSA_SHOP_ID_NEW_IP=...
+YOOKASSA_SECRET_KEY_NEW_IP=...
+```
+
+`ATOMGO_ADMIN_<SUFFIX>_TAX_MODE` accepts:
+
+- `SELF_EMPLOYED`
+- `INDIVIDUAL_ENTREPRENEUR`
+- `ip`
+- `individual_entrepreneur`
+- `individual-entrepreneur`
+
+Payment creation and payment status checks resolve the admin from the `client_rental` and select YooKassa credentials by that admin login. This keeps multiple self-employed admins and multiple IP admins isolated from each other while preserving the legacy fallback variables:
+
+- default self-employed shop: `YOOKASSA_SHOP_ID` / `YOOKASSA_SECRET_KEY`
+- legacy single IP shop: `YOOKASSA_SHOP_ID_IP` / `YOOKASSA_SECRET_KEY_IP`
+
 Payment pipeline:
 
 1. Client creates a YooKassa payment in the app.

@@ -2,9 +2,8 @@ package com.atomgo.android.presentation.ui
 
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.core.FastOutLinearInEasing
-import androidx.compose.animation.core.LinearOutSlowInEasing
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -22,52 +21,62 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.Box
-import kotlinx.coroutines.delay
 
-private const val MotoricaFragmentTransitionMillis = 400
-private const val MotoricaBottomNavHideMillis = 180
-private const val MotoricaBottomNavShowMillis = 220
+internal const val AppStackTransitionMillis = 300
+internal const val AppStackDeferredWorkMillis = AppStackTransitionMillis + 120
+private const val AppBottomNavHideMillis = 180
+private const val AppBottomNavShowMillis = 220
+private const val AppStackHiddenOffsetFraction = 1f
+private const val AppStackVisibleOffsetFraction = 0f
+private const val AppStackUnderlyingOffsetFraction = -0.5f
+private val AppStackEasing = CubicBezierEasing(0.33f, 0f, 0.2f, 1f)
 
-internal fun motoricaStackEnter(): EnterTransition {
+internal fun appStackEnter(): EnterTransition {
     return slideInHorizontally(
         initialOffsetX = { it },
-        animationSpec = tween(MotoricaFragmentTransitionMillis, easing = LinearOutSlowInEasing)
+        animationSpec = tween(AppStackTransitionMillis, easing = AppStackEasing)
     )
 }
 
-internal fun motoricaStackPopExit(): ExitTransition {
+internal fun appStackPopExit(): ExitTransition {
     return slideOutHorizontally(
         targetOffsetX = { it },
-        animationSpec = tween(MotoricaFragmentTransitionMillis, easing = LinearOutSlowInEasing)
+        animationSpec = tween(AppStackTransitionMillis, easing = AppStackEasing)
     )
 }
 
 @Composable
-internal fun MotoricaStackVisibility(
+internal fun AppStackVisibility(
     visible: Boolean,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
     var shouldRender by remember { mutableStateOf(visible) }
-    var targetOffsetFraction by remember { mutableStateOf(if (visible) 0f else 1f) }
-    val currentOffsetFraction by animateFloatAsState(
-        targetValue = targetOffsetFraction,
-        animationSpec = tween(
-            durationMillis = MotoricaFragmentTransitionMillis,
-            easing = LinearOutSlowInEasing
-        ),
-        label = "motoricaStackOffset"
-    )
+    val offsetFraction = remember { Animatable(AppStackHiddenOffsetFraction) }
 
     LaunchedEffect(visible) {
         if (visible) {
+            val wasRendered = shouldRender
             shouldRender = true
-            targetOffsetFraction = 1f
-            withFrameNanos { }
-            targetOffsetFraction = 0f
+            if (!wasRendered) {
+                offsetFraction.snapTo(AppStackHiddenOffsetFraction)
+                withFrameNanos { }
+            }
+            offsetFraction.animateTo(
+                targetValue = AppStackVisibleOffsetFraction,
+                animationSpec = tween(
+                    durationMillis = AppStackTransitionMillis,
+                    easing = AppStackEasing
+                )
+            )
         } else if (shouldRender) {
-            targetOffsetFraction = 1f
-            delay(MotoricaFragmentTransitionMillis.toLong())
+            offsetFraction.animateTo(
+                targetValue = AppStackHiddenOffsetFraction,
+                animationSpec = tween(
+                    durationMillis = AppStackTransitionMillis,
+                    easing = AppStackEasing
+                )
+            )
             shouldRender = false
         }
     }
@@ -75,7 +84,7 @@ internal fun MotoricaStackVisibility(
     if (shouldRender) {
         Box(
             modifier = modifier.graphicsLayer {
-                translationX = size.width * currentOffsetFraction
+                translationX = size.width * offsetFraction.value
             }
         ) {
             content()
@@ -83,32 +92,38 @@ internal fun MotoricaStackVisibility(
     }
 }
 
-internal fun motoricaBottomNavEnter(): EnterTransition {
-    return fadeIn(animationSpec = tween(MotoricaBottomNavShowMillis)) +
+internal fun appBottomNavEnter(): EnterTransition {
+    return fadeIn(animationSpec = tween(AppBottomNavShowMillis)) +
         slideInVertically(
             initialOffsetY = { it },
-            animationSpec = tween(MotoricaBottomNavShowMillis)
+            animationSpec = tween(AppBottomNavShowMillis)
         )
 }
 
-internal fun motoricaBottomNavExit(): ExitTransition {
-    return fadeOut(animationSpec = tween(MotoricaBottomNavHideMillis)) +
+internal fun appBottomNavExit(): ExitTransition {
+    return fadeOut(animationSpec = tween(AppBottomNavHideMillis)) +
         slideOutVertically(
             targetOffsetY = { it },
-            animationSpec = tween(MotoricaBottomNavHideMillis)
+            animationSpec = tween(AppBottomNavHideMillis)
         )
 }
 
 @Composable
-internal fun Modifier.motoricaUnderlyingOffset(active: Boolean, label: String): Modifier {
-    val offsetFraction = animateFloatAsState(
-        targetValue = if (active) -0.5f else 0f,
-        animationSpec = tween(
-            durationMillis = MotoricaFragmentTransitionMillis,
-            easing = if (active) FastOutLinearInEasing else LinearOutSlowInEasing
-        ),
-        label = label
-    )
+internal fun Modifier.appStackUnderlyingOffset(active: Boolean, label: String): Modifier {
+    val offsetFraction = remember(label) {
+        Animatable(if (active) AppStackUnderlyingOffsetFraction else AppStackVisibleOffsetFraction)
+    }
+
+    LaunchedEffect(active) {
+        offsetFraction.animateTo(
+            targetValue = if (active) AppStackUnderlyingOffsetFraction else AppStackVisibleOffsetFraction,
+            animationSpec = tween(
+                durationMillis = AppStackTransitionMillis,
+                easing = AppStackEasing
+            )
+        )
+    }
+
     return graphicsLayer {
         translationX = size.width * offsetFraction.value
     }
