@@ -21,6 +21,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.semantics.clearAndSetSemantics
 
 internal const val AppStackTransitionMillis = 300
 internal const val AppStackDeferredWorkMillis = AppStackTransitionMillis + 120
@@ -48,44 +49,56 @@ internal fun appStackPopExit(): ExitTransition {
 @Composable
 internal fun AppStackVisibility(
     visible: Boolean,
+    precompose: Boolean = false,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
     var shouldRender by remember { mutableStateOf(visible) }
     val offsetFraction = remember { Animatable(AppStackHiddenOffsetFraction) }
 
-    LaunchedEffect(visible) {
-        if (visible) {
-            val wasRendered = shouldRender
-            shouldRender = true
-            if (!wasRendered) {
-                offsetFraction.snapTo(AppStackHiddenOffsetFraction)
-                withFrameNanos { }
+    LaunchedEffect(visible, precompose) {
+        when {
+            visible -> {
+                val wasRendered = shouldRender
+                shouldRender = true
+                if (!wasRendered) {
+                    offsetFraction.snapTo(AppStackHiddenOffsetFraction)
+                    withFrameNanos { }
+                }
+                offsetFraction.animateTo(
+                    targetValue = AppStackVisibleOffsetFraction,
+                    animationSpec = tween(
+                        durationMillis = AppStackTransitionMillis,
+                        easing = AppStackEasing
+                    )
+                )
             }
-            offsetFraction.animateTo(
-                targetValue = AppStackVisibleOffsetFraction,
-                animationSpec = tween(
-                    durationMillis = AppStackTransitionMillis,
-                    easing = AppStackEasing
+
+            shouldRender -> {
+                offsetFraction.animateTo(
+                    targetValue = AppStackHiddenOffsetFraction,
+                    animationSpec = tween(
+                        durationMillis = AppStackTransitionMillis,
+                        easing = AppStackEasing
+                    )
                 )
-            )
-        } else if (shouldRender) {
-            offsetFraction.animateTo(
-                targetValue = AppStackHiddenOffsetFraction,
-                animationSpec = tween(
-                    durationMillis = AppStackTransitionMillis,
-                    easing = AppStackEasing
-                )
-            )
-            shouldRender = false
+                shouldRender = precompose
+            }
+
+            precompose -> {
+                offsetFraction.snapTo(AppStackHiddenOffsetFraction)
+                shouldRender = true
+            }
         }
     }
 
     if (shouldRender) {
         Box(
-            modifier = modifier.graphicsLayer {
-                translationX = size.width * offsetFraction.value
-            }
+            modifier = modifier
+                .graphicsLayer {
+                    translationX = size.width * offsetFraction.value
+                }
+                .then(if (visible) Modifier else Modifier.clearAndSetSemantics {})
         ) {
             content()
         }

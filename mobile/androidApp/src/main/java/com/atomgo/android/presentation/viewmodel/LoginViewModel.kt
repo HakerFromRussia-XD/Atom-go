@@ -87,12 +87,6 @@ class LoginViewModel(
                 if (_uiState.value.rememberMe) {
                     authUseCases.saveCredentials(login = login, password = password)
                 }
-                _uiState.update {
-                    it.copy(
-                        statusText = "Статус: вход выполнен, роль: ${session.role.name.lowercase()}\\nToken: ${session.accessToken.take(12)}...",
-                        isLoading = false
-                    )
-                }
                 onAuthenticated(AuthSession(session.accessToken, session.role))
             } catch (error: Exception) {
                 _uiState.update { it.copy(statusText = "Статус: ошибка входа: ${error.message}", isLoading = false) }

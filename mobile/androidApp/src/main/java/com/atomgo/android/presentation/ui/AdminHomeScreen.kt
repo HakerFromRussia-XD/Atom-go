@@ -102,6 +102,7 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -133,21 +134,29 @@ internal data class RentStatusPill(
 @Composable
 private fun AdminHomeTabLayer(
     active: Boolean,
+    precompose: Boolean = false,
+    premeasure: Boolean = false,
     content: @Composable () -> Unit
 ) {
+    if (!active && !precompose && !premeasure) return
+
+    val layerModifier = Modifier
+        .fillMaxSize()
+        .zIndex(if (active) 1f else 0f)
+        .alpha(if (active) 1f else 0f)
+        .then(if (active) Modifier else Modifier.clearAndSetSemantics {})
+
     Layout(
         content = content,
-        modifier = Modifier
-            .fillMaxSize()
-            .zIndex(if (active) 1f else 0f)
+        modifier = layerModifier
     ) { measurables, constraints ->
-        if (!active) {
-            layout(constraints.maxWidth, constraints.maxHeight) {}
-        } else {
+        if (active || precompose || premeasure) {
             val placeable = measurables.firstOrNull()?.measure(constraints)
             layout(constraints.maxWidth, constraints.maxHeight) {
-                placeable?.placeRelative(0, 0)
+                placeable?.placeRelative(if (active) 0 else -constraints.maxWidth * 2, 0)
             }
+        } else {
+            layout(constraints.maxWidth, constraints.maxHeight) {}
         }
     }
 }
@@ -529,9 +538,9 @@ internal fun AdminHomeScreen(
     var bikesCatalog by remember { mutableStateOf<List<AdminBikeResponse>>(emptyList()) }
     var isRentsLoading by remember { mutableStateOf(true) }
     var rentsError by remember { mutableStateOf<String?>(null) }
-    var isClientsLoading by remember { mutableStateOf(false) }
+    var isClientsLoading by remember { mutableStateOf(true) }
     var clientsError by remember { mutableStateOf<String?>(null) }
-    var isBikesLoading by remember { mutableStateOf(false) }
+    var isBikesLoading by remember { mutableStateOf(true) }
     var bikesError by remember { mutableStateOf<String?>(null) }
     var rentsFilter by remember { mutableStateOf(AdminRentFilter.All) }
     var rentsSearch by remember { mutableStateOf("") }
@@ -565,6 +574,9 @@ internal fun AdminHomeScreen(
     var bikeForEditTransition by remember { mutableStateOf<AdminBikeResponse?>(null) }
     var rentalDetailsTransition by remember { mutableStateOf<AdminRentalPreview?>(null) }
     var stackDeferredWorkAllowedAfterMillis by remember { mutableStateOf(0L) }
+    var composedTabs by remember { mutableStateOf(setOf(AdminHomeTab.Rents)) }
+    var premeasureTab by remember { mutableStateOf<AdminHomeTab?>(null) }
+    var prewarmUpdateRental by remember { mutableStateOf(false) }
     val transitionWorkScope = rememberCoroutineScope()
 
     fun markStackTransitionWindow() {
@@ -747,14 +759,51 @@ internal fun AdminHomeScreen(
         }
     }
     LaunchedEffect(Unit) {
-        delay(AppStackDeferredWorkMillis.toLong())
-        refreshAllCatalogs()
+        delay(AppStackDeferredWorkMillis.toLong() + 260L)
+        refreshRents()
+        delay(120L)
+        refreshClients()
+        delay(120L)
+        refreshBikes()
     }
     LaunchedEffect(selectedTab) {
+        composedTabs = composedTabs + selectedTab
+        premeasureTab = null
         when (selectedTab) {
             AdminHomeTab.Clients -> if (clientsCatalog.isEmpty() && !isClientsLoading) refreshClients()
             AdminHomeTab.Bikes -> if (bikesCatalog.isEmpty() && !isBikesLoading) refreshBikes()
             AdminHomeTab.Rents -> Unit
+        }
+    }
+    LaunchedEffect(Unit) {
+        delay(AppStackDeferredWorkMillis.toLong() + 160L)
+        listOf(AdminHomeTab.Clients, AdminHomeTab.Bikes).forEach { tab ->
+            composedTabs = composedTabs + tab
+            premeasureTab = tab
+            delay(96L)
+            if (premeasureTab == tab) {
+                premeasureTab = null
+            }
+        }
+    }
+    LaunchedEffect(clientsCatalog) {
+        if (clientsCatalog.isNotEmpty() && selectedTab != AdminHomeTab.Clients) {
+            composedTabs = composedTabs + AdminHomeTab.Clients
+            premeasureTab = AdminHomeTab.Clients
+            delay(96L)
+            if (premeasureTab == AdminHomeTab.Clients) {
+                premeasureTab = null
+            }
+        }
+    }
+    LaunchedEffect(bikesCatalog) {
+        if (bikesCatalog.isNotEmpty() && selectedTab != AdminHomeTab.Bikes) {
+            composedTabs = composedTabs + AdminHomeTab.Bikes
+            premeasureTab = AdminHomeTab.Bikes
+            delay(96L)
+            if (premeasureTab == AdminHomeTab.Bikes) {
+                premeasureTab = null
+            }
         }
     }
     LaunchedEffect(adminMessage) {
@@ -777,6 +826,16 @@ internal fun AdminHomeScreen(
         if (selectedRentalDetails == null && rentalDetailsTransition != null) {
             delay(AppStackTransitionMillis.toLong())
             rentalDetailsTransition = null
+        }
+    }
+    LaunchedEffect(selectedRentalDetails?.rentalId) {
+        val rentalId = selectedRentalDetails?.rentalId
+        prewarmUpdateRental = false
+        if (rentalId != null) {
+            delay(AppStackDeferredWorkMillis.toLong())
+            if (selectedRentalDetails?.rentalId == rentalId) {
+                prewarmUpdateRental = true
+            }
         }
     }
 
@@ -834,7 +893,11 @@ internal fun AdminHomeScreen(
                 label = "adminHomeUnderlyingOffset"
             )
     ) {
-        AdminHomeTabLayer(active = selectedTab == AdminHomeTab.Rents) {
+        AdminHomeTabLayer(
+            active = selectedTab == AdminHomeTab.Rents,
+            precompose = AdminHomeTab.Rents in composedTabs,
+            premeasure = premeasureTab == AdminHomeTab.Rents
+        ) {
                 val horizontalInset = 8.dp
                 val topBarHeight = 62.dp
                 val searchTopPadding = 6.dp
@@ -1038,7 +1101,11 @@ internal fun AdminHomeScreen(
                 }
         }
 
-        AdminHomeTabLayer(active = selectedTab == AdminHomeTab.Clients) {
+        AdminHomeTabLayer(
+            active = selectedTab == AdminHomeTab.Clients,
+            precompose = AdminHomeTab.Clients in composedTabs,
+            premeasure = premeasureTab == AdminHomeTab.Clients
+        ) {
             AdminClientsCatalogScreen(
                     statusBarTop = statusBarTop,
                     clients = clientsCatalog,
@@ -1058,7 +1125,11 @@ internal fun AdminHomeScreen(
                 )
         }
 
-        AdminHomeTabLayer(active = selectedTab == AdminHomeTab.Bikes) {
+        AdminHomeTabLayer(
+            active = selectedTab == AdminHomeTab.Bikes,
+            precompose = AdminHomeTab.Bikes in composedTabs,
+            premeasure = premeasureTab == AdminHomeTab.Bikes
+        ) {
             AdminBikesCatalogScreen(
                     statusBarTop = statusBarTop,
                     bikes = bikesCatalog,
@@ -1440,6 +1511,7 @@ internal fun AdminHomeScreen(
 
     AppStackVisibility(
         visible = showUpdateRental && selectedRentalDetails != null,
+        precompose = prewarmUpdateRental && selectedRentalDetails != null,
         modifier = Modifier.fillMaxSize().zIndex(32f)
     ) {
         val details = selectedRentalDetails

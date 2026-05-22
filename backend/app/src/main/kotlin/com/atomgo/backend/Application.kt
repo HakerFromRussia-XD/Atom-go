@@ -628,6 +628,13 @@ private data class ApiPaymentCreateRequest(
 )
 
 @Serializable
+private data class ApiPublicTestPaymentRequest(
+    val phone: String,
+    @SerialName("payment_type")
+    val paymentType: String
+)
+
+@Serializable
 private data class ApiClientReceiptEmailRequest(
     val email: String
 )
@@ -2809,8 +2816,6 @@ fun Application.module() {
                     const typeEl = document.getElementById("paymentType");
                     const phoneEl = document.getElementById("phone");
                     const API = "/api/v1";
-                    const LOGIN = "client2";
-                    const PASSWORD = "client234";
                     const ALLOWED_PHONE = "89859325907";
 
                     function normalizePhone(raw) {
@@ -2827,23 +2832,10 @@ fun Application.module() {
                       btn.disabled = true;
                       btn.textContent = "Создаём платёж...";
                       try {
-                        const authRes = await fetch(API + "/auth/login", {
+                        const payRes = await fetch(API + "/public/test-payment", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ login: LOGIN, password: PASSWORD })
-                        });
-                        if (!authRes.ok) throw new Error("Не удалось авторизоваться клиентом client2");
-                        const auth = await authRes.json();
-                        const token = auth.access_token;
-                        if (!token) throw new Error("Токен авторизации не получен");
-
-                        const payRes = await fetch(API + "/payments/create", {
-                          method: "POST",
-                          headers: {
-                            "Content-Type": "application/json",
-                            "Authorization": "Bearer " + token
-                          },
-                          body: JSON.stringify({ payment_type: typeEl.value })
+                          body: JSON.stringify({ phone: phone, payment_type: typeEl.value })
                         });
                         const payJson = await payRes.json().catch(() => ({}));
                         if (!payRes.ok) throw new Error(payJson.message || "Не удалось создать платёж");
@@ -2980,6 +2972,66 @@ fun Application.module() {
         }
 
         route("/api/v1") {
+            post("/public/test-payment") {
+                val request = call.receive<ApiPublicTestPaymentRequest>()
+                val phone = request.phone.filter { it.isDigit() }
+                if (phone != "89859325907") {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "Для тестовой оплаты используйте номер 89859325907."))
+                    return@post
+                }
+                val type = PaymentType.fromApi(request.paymentType)
+                if (type == null) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "Unknown payment_type"))
+                    return@post
+                }
+
+                val clientRental = synchronized(stateLock) {
+                    store.clientRentals
+                        .filter { it.clientLogin == "client2" && it.clientPassword == "client234" }
+                        .maxByOrNull { it.startDate }
+                }
+                if (clientRental == null) {
+                    call.respond(HttpStatusCode.NotFound, ApiErrorResponse(message = "Test rental is not configured"))
+                    return@post
+                }
+
+                try {
+                    val payment = synchronized(stateLock) {
+                        val createdPayment = paymentService.createPayment(
+                            clientId = clientRental.clientId,
+                            paymentType = type,
+                            rentalId = clientRental.id
+                        )
+                        persistState()
+                        createdPayment
+                    }
+                    call.respond(
+                        HttpStatusCode.OK,
+                        ApiPaymentCreateResponse(
+                            paymentId = payment.id,
+                            amountRub = payment.amountRub,
+                            confirmationUrl = payment.confirmationUrl,
+                            idempotenceKey = payment.idempotenceKey,
+                            taxMode = payment.taxMode.name.lowercase(),
+                            fiscalizationStatus = payment.fiscalizationStatus.name.lowercase(),
+                            status = payment.status.name.lowercase()
+                        )
+                    )
+                } catch (e: IllegalStateException) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = e.message ?: "Invalid payment"))
+                } catch (e: IllegalArgumentException) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = e.message ?: "Invalid request"))
+                } catch (e: YooKassaException) {
+                    call.application.environment.log.error("YooKassa public test payment failed", e)
+                    val message = if (e.statusCode == 0) {
+                        "YooKassa is not configured"
+                    } else {
+                        "YooKassa payment creation failed"
+                    }
+                    call.respond(HttpStatusCode.BadGateway, ApiErrorResponse(message = message))
+                }
+            }
+
             post("/auth/login") {
                 val request = call.receive<JsonObject>()
                 val login = request.string("login")
