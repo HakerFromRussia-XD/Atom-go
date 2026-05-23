@@ -297,6 +297,10 @@ class ApiIntegrationTest {
             frameSerial = "UPDATE-RENTAL-FRAME-2",
             motorSerial = "UPDATE-RENTAL-MOTOR-2"
         )
+        val createStart = LocalDate.now().minusDays(5).toString()
+        val createEnd = LocalDate.now().plusDays(15).toString()
+        val updateStart = LocalDate.now().minusDays(1).toString()
+        val updateEnd = LocalDate.now().plusDays(20).toString()
 
         val createRental = client.post("/api/v1/admin/rentals") {
             bearerAuth(adminToken)
@@ -308,8 +312,8 @@ class ApiIntegrationTest {
                   "bike_id":"$firstBikeId",
                   "login":"update.rental.client",
                   "password":"update-rental-client-pwd",
-                  "period_start":"2026-05-05",
-                  "period_end":"2026-05-20"
+                  "period_start":"$createStart",
+                  "period_end":"$createEnd"
                 }
                 """.trimIndent()
             )
@@ -325,8 +329,8 @@ class ApiIntegrationTest {
                 """
                 {
                   "bike_id":"$secondBikeId",
-                  "period_start":"2026-05-10",
-                  "period_end":"2026-05-30",
+                  "period_start":"$updateStart",
+                  "period_end":"$updateEnd",
                   "login":"updated.rental.client",
                   "password":"updated-rental-password",
                   "video_url":"https://example.com/video-updated",
@@ -339,8 +343,8 @@ class ApiIntegrationTest {
         assertEquals(HttpStatusCode.OK, updateRental.status)
         val updated = json.parseToJsonElement(updateRental.bodyAsText()).jsonObject
         assertEquals(secondBikeId, updated["bike_id"]?.jsonPrimitive?.content)
-        assertEquals("2026-05-10", updated["period_start"]?.jsonPrimitive?.content)
-        assertEquals("2026-05-30", updated["period_end"]?.jsonPrimitive?.content)
+        assertEquals(updateStart, updated["period_start"]?.jsonPrimitive?.content)
+        assertEquals(updateEnd, updated["period_end"]?.jsonPrimitive?.content)
         assertEquals("https://example.com/video-updated", updated["video_url"]?.jsonPrimitive?.content)
         assertEquals("https://example.com/contract-updated", updated["contract_url"]?.jsonPrimitive?.content)
         assertEquals("updated comment", updated["comment"]?.jsonPrimitive?.content)
@@ -368,6 +372,105 @@ class ApiIntegrationTest {
             )
         }
         assertEquals(HttpStatusCode.OK, clientLogin.status)
+    }
+
+    @Test
+    fun `admin should update completed client rental by client rental id`() = testApplication {
+        application { module() }
+        val adminToken = loginAsAdmin()
+        val clientId = createClientAndGetId(adminToken, fullName = "Completed Edit Client", phone = "79000009101")
+        val firstBikeId = createBikeAndGetId(
+            adminToken,
+            frameSerial = "COMPLETED-EDIT-FRAME-1",
+            motorSerial = "COMPLETED-EDIT-MOTOR-1"
+        )
+        val secondBikeId = createBikeAndGetId(
+            adminToken,
+            frameSerial = "COMPLETED-EDIT-FRAME-2",
+            motorSerial = "COMPLETED-EDIT-MOTOR-2"
+        )
+
+        val createRental = client.post("/api/v1/admin/rentals") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "client_id":"$clientId",
+                  "bike_id":"$firstBikeId",
+                  "login":"completed.edit.old",
+                  "password":"completed-edit-old-password",
+                  "period_start":"2026-05-01"
+                }
+                """.trimIndent()
+            )
+        }
+        assertEquals(HttpStatusCode.Created, createRental.status)
+        val lifecycleRentalId = json.parseToJsonElement(createRental.bodyAsText()).jsonObject["rental_id"]?.jsonPrimitive?.content
+            ?: error("No lifecycle rental id")
+
+        val finish = client.post("/api/v1/admin/rentals/$lifecycleRentalId/finish") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, finish.status)
+
+        val clientDetails = client.get("/api/v1/admin/clients/$clientId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, clientDetails.status)
+        val completedClientRentalId = json.parseToJsonElement(clientDetails.bodyAsText())
+            .jsonObject["rentals"]?.jsonArray
+            ?.firstOrNull { item -> item.jsonObject["bike_id"]?.jsonPrimitive?.content == firstBikeId }
+            ?.jsonObject
+            ?.get("rental_id")
+            ?.jsonPrimitive
+            ?.content
+            ?: error("No completed client rental id")
+        assertTrue(completedClientRentalId != lifecycleRentalId)
+
+        val updateCompleted = client.post("/api/v1/admin/rentals/$completedClientRentalId") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "bike_id":"$secondBikeId",
+                  "period_start":"2026-05-02",
+                  "period_end":"2026-05-20",
+                  "login":"completed.edit.new",
+                  "password":"completed-edit-new-password",
+                  "video_url":"https://example.com/completed-video",
+                  "contract_url":"https://example.com/completed-contract",
+                  "comment":"completed edit comment"
+                }
+                """.trimIndent()
+            )
+        }
+        assertEquals(HttpStatusCode.OK, updateCompleted.status)
+        val updated = json.parseToJsonElement(updateCompleted.bodyAsText()).jsonObject
+        assertEquals(completedClientRentalId, updated["rental_id"]?.jsonPrimitive?.content)
+        assertEquals(secondBikeId, updated["bike_id"]?.jsonPrimitive?.content)
+        assertEquals("2026-05-02", updated["period_start"]?.jsonPrimitive?.content)
+        assertEquals("2026-05-20", updated["period_end"]?.jsonPrimitive?.content)
+        assertEquals("https://example.com/completed-video", updated["video_url"]?.jsonPrimitive?.content)
+        assertEquals("https://example.com/completed-contract", updated["contract_url"]?.jsonPrimitive?.content)
+        assertEquals("completed edit comment", updated["comment"]?.jsonPrimitive?.content)
+
+        val completedDetails = client.get("/api/v1/admin/rentals/$completedClientRentalId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, completedDetails.status)
+        val details = json.parseToJsonElement(completedDetails.bodyAsText()).jsonObject
+        assertEquals(completedClientRentalId, details["rental_id"]?.jsonPrimitive?.content)
+        assertEquals(clientId, details["client_id"]?.jsonPrimitive?.content)
+        assertEquals(secondBikeId, details["bike_id"]?.jsonPrimitive?.content)
+        assertEquals("2026-05-02", details["rental_start"]?.jsonPrimitive?.content)
+        assertEquals("2026-05-20", details["completed_at"]?.jsonPrimitive?.content)
+        assertEquals("completed.edit.new", details["client_login"]?.jsonPrimitive?.content)
+        assertEquals("completed-edit-new-password", details["client_password"]?.jsonPrimitive?.content)
+        assertEquals("https://example.com/completed-video", details["video_url"]?.jsonPrimitive?.content)
+        assertEquals("https://example.com/completed-contract", details["contract_url"]?.jsonPrimitive?.content)
+        assertEquals("completed edit comment", details["comment"]?.jsonPrimitive?.content)
     }
 
     @Test
@@ -2591,7 +2694,7 @@ class ApiIntegrationTest {
             motorSerial = "CLOSED-ADJ-MOTOR",
             weeklyRateRub = 3500
         )
-        val start = LocalDate.now().minusDays(6).toString()
+        val start = LocalDate.now().toString()
 
         val createRental = client.post("/api/v1/admin/rentals") {
             bearerAuth(adminToken)
@@ -2658,7 +2761,9 @@ class ApiIntegrationTest {
         val adjustmentEntry = journal.firstOrNull { it.jsonObject["type"]?.jsonPrimitive?.content == "adjustment" }
             ?.jsonObject ?: error("No adjustment entry in journal")
         assertEquals(500, adjustmentEntry["amount_rub"]?.jsonPrimitive?.content?.toInt())
-        assertEquals(LocalDate.now().toString(), adjustmentEntry["created_at"]?.jsonPrimitive?.content)
+        assertTrue(
+            adjustmentEntry["created_at"]?.jsonPrimitive?.content?.startsWith(LocalDate.now().toString()) == true
+        )
     }
 
     /**

@@ -1914,20 +1914,21 @@ internal fun AdminUpdateRentalDialog(
     onDismiss: () -> Unit,
     onUpdate: (String, String, String, String, String, String, String, String, String, String) -> Unit
 ) {
-    var clientId by remember(details.rentalId) { mutableStateOf(details.clientId) }
-    var bikeId by remember(details.rentalId) { mutableStateOf(details.bikeId) }
-    var login by remember(details.rentalId) { mutableStateOf(details.clientLogin.orEmpty()) }
-    var password by remember(details.rentalId) { mutableStateOf(details.clientPassword.orEmpty()) }
-    var periodStart by remember(details.rentalId) { mutableStateOf(details.periodStart) }
-    var periodEnd by remember(details.rentalId) { mutableStateOf(details.periodEnd.orEmpty()) }
-    var videoUrl by remember(details.rentalId) { mutableStateOf(details.videoUrl.orEmpty()) }
-    var contractUrl by remember(details.rentalId) { mutableStateOf(details.contractUrl.orEmpty()) }
-    var comment by remember(details.rentalId) { mutableStateOf(details.comment.orEmpty()) }
+    val initialState = remember(details, bikes) { adminRentalEditInitialState(details, bikes) }
+    var clientId by remember(initialState) { mutableStateOf(initialState.clientId) }
+    var bikeId by remember(initialState) { mutableStateOf(initialState.bikeId) }
+    var login by remember(initialState) { mutableStateOf(initialState.login) }
+    var password by remember(initialState) { mutableStateOf(initialState.password) }
+    var periodStart by remember(initialState) { mutableStateOf(initialState.periodStart) }
+    var periodEnd by remember(initialState) { mutableStateOf(initialState.periodEnd) }
+    var videoUrl by remember(initialState) { mutableStateOf(initialState.videoUrl) }
+    var contractUrl by remember(initialState) { mutableStateOf(initialState.contractUrl) }
+    var comment by remember(initialState) { mutableStateOf(initialState.comment) }
     var toastMessage by remember { mutableStateOf<String?>(null) }
     var isClientPickerPresented by remember { mutableStateOf(false) }
     var isBikePickerPresented by remember { mutableStateOf(false) }
-    var draftClientId by remember(details.rentalId) { mutableStateOf(details.clientId) }
-    var draftBikeId by remember(details.rentalId) { mutableStateOf(details.bikeId) }
+    var draftClientId by remember(initialState) { mutableStateOf(initialState.clientId) }
+    var draftBikeId by remember(initialState) { mutableStateOf(initialState.bikeId) }
     val clipboardManager = LocalClipboardManager.current
 
     fun fail(message: String) {
@@ -1985,37 +1986,23 @@ internal fun AdminUpdateRentalDialog(
                 val normalizedEnd = periodEnd.trim()
                 val normalizedLogin = login.trim()
                 val normalizedPassword = password.trim()
+                val validationError = adminRentalEditValidationError(normalizedStart, normalizedEnd)
 
-                when {
-                    clientId.isBlank() -> fail("Выберите клиента")
-                    bikeId.isBlank() -> fail("Выберите велосипед")
-                    normalizedLogin.isEmpty() || normalizedPassword.isEmpty() -> fail("Укажите логин и пароль клиента")
-                    !isValidApiDate(normalizedStart) -> fail("Дата начала должна быть в формате YYYY-MM-DD")
-                    normalizedEnd.isNotEmpty() && !isValidApiDate(normalizedEnd) -> fail("Дата окончания должна быть в формате YYYY-MM-DD")
-                    normalizedEnd.isNotEmpty() && normalizedEnd < normalizedStart -> fail("Дата окончания не может быть раньше даты начала")
-                    else -> {
-                        val duplicateLoginMessage = validateRentalLoginDuplicate(
-                            clients = clients,
-                            selectedClientId = clientId,
-                            login = normalizedLogin
-                        )
-                        if (duplicateLoginMessage != null) {
-                            fail(duplicateLoginMessage)
-                        } else {
-                            onUpdate(
-                                details.rentalId,
-                                clientId,
-                                bikeId,
-                                normalizedStart,
-                                normalizedEnd,
-                                normalizedLogin,
-                                normalizedPassword,
-                                videoUrl.trim(),
-                                contractUrl.trim(),
-                                comment.trim()
-                            )
-                        }
-                    }
+                if (validationError != null) {
+                    fail(validationError)
+                } else {
+                    onUpdate(
+                        details.rentalId,
+                        clientId.trim(),
+                        bikeId.trim(),
+                        normalizedStart,
+                        normalizedEnd,
+                        normalizedLogin,
+                        normalizedPassword,
+                        videoUrl.trim(),
+                        contractUrl.trim(),
+                        comment.trim()
+                    )
                 }
             },
             backTag = "edit_rental_cancel_button",

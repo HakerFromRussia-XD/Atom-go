@@ -1418,7 +1418,11 @@ internal fun AdminHomeScreen(
             clients = clientsCatalog,
             isLoading = isRentalDetailsLoading,
             onClose = { selectedRentalDetails = null },
-            onEdit = { showUpdateRental = true },
+            onEdit = {
+                if (!isRentalDetailsLoading) {
+                    showUpdateRental = true
+                }
+            },
             onOpenClient = {
                 val clientId = rentalDetails?.clientId?.trim().orEmpty()
                 selectedRentalDetails = null

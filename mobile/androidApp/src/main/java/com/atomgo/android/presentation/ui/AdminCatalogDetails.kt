@@ -1296,7 +1296,7 @@ internal fun AdminRentalDetailsScreenAndroid(
                 Text("Аренда", color = AppDesign.TitleText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.weight(1f))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (details != null && details.rentalId.isNotBlank()) {
+                    if (!isLoading && details != null && details.rentalId.isNotBlank()) {
                         OutlinedButton(
                             onClick = onEdit,
                             contentPadding = PaddingValues(0.dp),

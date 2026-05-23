@@ -28,10 +28,10 @@ class LoginViewModel(
     companion object {
         private const val CLIENT_SELF_EMPLOYED_LOGIN = "user286525"
         private const val CLIENT_SELF_EMPLOYED_PASSWORD = "hXwVeC35Hedv"
-        private const val CLIENT_IP_LOGIN = "client3"
-        private const val CLIENT_IP_PASSWORD = "3"
-        private const val ADMIN_LOGIN = "admin"
-        private const val ADMIN_PASSWORD = "admin123"
+        private const val CLIENT_IP_LOGIN = "user673650"
+        private const val CLIENT_IP_PASSWORD = "uFEkziA9m3NV"
+        private const val ADMIN_LOGIN = "Every-XD"
+        private const val ADMIN_PASSWORD = "Roma89157719183_ц"
         private const val ADMIN_IP_LOGIN = "admin_ip"
         private const val ADMIN_IP_PASSWORD = "adminip123"
     }
