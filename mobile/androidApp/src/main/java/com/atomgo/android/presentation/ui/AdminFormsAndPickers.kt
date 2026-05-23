@@ -45,20 +45,20 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DirectionsBike
+import androidx.compose.material.icons.automirrored.filled.DirectionsBike
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.outlined.AccountCircle
-import androidx.compose.material.icons.outlined.DirectionsBike
+import androidx.compose.material.icons.automirrored.outlined.DirectionsBike
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Home
@@ -1132,7 +1132,7 @@ internal fun AdminBikePhotoCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Outlined.DirectionsBike,
+                        imageVector = Icons.AutoMirrored.Outlined.DirectionsBike,
                         contentDescription = null,
                         tint = AppDesign.Accent,
                         modifier = Modifier.size(24.dp)
@@ -1404,7 +1404,7 @@ internal fun RentalBikePickerSheet(
                             .padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Icon(Icons.Outlined.DirectionsBike, contentDescription = null, tint = AppDesign.IconSoft, modifier = Modifier.size(30.dp))
+                        Icon(Icons.AutoMirrored.Outlined.DirectionsBike, contentDescription = null, tint = AppDesign.IconSoft, modifier = Modifier.size(30.dp))
                         Spacer(Modifier.height(12.dp))
                         Text("Нет велосипедов", color = AppDesign.TitleText, fontWeight = FontWeight.Bold)
                     }
@@ -1437,7 +1437,7 @@ internal fun RentalBikePickerSheet(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
-                                    Icons.Outlined.DirectionsBike,
+                                    Icons.AutoMirrored.Outlined.DirectionsBike,
                                     contentDescription = null,
                                     tint = AppDesign.IconSoft,
                                     modifier = Modifier.size(28.dp)

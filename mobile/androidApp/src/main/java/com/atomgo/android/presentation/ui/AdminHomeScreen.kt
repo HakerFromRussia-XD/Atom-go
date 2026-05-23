@@ -38,20 +38,20 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DirectionsBike
+import androidx.compose.material.icons.automirrored.filled.DirectionsBike
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.outlined.AccountCircle
-import androidx.compose.material.icons.outlined.DirectionsBike
+import androidx.compose.material.icons.automirrored.outlined.DirectionsBike
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Home
@@ -427,8 +427,8 @@ internal fun AdminBottomTabBar(
                     tab = AdminHomeTab.Bikes,
                     selectedTab = selectedTab,
                     title = "Велосипеды",
-                    selectedIcon = Icons.Filled.DirectionsBike,
-                    unselectedIcon = Icons.Outlined.DirectionsBike,
+                    selectedIcon = Icons.AutoMirrored.Filled.DirectionsBike,
+                    unselectedIcon = Icons.AutoMirrored.Outlined.DirectionsBike,
                     tag = "admin_tab_bikes",
                     modifier = Modifier.weight(1f),
                     onClick = onTabSelected

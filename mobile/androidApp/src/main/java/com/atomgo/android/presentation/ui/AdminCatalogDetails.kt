@@ -46,20 +46,20 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DirectionsBike
+import androidx.compose.material.icons.automirrored.filled.DirectionsBike
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.outlined.AccountCircle
-import androidx.compose.material.icons.outlined.DirectionsBike
+import androidx.compose.material.icons.automirrored.outlined.DirectionsBike
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.Home
@@ -654,7 +654,7 @@ internal fun AdminClientCatalogRow(
             Spacer(Modifier.width(10.dp))
         }
         Icon(
-            imageVector = Icons.Filled.KeyboardArrowRight,
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = null,
             tint = AppDesign.Chevron,
             modifier = Modifier.size(18.dp)
@@ -1168,7 +1168,7 @@ private fun ClientRentalHistoryRow(
             )
             Spacer(Modifier.width(8.dp))
             Icon(
-                imageVector = Icons.Filled.KeyboardArrowRight,
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = null,
                 tint = AppDesign.SubtleText,
                 modifier = Modifier.size(10.dp)
@@ -1391,7 +1391,7 @@ internal fun AdminRentalDetailsScreenAndroid(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Outlined.DirectionsBike,
+                                        imageVector = Icons.AutoMirrored.Outlined.DirectionsBike,
                                         contentDescription = null,
                                         tint = AppDesign.IconSoft,
                                         modifier = Modifier.size(42.dp)
@@ -1544,7 +1544,7 @@ internal fun AdminRentalDetailsScreenAndroid(
                                         )
                                     }
                                     Spacer(Modifier.weight(1f))
-                                    Icon(Icons.Filled.KeyboardArrowRight, contentDescription = null, tint = subtleTextColor, modifier = Modifier.size(16.dp))
+                                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = subtleTextColor, modifier = Modifier.size(16.dp))
                                 }
                             }
                         }
@@ -2125,7 +2125,7 @@ internal fun AdminBikeCatalogRow(
                 )
         ) {
             Icon(
-                imageVector = Icons.Outlined.DirectionsBike,
+                imageVector = Icons.AutoMirrored.Outlined.DirectionsBike,
                 contentDescription = null,
                 tint = AppDesign.IconSoft,
                 modifier = Modifier.align(Alignment.Center).size(32.dp)
@@ -2161,7 +2161,7 @@ internal fun AdminBikeCatalogRow(
         )
         Spacer(Modifier.width(10.dp))
         Icon(
-            imageVector = Icons.Filled.KeyboardArrowRight,
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
             contentDescription = null,
             tint = AppDesign.Chevron,
             modifier = Modifier.size(18.dp)
@@ -2207,7 +2207,7 @@ internal fun AdminRentCard(
                     )
             ) {
                 Icon(
-                    imageVector = Icons.Outlined.DirectionsBike,
+                    imageVector = Icons.AutoMirrored.Outlined.DirectionsBike,
                     contentDescription = null,
                     tint = AppDesign.IconSoft,
                     modifier = Modifier
