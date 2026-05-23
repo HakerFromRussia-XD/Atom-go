@@ -6,6 +6,31 @@ plugins {
 
 import java.util.Properties
 
+val releaseStoreFile = providers.gradleProperty("ATOMGO_RELEASE_STORE_FILE")
+    .orElse(providers.environmentVariable("ATOMGO_RELEASE_STORE_FILE"))
+    .orNull
+    ?.trim()
+    ?.takeIf { it.isNotEmpty() }
+val releaseStorePassword = providers.gradleProperty("ATOMGO_RELEASE_STORE_PASSWORD")
+    .orElse(providers.environmentVariable("ATOMGO_RELEASE_STORE_PASSWORD"))
+    .orNull
+    ?.trim()
+    ?.takeIf { it.isNotEmpty() }
+val releaseKeyAlias = providers.gradleProperty("ATOMGO_RELEASE_KEY_ALIAS")
+    .orElse(providers.environmentVariable("ATOMGO_RELEASE_KEY_ALIAS"))
+    .orNull
+    ?.trim()
+    ?.takeIf { it.isNotEmpty() }
+val releaseKeyPassword = providers.gradleProperty("ATOMGO_RELEASE_KEY_PASSWORD")
+    .orElse(providers.environmentVariable("ATOMGO_RELEASE_KEY_PASSWORD"))
+    .orNull
+    ?.trim()
+    ?.takeIf { it.isNotEmpty() }
+val hasReleaseSigningConfig = releaseStoreFile != null &&
+    releaseStorePassword != null &&
+    releaseKeyAlias != null &&
+    releaseKeyPassword != null
+
 android {
     namespace = "com.atomgo.android"
     compileSdk = 35
@@ -15,7 +40,7 @@ android {
         minSdk = 24
         targetSdk = 35
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = "1.0.96"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         val switchProps = Properties().apply {
@@ -38,11 +63,31 @@ android {
             "ATOMGO_BASE_URL_PROD",
             "\"${switchProps.getProperty("ATOMGO_BASE_URL_PROD", "https://atomgo.157.22.203.6.nip.io/api/v1").trim()}\""
         )
+        manifestPlaceholders["usesCleartextTraffic"] = "false"
+    }
+
+    signingConfigs {
+        if (hasReleaseSigningConfig) {
+            create("release") {
+                storeFile = file(releaseStoreFile!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
     }
 
     buildTypes {
+        debug {
+            manifestPlaceholders["usesCleartextTraffic"] = "true"
+        }
         release {
+            isDebuggable = false
             isMinifyEnabled = false
+            manifestPlaceholders["usesCleartextTraffic"] = "false"
+            if (hasReleaseSigningConfig) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

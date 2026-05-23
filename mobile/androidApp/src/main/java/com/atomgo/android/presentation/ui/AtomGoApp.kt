@@ -580,50 +580,6 @@ private fun LoginScreen(
                 Text("Forget Password ?", fontFamily = poppins, fontSize = (14f * textScale).sp, color = AppDesign.SubtleText)
             }
 
-            Row(
-                modifier = Modifier
-                    .width(sw(343f))
-                    .offset(x = sx(35f), y = sy(758f)),
-                horizontalArrangement = Arrangement.spacedBy((6f * xScale).dp)
-            ) {
-                LoginQuickFillButton(
-                    title = "к 1",
-                    testTag = "login_quick_fill_client_self_employed",
-                    xScale = xScale,
-                    yScale = yScale,
-                    textScale = textScale,
-                    onClick = loginViewModel::fillClientSelfEmployedCredentials,
-                    fontFamily = poppins
-                )
-                LoginQuickFillButton(
-                    title = "к 2",
-                    testTag = "login_quick_fill_client_ip",
-                    xScale = xScale,
-                    yScale = yScale,
-                    textScale = textScale,
-                    onClick = loginViewModel::fillClientIpCredentials,
-                    fontFamily = poppins
-                )
-                LoginQuickFillButton(
-                    title = "а 1",
-                    testTag = "login_quick_fill_admin",
-                    xScale = xScale,
-                    yScale = yScale,
-                    textScale = textScale,
-                    onClick = loginViewModel::fillAdminCredentials,
-                    fontFamily = poppins
-                )
-                LoginQuickFillButton(
-                    title = "а 2",
-                    testTag = "login_quick_fill_admin_ip",
-                    xScale = xScale,
-                    yScale = yScale,
-                    textScale = textScale,
-                    onClick = loginViewModel::fillAdminIpCredentials,
-                    fontFamily = poppins
-                )
-            }
-
             Button(
                 onClick = { loginViewModel.signIn(onAuthenticated) },
                 enabled = !state.isLoading,
@@ -667,43 +623,6 @@ private fun LoginScreen(
                 bottomPadding = 86
             )
         }
-    }
-}
-
-@Composable
-private fun LoginQuickFillButton(
-    title: String,
-    testTag: String,
-    xScale: Float,
-    yScale: Float,
-    textScale: Float,
-    fontFamily: FontFamily,
-    onClick: () -> Unit
-) {
-    Button(
-        onClick = onClick,
-        contentPadding = PaddingValues(0.dp),
-        shape = RoundedCornerShape((8f * textScale).dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = AppDesign.CardBackground,
-            contentColor = AppDesign.TitleText
-        ),
-        modifier = Modifier
-            .width((80f * xScale).dp)
-            .height((24f * yScale).dp)
-            .testTag(testTag)
-            .semantics { contentDescription = testTag }
-            .border(
-                width = AppDesign.HairlineStroke,
-                color = AppDesign.IconSoft.copy(alpha = 0.35f),
-                shape = RoundedCornerShape((8f * textScale).dp)
-            )
-    ) {
-        Text(
-            text = title,
-            fontFamily = fontFamily,
-            fontSize = (12f * textScale).sp
-        )
     }
 }
 

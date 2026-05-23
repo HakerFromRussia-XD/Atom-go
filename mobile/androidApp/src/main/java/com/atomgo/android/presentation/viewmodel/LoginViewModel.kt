@@ -25,17 +25,6 @@ data class LoginUiState(
 class LoginViewModel(
     private val authUseCases: AuthUseCases
 ) : ViewModel() {
-    companion object {
-        private const val CLIENT_SELF_EMPLOYED_LOGIN = "user286525"
-        private const val CLIENT_SELF_EMPLOYED_PASSWORD = "hXwVeC35Hedv"
-        private const val CLIENT_IP_LOGIN = "user673650"
-        private const val CLIENT_IP_PASSWORD = "uFEkziA9m3NV"
-        private const val ADMIN_LOGIN = "Every-XD"
-        private const val ADMIN_PASSWORD = "Roma89157719183_ц"
-        private const val ADMIN_IP_LOGIN = "admin_ip"
-        private const val ADMIN_IP_PASSWORD = "adminip123"
-    }
-
     private val _uiState = MutableStateFlow(initialState())
     val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
 
@@ -45,30 +34,6 @@ class LoginViewModel(
     fun setRememberMe(enabled: Boolean) {
         _uiState.update { it.copy(rememberMe = enabled) }
         authUseCases.setRememberMe(enabled)
-    }
-
-    fun fillClientSelfEmployedCredentials() {
-        _uiState.update {
-            it.copy(login = CLIENT_SELF_EMPLOYED_LOGIN, password = CLIENT_SELF_EMPLOYED_PASSWORD)
-        }
-    }
-
-    fun fillClientIpCredentials() {
-        _uiState.update {
-            it.copy(login = CLIENT_IP_LOGIN, password = CLIENT_IP_PASSWORD)
-        }
-    }
-
-    fun fillAdminCredentials() {
-        _uiState.update {
-            it.copy(login = ADMIN_LOGIN, password = ADMIN_PASSWORD)
-        }
-    }
-
-    fun fillAdminIpCredentials() {
-        _uiState.update {
-            it.copy(login = ADMIN_IP_LOGIN, password = ADMIN_IP_PASSWORD)
-        }
     }
 
     fun signIn(onAuthenticated: (AuthSession) -> Unit) {
