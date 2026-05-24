@@ -1,3 +1,4 @@
+import Foundation
 import XCTest
 
 final class AdminBikeRentalUITests: XCTestCase {
@@ -680,6 +681,381 @@ final class AdminBikeRentalUITests: XCTestCase {
             throw XCTSkip("Missing API field \(field)")
         }
         return string
+    }
+}
+
+final class AdminCashPaymentRealBackendUITests: XCTestCase {
+    private var app: XCUIApplication!
+
+    func testAdminCashPaymentThroughUIOnRealBackendUpdatesHistoryAndDebt() throws {
+        #if REAL_BACKEND_UI_TEST
+        let shouldRunRealBackendTest = true
+        #else
+        let shouldRunRealBackendTest = ProcessInfo.processInfo.environment["ATOMGO_RUN_REAL_BACKEND_UI_TEST"] == "1"
+        #endif
+
+        guard shouldRunRealBackendTest else {
+            throw XCTSkip("Set ATOMGO_RUN_REAL_BACKEND_UI_TEST=1 to run this mutating real-backend UI test")
+        }
+
+        let backendBaseURL = ProcessInfo.processInfo.environment["ATOMGO_REAL_BACKEND_UI_TEST_URL"]
+            ?? "https://atomgo.157.22.203.6.nip.io/api/v1"
+        let paymentAmountRub = 1_000
+        let token = try apiLogin(baseURL: backendBaseURL, login: "admin", password: "admin123")
+        let fixture = try createFixture(baseURL: backendBaseURL, token: token)
+        let beforeClient = try fetchClientDetails(baseURL: backendBaseURL, token: token, clientId: fixture.clientId)
+
+        app = XCUIApplication()
+        app.launchArguments += ["-ATOMGO_DISABLE_PAYMENT_SAFARI_AUTOPEN"]
+        app.launchEnvironment["ATOMGO_BACKEND_URL"] = backendBaseURL
+        app.launchEnvironment["ATOMGO_TEST_LOGIN"] = "admin"
+        app.launchEnvironment["ATOMGO_TEST_PASSWORD"] = "admin123"
+        app.launch()
+
+        try loginAsAdminIfNeeded()
+
+        let searchField = app.textFields["admin.searchField"].firstMatch
+        XCTAssertTrue(searchField.waitForExistence(timeout: 12), "Admin search field is unavailable")
+        searchField.replaceText(fixture.clientName)
+
+        let rentalCard = app.descendants(matching: .any)["admin.rent.card.\(fixture.rentalId)"]
+        XCTAssertTrue(waitForElementWithScroll(rentalCard, timeout: 20), "Created real-backend rental card is absent")
+        rentalCard.tap()
+
+        let adjustmentButton = app.buttons["rentalDetails.debtAdjustmentButton"]
+        XCTAssertTrue(waitForElementWithScroll(adjustmentButton, timeout: 20), "Rental adjustment button is absent")
+        XCTAssertTrue(adjustmentButton.isEnabled, "Rental adjustment button must be enabled for active client rental")
+        adjustmentButton.tap()
+
+        let cashSegment = app.buttons["debtAdjustment.cashPaymentSegment"]
+        XCTAssertTrue(cashSegment.waitForExistence(timeout: 8), "Cash payment segment is absent")
+        cashSegment.tap()
+
+        let amountInput = app.textFields["debtAdjustment.amountInput"]
+        XCTAssertTrue(amountInput.waitForExistence(timeout: 5), "Cash amount field is absent")
+        amountInput.replaceText("\(paymentAmountRub)")
+
+        let applyButton = app.buttons["debtAdjustment.applyButton"]
+        XCTAssertTrue(applyButton.waitForExistence(timeout: 5), "Apply cash payment button is absent")
+        applyButton.tap()
+
+        guard waitForText("Наличные добавлены", timeout: 20) else {
+            let statusText = visibleText(containingAnyOf: ["Ошибка", "Данные не найдены", "backend", "сервер"])
+                ?? "visible error text is absent"
+            let backendStatus = try? apiStatus(
+                baseURL: backendBaseURL,
+                path: "/admin/client-rentals/\(fixture.clientRentalId)/cash-payments",
+                method: "POST",
+                token: token,
+                body: ["amount_rub": paymentAmountRub, "comment": "ui-test-diagnostic-after-ui-failure"]
+            )
+            let backendMessage = backendStatus.map {
+                "backend status \($0.statusCode), body: \($0.bodyText)"
+            } ?? "backend status unavailable"
+            XCTFail("Cash payment was not accepted by UI. Visible status: \(statusText). \(backendMessage)")
+            return
+        }
+
+        XCTAssertTrue(
+            waitForTextWithScroll("Наличные", timeout: 12),
+            "Rental payment history must show the cash payment as Наличные"
+        )
+
+        let afterClient = try fetchClientDetails(baseURL: backendBaseURL, token: token, clientId: fixture.clientId)
+        XCTAssertEqual(afterClient.totalPaidRub, beforeClient.totalPaidRub + paymentAmountRub)
+        XCTAssertEqual(afterClient.totalAdjustmentRub, beforeClient.totalAdjustmentRub)
+        XCTAssertEqual(afterClient.debtRub, max(0, beforeClient.debtRub - paymentAmountRub))
+
+        let rentalDetails = try apiObject(
+            baseURL: backendBaseURL,
+            path: "/admin/rentals/\(fixture.rentalId)",
+            method: "GET",
+            token: token
+        )
+        let journal = rentalDetails["journal_entries"] as? [[String: Any]] ?? []
+        XCTAssertTrue(
+            journal.contains { entry in
+                (entry["type"] as? String) == "payment"
+                    && (entry["payment_method"] as? String) == "cash"
+                    && (entry["amount_rub"] as? Int) == paymentAmountRub
+            },
+            "Real backend rental journal must contain payment_method=cash entry"
+        )
+    }
+
+    private struct Fixture {
+        let clientId: String
+        let rentalId: String
+        let clientRentalId: String
+        let clientName: String
+    }
+
+    private struct ClientFinance {
+        let totalPaidRub: Int
+        let totalAdjustmentRub: Int
+        let debtRub: Int
+    }
+
+    private struct APIStatus {
+        let statusCode: Int
+        let bodyText: String
+    }
+
+    private func createFixture(baseURL: String, token: String) throws -> Fixture {
+        let suffix = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased().prefix(10).description
+        let clientName = "UI Cash Real \(suffix)"
+        let client = try apiObject(
+            baseURL: baseURL,
+            path: "/admin/clients",
+            method: "POST",
+            token: token,
+            body: [
+                "full_name": clientName,
+                "address": "Moscow real backend UI",
+                "passport_data": "UI \(suffix)",
+                "phones": [["label": "Test", "number": "7900\(suffix.suffix(7))"]]
+            ]
+        )
+        let clientId = try requireString(client["client_id"], field: "client_id")
+
+        let bike = try apiObject(
+            baseURL: baseURL,
+            path: "/admin/bikes",
+            method: "POST",
+            token: token,
+            body: [
+                "photo_url": "",
+                "bike_model": "UI Cash Bike \(suffix)",
+                "weekly_rate_rub": 3500,
+                "frame_serial_number": "UI-FRAME-\(suffix)",
+                "motor_serial_number": "UI-MOTOR-\(suffix)",
+                "battery_serial_number_1": "UI-BAT1-\(suffix)",
+                "battery_serial_number_2": "UI-BAT2-\(suffix)"
+            ]
+        )
+        let bikeId = try requireString(bike["bike_id"], field: "bike_id")
+
+        let rental = try apiObject(
+            baseURL: baseURL,
+            path: "/admin/clients/\(clientId)/rentals",
+            method: "POST",
+            token: token,
+            body: [
+                "bike_id": bikeId,
+                "login": "uicash\(suffix)",
+                "password": "pw\(suffix)",
+                "period_start": "2026-05-01"
+            ]
+        )
+        let rentalId = try requireString(rental["rental_id"], field: "rental_id")
+        let rentalDetails = try apiObject(baseURL: baseURL, path: "/admin/rentals/\(rentalId)", method: "GET", token: token)
+        let clientRentalId = try requireString(rentalDetails["client_rental_id"], field: "client_rental_id")
+        return Fixture(clientId: clientId, rentalId: rentalId, clientRentalId: clientRentalId, clientName: clientName)
+    }
+
+    private func fetchClientDetails(baseURL: String, token: String, clientId: String) throws -> ClientFinance {
+        let details = try apiObject(baseURL: baseURL, path: "/admin/clients/\(clientId)", method: "GET", token: token)
+        return ClientFinance(
+            totalPaidRub: try requireInt(details["total_paid_rub"], field: "total_paid_rub"),
+            totalAdjustmentRub: try requireInt(details["total_adjustment_rub"], field: "total_adjustment_rub"),
+            debtRub: try requireInt(details["debt_rub"], field: "debt_rub")
+        )
+    }
+
+    private func loginAsAdminIfNeeded() throws {
+        if app.buttons["admin.openServiceButton"].waitForExistence(timeout: 2) {
+            return
+        }
+
+        let submit = app.buttons["login.submitButton"]
+        guard submit.waitForExistence(timeout: 12) else {
+            throw XCTSkip("Login screen is unavailable for real-backend UI test")
+        }
+        submit.tap()
+
+        let adminSearchField = app.textFields["admin.searchField"].firstMatch
+        guard app.buttons["admin.openServiceButton"].waitForExistence(timeout: 30)
+            || adminSearchField.waitForExistence(timeout: 2) else {
+            let status = app.descendants(matching: .any)["login.statusText"]
+            XCTFail("Admin screen did not open. Status: \(status.exists ? status.label : "login status text is absent")")
+            return
+        }
+    }
+
+    private func apiLogin(baseURL: String, login: String, password: String) throws -> String {
+        let response = try apiObject(
+            baseURL: baseURL,
+            path: "/auth/login",
+            method: "POST",
+            body: ["login": login, "password": password]
+        )
+        return try requireString(response["access_token"], field: "access_token")
+    }
+
+    private func apiObject(
+        baseURL: String,
+        path: String,
+        method: String,
+        token: String? = nil,
+        body: [String: Any]? = nil
+    ) throws -> [String: Any] {
+        let value = try apiRequest(baseURL: baseURL, path: path, method: method, token: token, body: body)
+        guard let object = value as? [String: Any] else {
+            throw testError("Unexpected API object response for \(path)")
+        }
+        return object
+    }
+
+    private func apiRequest(
+        baseURL: String,
+        path: String,
+        method: String,
+        token: String?,
+        body: [String: Any]?
+    ) throws -> Any {
+        let (data, response) = try apiRawResponse(baseURL: baseURL, path: path, method: method, token: token, body: body)
+        guard (200 ... 299).contains(response.statusCode) else {
+            let bodyText = String(data: data, encoding: .utf8) ?? ""
+            throw testError("Backend API \(path) failed with \(response.statusCode): \(bodyText)")
+        }
+        return try JSONSerialization.jsonObject(with: data)
+    }
+
+    private func apiStatus(
+        baseURL: String,
+        path: String,
+        method: String,
+        token: String?,
+        body: [String: Any]?
+    ) throws -> APIStatus {
+        let (data, response) = try apiRawResponse(baseURL: baseURL, path: path, method: method, token: token, body: body)
+        return APIStatus(statusCode: response.statusCode, bodyText: String(data: data, encoding: .utf8) ?? "")
+    }
+
+    private func apiRawResponse(
+        baseURL: String,
+        path: String,
+        method: String,
+        token: String?,
+        body: [String: Any]?
+    ) throws -> (Data, HTTPURLResponse) {
+        let normalizedBaseURL = baseURL.hasSuffix("/") ? String(baseURL.dropLast()) : baseURL
+        let normalizedPath = path.hasPrefix("/") ? path : "/\(path)"
+        guard let requestURL = URL(string: "\(normalizedBaseURL)\(normalizedPath)") else {
+            throw testError("Invalid API URL: \(normalizedBaseURL)\(normalizedPath)")
+        }
+        var request = URLRequest(url: requestURL)
+        request.timeoutInterval = 60
+        request.httpMethod = method
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let token {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        if let body {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        }
+
+        let semaphore = DispatchSemaphore(value: 0)
+        var result: Result<(Data, HTTPURLResponse), Error>?
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            defer { semaphore.signal() }
+            if let error {
+                result = .failure(error)
+                return
+            }
+            guard let data, let httpResponse = response as? HTTPURLResponse else {
+                result = .failure(NSError(
+                    domain: "AdminCashPaymentRealBackendUITests",
+                    code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "Missing HTTP response for \(path)"]
+                ))
+                return
+            }
+            result = .success((data, httpResponse))
+        }.resume()
+
+        _ = semaphore.wait(timeout: .now() + 65)
+        let (data, response) = try result?.get() ?? {
+            throw testError("Backend API did not respond for \(path)")
+        }()
+        return (data, response)
+    }
+
+    private func waitForText(_ fragment: String, timeout: TimeInterval) -> Bool {
+        let predicate = NSPredicate(format: "label CONTAINS %@", fragment)
+        let match = app.staticTexts.containing(predicate).firstMatch
+        return match.waitForExistence(timeout: timeout)
+    }
+
+    private func waitForTextWithScroll(_ fragment: String, timeout: TimeInterval) -> Bool {
+        if waitForText(fragment, timeout: timeout) {
+            return true
+        }
+        for _ in 0..<8 {
+            app.swipeUp()
+            if waitForText(fragment, timeout: 1) {
+                return true
+            }
+        }
+        for _ in 0..<8 {
+            app.swipeDown()
+            if waitForText(fragment, timeout: 1) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private func waitForElementWithScroll(_ element: XCUIElement, timeout: TimeInterval) -> Bool {
+        if element.waitForExistence(timeout: timeout) {
+            return true
+        }
+        for _ in 0..<8 {
+            app.swipeUp()
+            if element.waitForExistence(timeout: 1) {
+                return true
+            }
+        }
+        for _ in 0..<8 {
+            app.swipeDown()
+            if element.waitForExistence(timeout: 1) {
+                return true
+            }
+        }
+        return element.exists
+    }
+
+    private func visibleText(containingAnyOf fragments: [String]) -> String? {
+        for fragment in fragments {
+            let predicate = NSPredicate(format: "label CONTAINS %@", fragment)
+            let match = app.descendants(matching: .any).containing(predicate).firstMatch
+            if match.exists {
+                return match.label
+            }
+        }
+        return nil
+    }
+
+    private func requireString(_ value: Any?, field: String) throws -> String {
+        guard let string = value as? String, !string.isEmpty else {
+            throw testError("Missing API field \(field)")
+        }
+        return string
+    }
+
+    private func requireInt(_ value: Any?, field: String) throws -> Int {
+        if let int = value as? Int {
+            return int
+        }
+        if let number = value as? NSNumber {
+            return number.intValue
+        }
+        throw testError("Missing API field \(field)")
+    }
+
+    private func testError(_ message: String) -> NSError {
+        NSError(domain: "AdminCashPaymentRealBackendUITests", code: 1, userInfo: [NSLocalizedDescriptionKey: message])
     }
 }
 

@@ -186,7 +186,9 @@ data class AdminRentalJournalEntryResponse(
     @SerialName("amount_rub")
     val amountRub: Int,
     @SerialName("created_at")
-    val createdAt: String
+    val createdAt: String,
+    @SerialName("payment_method")
+    val paymentMethod: String? = null
 )
 
 @Serializable

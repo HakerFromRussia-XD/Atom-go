@@ -410,6 +410,9 @@ struct AdminHomeView: View {
                 onAdjustDebtFromRental: { rentalId, amountRub, sign, comment in
                     viewModel.adjustRentalDebt(rentalId: rentalId, amountRub: amountRub, sign: sign, comment: comment)
                 },
+                onCashPaymentFromRental: { rentalId, amountRub, comment in
+                    viewModel.recordRentalCashPayment(rentalId: rentalId, amountRub: amountRub, comment: comment)
+                },
                 onFinishRental: { clientId, rentalId in
                     viewModel.finishRental(clientId: clientId, rentalId: rentalId) {
                         viewModel.openRentalDetails(rentalId: rentalId)
@@ -457,6 +460,9 @@ struct AdminHomeView: View {
                 onApplyDebtAdjustment: { rentalId, amountRub, sign, comment in
                     viewModel.adjustRentalDebt(rentalId: rentalId, amountRub: amountRub, sign: sign, comment: comment)
                 },
+                onApplyCashPayment: { rentalId, amountRub, comment in
+                    viewModel.recordRentalCashPayment(rentalId: rentalId, amountRub: amountRub, comment: comment)
+                },
                 onFinishRental: { clientId, rentalId in
                     // openRentalDetails ОБЯЗАТЕЛЬНО после завершения finish,
                     // иначе GET летит параллельно POST'у и возвращает старые
@@ -499,13 +505,21 @@ struct AdminHomeView: View {
                 onCancel: {
                     debtAdjustmentContext = nil
                 },
-                onApply: { amountRub, sign, comment in
-                    viewModel.adjustDebt(
-                        clientId: context.clientId,
-                        amountRub: amountRub,
-                        sign: sign,
-                        comment: comment
-                    )
+                onApply: { amountRub, kind, comment in
+                    if let sign = kind.adjustmentSign {
+                        viewModel.adjustDebt(
+                            clientId: context.clientId,
+                            amountRub: amountRub,
+                            sign: sign,
+                            comment: comment
+                        )
+                    } else {
+                        viewModel.recordCashPayment(
+                            clientId: context.clientId,
+                            amountRub: amountRub,
+                            comment: comment
+                        )
+                    }
                     debtAdjustmentContext = nil
                 }
             )

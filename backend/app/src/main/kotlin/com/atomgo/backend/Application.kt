@@ -14,6 +14,7 @@ import com.atomgo.backend.domain.ClientPhone
 import com.atomgo.backend.domain.ClientRentalRecord
 import com.atomgo.backend.domain.RentalRecord
 import com.atomgo.backend.domain.RentalPipelineStatus
+import com.atomgo.backend.infra.AdminCashPaymentService
 import com.atomgo.backend.infra.AuthService
 import com.atomgo.backend.infra.FiscalizationConfig
 import com.atomgo.backend.infra.InMemoryStore
@@ -279,6 +280,25 @@ private data class ApiAdminDebtAdjustmentResponse(
     val totalAdjustmentRub: Int
 )
 
+@Serializable
+private data class ApiAdminCashPaymentRequest(
+    @SerialName("amount_rub")
+    val amountRub: Int,
+    val comment: String? = null
+)
+
+@Serializable
+private data class ApiAdminCashPaymentResponse(
+    @SerialName("client_id")
+    val clientId: String,
+    @SerialName("debt_rub")
+    val debtRub: Int,
+    @SerialName("total_paid_rub")
+    val totalPaidRub: Int,
+    @SerialName("total_adjustment_rub")
+    val totalAdjustmentRub: Int
+)
+
 /**
  * Запрос на admin-операцию с `ClientAccount.carriedDebtRub` (перенесённый долг,
  * см. docs/14_rental_lifecycle.md §7). Поддерживает:
@@ -512,7 +532,9 @@ private data class ApiAdminRentalJournalEntryResponse(
     @SerialName("amount_rub")
     val amountRub: Int,
     @SerialName("created_at")
-    val createdAt: String
+    val createdAt: String,
+    @SerialName("payment_method")
+    val paymentMethod: String? = null
 )
 
 /**
@@ -3368,7 +3390,12 @@ fun Application.module() {
                                 ApiAdminRentalJournalEntryResponse(
                                     type = entry.type.name.lowercase(),
                                     amountRub = ledgerSignedAmountForUi(entry),
-                                    createdAt = entry.createdAt.toString()
+                                    createdAt = entry.createdAt.toString(),
+                                    paymentMethod = if (AdminCashPaymentService.isCashLedgerEntry(entry)) {
+                                        "cash"
+                                    } else {
+                                        null
+                                    }
                                 )
                             }
                             .toList()
@@ -3934,6 +3961,62 @@ fun Application.module() {
                 )
             }
 
+            post("/admin/clients/{clientId}/cash-payments") {
+                val session = authService.resolveSession(call.request.header("Authorization"))
+                if (session == null || session.role != Role.ADMIN) {
+                    call.respond(HttpStatusCode.Unauthorized, ApiErrorResponse(message = "Unauthorized"))
+                    return@post
+                }
+
+                val clientId = call.parameters["clientId"]
+                if (clientId.isNullOrBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "clientId is required"))
+                    return@post
+                }
+
+                val client = store.clients.firstOrNull { it.id == clientId }
+                if (client == null) {
+                    call.respond(HttpStatusCode.NotFound, ApiErrorResponse(message = "Client not found"))
+                    return@post
+                }
+                if (!adminOwnsClient(store, session.userId, client.id)) {
+                    call.respond(HttpStatusCode.Forbidden, ApiErrorResponse(message = "Forbidden"))
+                    return@post
+                }
+
+                val request = call.receive<ApiAdminCashPaymentRequest>()
+                if (request.amountRub <= 0) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "amount_rub must be positive"))
+                    return@post
+                }
+
+                val response = synchronized(stateLock) {
+                    AdminCashPaymentService(store)
+                        .recordForActiveClient(
+                            clientId = client.id,
+                            adminId = session.userId,
+                            amountRub = request.amountRub,
+                            comment = request.comment
+                        )
+                        ?.also { persistState() }
+                        ?.let {
+                            ApiAdminCashPaymentResponse(
+                                clientId = it.clientId,
+                                debtRub = it.debtRub,
+                                totalPaidRub = it.totalPaidRub,
+                                totalAdjustmentRub = it.totalAdjustmentRub
+                            )
+                        }
+                }
+
+                if (response == null) {
+                    call.respond(HttpStatusCode.Conflict, ApiErrorResponse(message = "client has no active rental"))
+                    return@post
+                }
+
+                call.respond(response)
+            }
+
             post("/admin/client-rentals/{clientRentalId}/adjustments") {
                 val session = authService.resolveSession(call.request.header("Authorization"))
                 if (session == null || session.role != Role.ADMIN) {
@@ -4015,6 +4098,52 @@ fun Application.module() {
                             rentalId = clientRental.id
                         )
                     )
+                }
+
+                if (response == null) {
+                    call.respond(HttpStatusCode.NotFound, ApiErrorResponse(message = "Client rental not found"))
+                    return@post
+                }
+
+                call.respond(response)
+            }
+
+            post("/admin/client-rentals/{clientRentalId}/cash-payments") {
+                val session = authService.resolveSession(call.request.header("Authorization"))
+                if (session == null || session.role != Role.ADMIN) {
+                    call.respond(HttpStatusCode.Unauthorized, ApiErrorResponse(message = "Unauthorized"))
+                    return@post
+                }
+
+                val clientRentalId = call.parameters["clientRentalId"]
+                if (clientRentalId.isNullOrBlank()) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "clientRentalId is required"))
+                    return@post
+                }
+
+                val request = call.receive<ApiAdminCashPaymentRequest>()
+                if (request.amountRub <= 0) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "amount_rub must be positive"))
+                    return@post
+                }
+
+                val response = synchronized(stateLock) {
+                    AdminCashPaymentService(store)
+                        .recordForClientRental(
+                            clientRentalId = clientRentalId,
+                            adminId = session.userId,
+                            amountRub = request.amountRub,
+                            comment = request.comment
+                        )
+                        ?.also { persistState() }
+                        ?.let {
+                            ApiAdminCashPaymentResponse(
+                                clientId = it.clientId,
+                                debtRub = it.debtRub,
+                                totalPaidRub = it.totalPaidRub,
+                                totalAdjustmentRub = it.totalAdjustmentRub
+                            )
+                        }
                 }
 
                 if (response == null) {

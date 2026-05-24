@@ -2766,6 +2766,229 @@ class ApiIntegrationTest {
         )
     }
 
+    @Test
+    fun `admin cash payment should count as payment without adjustment and mark journal`() = testApplication {
+        application { module() }
+        val adminToken = loginAsAdmin()
+        val clientId = createClientAndGetId(
+            adminToken,
+            fullName = "Cash Payment Client",
+            phone = "79009993502"
+        )
+        val bikeId = createBikeAndGetId(
+            adminToken,
+            frameSerial = "CASH-PAY-FRAME",
+            motorSerial = "CASH-PAY-MOTOR",
+            weeklyRateRub = 3500
+        )
+
+        val createRental = client.post("/api/v1/admin/rentals") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "client_id":"$clientId",
+                  "bike_id":"$bikeId",
+                  "login":"cash.payment.client",
+                  "password":"cashPaymentPwd",
+                  "period_start":"${LocalDate.now()}"
+                }
+                """.trimIndent()
+            )
+        }
+        assertEquals(HttpStatusCode.Created, createRental.status)
+        val lifecycleId = json.parseToJsonElement(createRental.bodyAsText())
+            .jsonObject["rental_id"]?.jsonPrimitive?.content ?: error("No rental id")
+
+        val cashPayment = client.post("/api/v1/admin/clients/$clientId/cash-payments") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody("""{"amount_rub":1000}""")
+        }
+        assertEquals(HttpStatusCode.OK, cashPayment.status)
+        val cashJson = json.parseToJsonElement(cashPayment.bodyAsText()).jsonObject
+        assertEquals(clientId, cashJson["client_id"]?.jsonPrimitive?.content)
+        assertEquals(1000, cashJson["total_paid_rub"]?.jsonPrimitive?.content?.toInt())
+        assertEquals(0, cashJson["total_adjustment_rub"]?.jsonPrimitive?.content?.toInt())
+
+        val details = client.get("/api/v1/admin/rentals/$lifecycleId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, details.status)
+        val detailsJson = json.parseToJsonElement(details.bodyAsText()).jsonObject
+        assertEquals(1000, detailsJson["total_paid_rub"]?.jsonPrimitive?.content?.toInt())
+        assertEquals(0, detailsJson["total_adjustment_rub"]?.jsonPrimitive?.content?.toInt())
+        val journal = detailsJson["journal_entries"]?.jsonArray ?: error("No journal entries")
+        val cashEntry = journal.firstOrNull { entry ->
+            val obj = entry.jsonObject
+            obj["type"]?.jsonPrimitive?.content == "payment" &&
+                obj["payment_method"]?.jsonPrimitive?.content == "cash"
+        }?.jsonObject ?: error("No cash payment journal entry")
+        assertEquals(1000, cashEntry["amount_rub"]?.jsonPrimitive?.content?.toInt())
+    }
+
+    @Test
+    fun `admin cash payment by client rental id should update active rental details journal and debt`() = testApplication {
+        application { module() }
+        val adminToken = loginAsAdmin()
+        val clientId = createClientAndGetId(adminToken, fullName = "Cash Payment Active CR", phone = "79009993503")
+        val bikeId = createBikeAndGetId(
+            adminToken,
+            frameSerial = "CASH-ACTIVE-CR-FRAME",
+            motorSerial = "CASH-ACTIVE-CR-MOTOR",
+            weeklyRateRub = 3500
+        )
+
+        val createRental = client.post("/api/v1/admin/rentals") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "client_id":"$clientId",
+                  "bike_id":"$bikeId",
+                  "login":"cash.active.cr.client",
+                  "password":"cashActiveCrPwd",
+                  "period_start":"${LocalDate.now()}"
+                }
+                """.trimIndent()
+            )
+        }
+        assertEquals(HttpStatusCode.Created, createRental.status)
+        val lifecycleId = json.parseToJsonElement(createRental.bodyAsText())
+            .jsonObject["rental_id"]?.jsonPrimitive?.content ?: error("No rental id")
+        val beforeDetails = client.get("/api/v1/admin/rentals/$lifecycleId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, beforeDetails.status)
+        val clientRentalId = json.parseToJsonElement(beforeDetails.bodyAsText())
+            .jsonObject["client_rental_id"]?.jsonPrimitive?.content ?: error("No client_rental_id")
+
+        val cashPayment = client.post("/api/v1/admin/client-rentals/$clientRentalId/cash-payments") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody("""{"amount_rub":1000,"comment":"cash by rental"}""")
+        }
+        assertEquals(HttpStatusCode.OK, cashPayment.status)
+        val cashJson = json.parseToJsonElement(cashPayment.bodyAsText()).jsonObject
+        assertEquals(1000, cashJson["total_paid_rub"]?.jsonPrimitive?.content?.toInt())
+        assertEquals(0, cashJson["total_adjustment_rub"]?.jsonPrimitive?.content?.toInt())
+        assertEquals(2500, cashJson["debt_rub"]?.jsonPrimitive?.content?.toInt())
+
+        val afterDetails = client.get("/api/v1/admin/rentals/$lifecycleId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, afterDetails.status)
+        val detailsJson = json.parseToJsonElement(afterDetails.bodyAsText()).jsonObject
+        assertEquals(1000, detailsJson["total_paid_rub"]?.jsonPrimitive?.content?.toInt())
+        assertEquals(0, detailsJson["total_adjustment_rub"]?.jsonPrimitive?.content?.toInt())
+        assertEquals(2500, detailsJson["debt_rub"]?.jsonPrimitive?.content?.toInt())
+        val journal = detailsJson["journal_entries"]?.jsonArray ?: error("No journal entries")
+        assertTrue(journal.any { entry ->
+            val obj = entry.jsonObject
+            obj["type"]?.jsonPrimitive?.content == "payment" &&
+                obj["payment_method"]?.jsonPrimitive?.content == "cash" &&
+                obj["amount_rub"]?.jsonPrimitive?.content?.toInt() == 1000
+        })
+    }
+
+    @Test
+    fun `admin cash payment by closed client rental id should reduce closed rental debt and mark journal`() = testApplication {
+        application { module() }
+        val adminToken = loginAsAdmin()
+        val clientId = createClientAndGetId(adminToken, fullName = "Cash Payment Closed CR", phone = "79009993504")
+        val bikeId = createBikeAndGetId(
+            adminToken,
+            frameSerial = "CASH-CLOSED-CR-FRAME",
+            motorSerial = "CASH-CLOSED-CR-MOTOR",
+            weeklyRateRub = 3500
+        )
+        val start = LocalDate.now().minusDays(9).toString()
+
+        val createRental = client.post("/api/v1/admin/rentals") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "client_id":"$clientId",
+                  "bike_id":"$bikeId",
+                  "login":"cash.closed.cr.client",
+                  "password":"cashClosedCrPwd",
+                  "period_start":"$start"
+                }
+                """.trimIndent()
+            )
+        }
+        assertEquals(HttpStatusCode.Created, createRental.status)
+        val lifecycleId = json.parseToJsonElement(createRental.bodyAsText())
+            .jsonObject["rental_id"]?.jsonPrimitive?.content ?: error("No rental id")
+
+        val finish = client.post("/api/v1/admin/rentals/$lifecycleId/finish") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, finish.status)
+
+        val clientDetails = client.get("/api/v1/admin/clients/$clientId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, clientDetails.status)
+        val closedClientRentalId = json.parseToJsonElement(clientDetails.bodyAsText())
+            .jsonObject["rentals"]?.jsonArray
+            ?.firstOrNull { it.jsonObject["bike_id"]?.jsonPrimitive?.content == bikeId }
+            ?.jsonObject?.get("rental_id")?.jsonPrimitive?.content
+            ?: error("No closed client rental id")
+
+        val cashPayment = client.post("/api/v1/admin/client-rentals/$closedClientRentalId/cash-payments") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody("""{"amount_rub":1000}""")
+        }
+        assertEquals(HttpStatusCode.OK, cashPayment.status)
+        val cashJson = json.parseToJsonElement(cashPayment.bodyAsText()).jsonObject
+        assertEquals(1000, cashJson["total_paid_rub"]?.jsonPrimitive?.content?.toInt())
+        assertEquals(0, cashJson["total_adjustment_rub"]?.jsonPrimitive?.content?.toInt())
+        assertEquals(3500, cashJson["debt_rub"]?.jsonPrimitive?.content?.toInt())
+
+        val closedDetails = client.get("/api/v1/admin/rentals/$closedClientRentalId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, closedDetails.status)
+        val detailsJson = json.parseToJsonElement(closedDetails.bodyAsText()).jsonObject
+        assertEquals(1000, detailsJson["total_paid_rub"]?.jsonPrimitive?.content?.toInt())
+        assertEquals(0, detailsJson["total_adjustment_rub"]?.jsonPrimitive?.content?.toInt())
+        assertEquals(3500, detailsJson["debt_rub"]?.jsonPrimitive?.content?.toInt())
+        val journal = detailsJson["journal_entries"]?.jsonArray ?: error("No journal entries")
+        assertTrue(journal.any { entry ->
+            val obj = entry.jsonObject
+            obj["type"]?.jsonPrimitive?.content == "payment" &&
+                obj["payment_method"]?.jsonPrimitive?.content == "cash" &&
+                obj["amount_rub"]?.jsonPrimitive?.content?.toInt() == 1000
+        })
+    }
+
+    @Test
+    fun `admin cash payment should reject non positive amount and client without active rental`() = testApplication {
+        application { module() }
+        val adminToken = loginAsAdmin()
+        val clientId = createClientAndGetId(adminToken, fullName = "Cash Payment No Active", phone = "79009993505")
+
+        val noActiveRental = client.post("/api/v1/admin/clients/$clientId/cash-payments") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody("""{"amount_rub":1000}""")
+        }
+        assertEquals(HttpStatusCode.Conflict, noActiveRental.status)
+
+        val invalidAmount = client.post("/api/v1/admin/clients/client-001/cash-payments") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody("""{"amount_rub":0}""")
+        }
+        assertEquals(HttpStatusCode.BadRequest, invalidAmount.status)
+    }
+
     /**
      * Soft-delete конкретной client_rental из истории клиента. Lifecycle и
      * остальные client_rentals НЕ трогаются, запись в БД остаётся

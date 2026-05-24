@@ -561,9 +561,33 @@ enum DebtAdjustmentSign {
     }
 }
 
+enum DebtOperationKind {
+    case decreaseDebt
+    case increaseDebt
+    case cashPayment
+
+    var adjustmentSign: DebtAdjustmentSign? {
+        switch self {
+        case .decreaseDebt:
+            return .minus
+        case .increaseDebt:
+            return .plus
+        case .cashPayment:
+            return nil
+        }
+    }
+}
+
 struct DebtAdjustmentResult: Equatable {
     let clientId: String
     let debtRub: Int
+    let totalAdjustmentRub: Int
+}
+
+struct CashPaymentResult: Equatable {
+    let clientId: String
+    let debtRub: Int
+    let totalPaidRub: Int
     let totalAdjustmentRub: Int
 }
 
@@ -605,13 +629,15 @@ struct AdminRentalJournalEntry: Decodable, Equatable, Identifiable {
     let type: String
     let amountRub: Int
     let createdAt: String
+    let paymentMethod: String?
 
-    var id: String { "\(type)-\(createdAt)-\(amountRub)" }
+    var id: String { "\(type)-\(paymentMethod ?? "none")-\(createdAt)-\(amountRub)" }
 
     enum CodingKeys: String, CodingKey {
         case type
         case amountRub = "amount_rub"
         case createdAt = "created_at"
+        case paymentMethod = "payment_method"
     }
 }
 

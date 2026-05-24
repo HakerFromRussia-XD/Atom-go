@@ -935,6 +935,7 @@ private final class MockAdminBackendService: BackendServicing {
     var updateRentalResult: Result<AdminRentalHistoryItem, Error> = .failure(BackendError.invalidResponse)
     var deleteRentalResult: Result<DeleteRentalResult, Error> = .failure(BackendError.invalidResponse)
     var adjustClientRentalDebtResult: Result<DebtAdjustmentResult, Error> = .failure(BackendError.invalidResponse)
+    var cashPaymentResult: Result<CashPaymentResult, Error> = .failure(BackendError.invalidResponse)
     var createPaymentResult: Result<PaymentCreationResponse, Error> = .failure(BackendError.invalidResponse)
     var paymentStatusResult: Result<PaymentStatusResponse, Error> = .failure(BackendError.invalidResponse)
     var updateReceiptEmailCallsCount = 0
@@ -945,6 +946,8 @@ private final class MockAdminBackendService: BackendServicing {
     var deleteRentalCallsCount = 0
     var adjustClientDebtCallsCount = 0
     var adjustClientRentalDebtCallsCount = 0
+    var recordClientCashPaymentCallsCount = 0
+    var recordClientRentalCashPaymentCallsCount = 0
 
     let sampleSummary = AdminClientSummaryResponse(
         clientId: "client-001",
@@ -1004,7 +1007,11 @@ private final class MockAdminBackendService: BackendServicing {
         totalAdjustmentRub: 0,
         rentalPipelineStatus: "long_term",
         rentalIsActive: true,
-        journalEntries: []
+        journalEntries: [],
+        videoUrl: nil,
+        contractUrl: nil,
+        comment: nil,
+        clientRentalId: "client-rental-001"
     )
 
     let sampleDashboard = ClientDashboardResponse(
@@ -1169,6 +1176,26 @@ private final class MockAdminBackendService: BackendServicing {
     ) async throws -> DebtAdjustmentResult {
         adjustClientRentalDebtCallsCount += 1
         return try adjustClientRentalDebtResult.get()
+    }
+
+    func recordAdminClientCashPayment(
+        accessToken _: String,
+        clientId _: String,
+        amountRub _: Int,
+        comment _: String?
+    ) async throws -> CashPaymentResult {
+        recordClientCashPaymentCallsCount += 1
+        return try cashPaymentResult.get()
+    }
+
+    func recordAdminClientRentalCashPayment(
+        accessToken _: String,
+        clientRentalId _: String,
+        amountRub _: Int,
+        comment _: String?
+    ) async throws -> CashPaymentResult {
+        recordClientRentalCashPaymentCallsCount += 1
+        return try cashPaymentResult.get()
     }
 
     func applyCarriedDebtOperation(

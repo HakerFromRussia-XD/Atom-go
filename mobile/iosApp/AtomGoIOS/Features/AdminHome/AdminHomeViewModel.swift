@@ -498,6 +498,55 @@ final class AdminHomeViewModel: ObservableObject {
         }
     }
 
+    func recordCashPayment(clientId: String, amountRub: Int, comment: String?) {
+        isOperationInProgress = true
+        operationErrorMessage = nil
+        operationSuccessMessage = nil
+
+        Task {
+            do {
+                let result = try await apiService.recordAdminClientCashPayment(
+                    accessToken: session.accessToken,
+                    clientId: clientId,
+                    amountRub: amountRub,
+                    comment: comment
+                )
+                operationSuccessMessage = "Наличные добавлены. Новый долг: \(result.debtRub) ₽"
+                await refreshAfterMutation(scope: .rentalMutation, openDetailsFor: result.clientId)
+            } catch {
+                operationErrorMessage = error.localizedDescription
+            }
+            isOperationInProgress = false
+        }
+    }
+
+    func recordRentalCashPayment(rentalId: String, amountRub: Int, comment: String?) {
+        isOperationInProgress = true
+        operationErrorMessage = nil
+        operationSuccessMessage = nil
+
+        Task {
+            do {
+                let result = try await apiService.recordAdminClientRentalCashPayment(
+                    accessToken: session.accessToken,
+                    clientRentalId: rentalId,
+                    amountRub: amountRub,
+                    comment: comment
+                )
+                operationSuccessMessage = "Наличные добавлены. Новый долг: \(result.debtRub) ₽"
+                let openClientId = result.clientId.isEmpty ? selectedRentalDetails?.clientId : result.clientId
+                await refreshAfterMutation(
+                    scope: .rentalMutation,
+                    openDetailsFor: openClientId,
+                    refreshRentalDetailsFor: rentalId
+                )
+            } catch {
+                operationErrorMessage = error.localizedDescription
+            }
+            isOperationInProgress = false
+        }
+    }
+
     /// Admin-операция над перенесённым долгом клиента
     /// (docs/14_rental_lifecycle.md §7, docs/04_api_draft.md «Admin: carried debt operations»).
     /// Для `payment` излишек автоматически уходит в активную клиентскую аренду — backend

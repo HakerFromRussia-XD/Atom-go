@@ -4,9 +4,9 @@ struct DebtAdjustmentSheet: View {
     let context: DebtAdjustmentContext
     let isSaving: Bool
     let onCancel: () -> Void
-    let onApply: (Int, DebtAdjustmentSign, String?) -> Void
+    let onApply: (Int, DebtOperationKind, String?) -> Void
 
-    @State private var sign: DebtAdjustmentSign = .minus
+    @State private var operationKind: DebtOperationKind = .decreaseDebt
     @State private var amountRub = ""
     @State private var toastMessage: String?
     @State private var toastDismissTask: Task<Void, Never>?
@@ -54,7 +54,7 @@ struct DebtAdjustmentSheet: View {
 
     private var header: some View {
         HStack(alignment: .center) {
-            Text("Корректировка долга")
+            Text("Операция по долгу")
                 .font(.system(size: 15.5, weight: .bold))
                 .foregroundStyle(mainText)
                 .lineLimit(1)
@@ -72,12 +72,18 @@ struct DebtAdjustmentSheet: View {
 
     private var segmentControl: some View {
         HStack(spacing: 0) {
-            segmentButton(title: "– Уменьшить", isSelected: sign == .minus) {
-                sign = .minus
+            segmentButton(title: "– Уменьшить", isSelected: operationKind == .decreaseDebt) {
+                operationKind = .decreaseDebt
             }
-            segmentButton(title: "+ Увеличить", isSelected: sign == .plus) {
-                sign = .plus
+            .accessibilityIdentifier("debtAdjustment.decreaseSegment")
+            segmentButton(title: "+ Увеличить", isSelected: operationKind == .increaseDebt) {
+                operationKind = .increaseDebt
             }
+            .accessibilityIdentifier("debtAdjustment.increaseSegment")
+            segmentButton(title: "+ Наличные", isSelected: operationKind == .cashPayment) {
+                operationKind = .cashPayment
+            }
+            .accessibilityIdentifier("debtAdjustment.cashPaymentSegment")
         }
         .background(segmentBg)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -118,6 +124,7 @@ struct DebtAdjustmentSheet: View {
         }
         .buttonStyle(.plain)
         .disabled(isSaving)
+        .accessibilityIdentifier("debtAdjustment.applyButton")
     }
 
     private func segmentButton(
@@ -127,8 +134,10 @@ struct DebtAdjustmentSheet: View {
     ) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 13, weight: isSelected ? .bold : .medium))
+                .font(.system(size: 12.5, weight: isSelected ? .bold : .medium))
                 .foregroundStyle(isSelected ? mainText : subtleText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
                 .frame(maxWidth: .infinity)
                 .frame(height: 46)
                 .background {
@@ -156,7 +165,7 @@ struct DebtAdjustmentSheet: View {
             presentToast("Введите положительную сумму")
             return
         }
-        onApply(amount, sign, nil)
+        onApply(amount, operationKind, nil)
     }
 
     private func presentToast(_ message: String) {

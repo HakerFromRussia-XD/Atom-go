@@ -15,6 +15,7 @@ struct AdminRentalDetailsScreen: View {
     let onRetry: () -> Void
     let onOpenClientCard: () -> Void
     let onApplyDebtAdjustment: (_ rentalId: String, _ amountRub: Int, _ sign: DebtAdjustmentSign, _ comment: String?) -> Void
+    let onApplyCashPayment: (_ rentalId: String, _ amountRub: Int, _ comment: String?) -> Void
     let onFinishRental: (_ clientId: String, _ rentalId: String) -> Void
     let onStartRental: (CreateRentalPayload) -> Void
     let onUpdateRental: (UpdateRentalPayload) -> Void
@@ -199,8 +200,12 @@ struct AdminRentalDetailsScreen: View {
                     ),
                     isSaving: isOperationInProgress,
                     onCancel: { isDebtAdjustmentPresented = false },
-                    onApply: { amountRub, sign, comment in
-                        onApplyDebtAdjustment(cid, amountRub, sign, comment)
+                    onApply: { amountRub, kind, comment in
+                        if let sign = kind.adjustmentSign {
+                            onApplyDebtAdjustment(cid, amountRub, sign, comment)
+                        } else {
+                            onApplyCashPayment(cid, amountRub, comment)
+                        }
                         isDebtAdjustmentPresented = false
                     }
                 )
@@ -592,10 +597,10 @@ struct AdminRentalDetailsScreen: View {
 
     private func journalRow(_ row: AdminRentalJournalEntry) -> some View {
         HStack(spacing: 12) {
-            Text(journalOperationLabel(row.type))
+            Text(journalOperationLabel(row))
                 .font(.system(size: 10, weight: .bold))
                 .tracking(0.6)
-                .foregroundStyle(AppDesign.paleSky)
+                .foregroundStyle(row.paymentMethod == "cash" ? AppDesign.success : AppDesign.paleSky)
                 .lineLimit(1)
                 .frame(width: 128, alignment: .leading)
 
@@ -648,6 +653,7 @@ struct AdminRentalDetailsScreen: View {
                 .buttonStyle(.plain)
                 .disabled(!displayPolicy.adjustmentButtonEnabled || clientRentalId == nil || isOperationInProgress)
                 .opacity((displayPolicy.adjustmentButtonEnabled && clientRentalId != nil) ? 1 : 0.9)
+                .accessibilityIdentifier("rentalDetails.debtAdjustmentButton")
 
                 if runningRentalIsActive {
                     Button {
@@ -1148,8 +1154,11 @@ struct AdminRentalDetailsScreen: View {
         return AppDesign.darkControl
     }
 
-    private func journalOperationLabel(_ type: String) -> String {
-        let normalized = type.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    private func journalOperationLabel(_ row: AdminRentalJournalEntry) -> String {
+        let normalized = row.type.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if normalized == "payment", row.paymentMethod == "cash" {
+            return "Наличные"
+        }
         switch normalized {
         case "payment":
             return "Оплата"
@@ -1158,7 +1167,7 @@ struct AdminRentalDetailsScreen: View {
         case "charge":
             return "Начисление аренды"
         default:
-            let trimmed = type.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmed = row.type.trimmingCharacters(in: .whitespacesAndNewlines)
             return trimmed.isEmpty ? "—" : trimmed
         }
     }

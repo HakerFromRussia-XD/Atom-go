@@ -362,6 +362,30 @@ private struct NativeAdminDebtAdjustmentResponse: Decodable {
     }
 }
 
+private struct NativeAdminCashPaymentRequest: Encodable {
+    let amountRub: Int
+    let comment: String?
+
+    enum CodingKeys: String, CodingKey {
+        case amountRub = "amount_rub"
+        case comment
+    }
+}
+
+private struct NativeAdminCashPaymentResponse: Decodable {
+    let clientId: String
+    let debtRub: Int
+    let totalPaidRub: Int
+    let totalAdjustmentRub: Int
+
+    enum CodingKeys: String, CodingKey {
+        case clientId = "client_id"
+        case debtRub = "debt_rub"
+        case totalPaidRub = "total_paid_rub"
+        case totalAdjustmentRub = "total_adjustment_rub"
+    }
+}
+
 protocol BackendServicing {
     func isServerReachable() async -> Bool
     func login(login: String, password: String) async throws -> AuthSession
@@ -428,6 +452,18 @@ protocol BackendServicing {
         sign: DebtAdjustmentSign,
         comment: String?
     ) async throws -> DebtAdjustmentResult
+    func recordAdminClientCashPayment(
+        accessToken: String,
+        clientId: String,
+        amountRub: Int,
+        comment: String?
+    ) async throws -> CashPaymentResult
+    func recordAdminClientRentalCashPayment(
+        accessToken: String,
+        clientRentalId: String,
+        amountRub: Int,
+        comment: String?
+    ) async throws -> CashPaymentResult
     func applyCarriedDebtOperation(
         accessToken: String,
         clientId: String,
@@ -502,6 +538,7 @@ private enum BackendErrorMessageParser {
         "rentalid is required": "Не указан идентификатор аренды.",
         "amount_rub must be positive": "Сумма должна быть больше 0.",
         "sign must be plus or minus": "Тип корректировки указан некорректно.",
+        "client has no active rental": "У клиента нет активной аренды для наличной оплаты.",
         "comment is required": "Комментарий не может быть пустым.",
         "frame_serial_number is required": "Укажите серийный номер рамы.",
         "motor_serial_number is required": "Укажите серийный номер мотора.",
@@ -1088,6 +1125,46 @@ final class BackendService: BackendServicing {
         )
     }
 
+    func recordAdminClientCashPayment(
+        accessToken: String,
+        clientId: String,
+        amountRub: Int,
+        comment: String?
+    ) async throws -> CashPaymentResult {
+        let response: NativeAdminCashPaymentResponse = try await sendNativeRequest(
+            path: "/admin/clients/\(clientId)/cash-payments",
+            method: "POST",
+            accessToken: accessToken,
+            body: NativeAdminCashPaymentRequest(amountRub: amountRub, comment: comment)
+        )
+        return CashPaymentResult(
+            clientId: response.clientId,
+            debtRub: response.debtRub,
+            totalPaidRub: response.totalPaidRub,
+            totalAdjustmentRub: response.totalAdjustmentRub
+        )
+    }
+
+    func recordAdminClientRentalCashPayment(
+        accessToken: String,
+        clientRentalId: String,
+        amountRub: Int,
+        comment: String?
+    ) async throws -> CashPaymentResult {
+        let response: NativeAdminCashPaymentResponse = try await sendNativeRequest(
+            path: "/admin/client-rentals/\(clientRentalId)/cash-payments",
+            method: "POST",
+            accessToken: accessToken,
+            body: NativeAdminCashPaymentRequest(amountRub: amountRub, comment: comment)
+        )
+        return CashPaymentResult(
+            clientId: response.clientId,
+            debtRub: response.debtRub,
+            totalPaidRub: response.totalPaidRub,
+            totalAdjustmentRub: response.totalAdjustmentRub
+        )
+    }
+
     func applyCarriedDebtOperation(
         accessToken: String,
         clientId: String,
@@ -1618,6 +1695,38 @@ final class LazyBackendService: BackendServicing {
                 clientRentalId: clientRentalId,
                 amountRub: amountRub,
                 sign: sign,
+                comment: comment
+            )
+        }
+    }
+
+    func recordAdminClientCashPayment(
+        accessToken: String,
+        clientId: String,
+        amountRub: Int,
+        comment: String?
+    ) async throws -> CashPaymentResult {
+        try await withFallback { service in
+            try await service.recordAdminClientCashPayment(
+                accessToken: accessToken,
+                clientId: clientId,
+                amountRub: amountRub,
+                comment: comment
+            )
+        }
+    }
+
+    func recordAdminClientRentalCashPayment(
+        accessToken: String,
+        clientRentalId: String,
+        amountRub: Int,
+        comment: String?
+    ) async throws -> CashPaymentResult {
+        try await withFallback { service in
+            try await service.recordAdminClientRentalCashPayment(
+                accessToken: accessToken,
+                clientRentalId: clientRentalId,
+                amountRub: amountRub,
                 comment: comment
             )
         }
