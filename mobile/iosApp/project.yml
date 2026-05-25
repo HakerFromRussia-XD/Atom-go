@@ -17,8 +17,8 @@ targets:
       path: AtomGoIOS/Info.plist
       properties:
         CFBundleDisplayName: AtomGo
-        CFBundleShortVersionString: "0.1.0"
-        CFBundleVersion: "1"
+        CFBundleShortVersionString: "1.0.99"
+        CFBundleVersion: "2"
         BackendBaseURLSimulator: "http://127.0.0.1:8080/api/v1"
         BackendBaseURLDevice: "http://192.168.1.234:8080/api/v1"
         BackendBaseURLDeviceHostname: "http://MacBook-Pro-2.local:8080/api/v1"
