@@ -261,6 +261,22 @@ class DefaultAdminRepository : AdminRepository {
         }
     }
 
+    override suspend fun recordClientRentalCashPayment(
+        accessToken: String,
+        clientRentalId: String,
+        amountRub: Int,
+        comment: String?
+    ) {
+        onIo {
+            apiClient.recordAdminClientRentalCashPayment(
+                accessToken = accessToken,
+                clientRentalId = clientRentalId,
+                amountRub = amountRub,
+                comment = comment
+            )
+        }
+    }
+
     override suspend fun adjustClientDebt(
         accessToken: String,
         clientId: String,

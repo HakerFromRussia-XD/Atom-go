@@ -222,6 +222,20 @@ class AdminUseCases(
         )
     }
 
+    suspend fun recordClientRentalCashPayment(
+        accessToken: String,
+        clientRentalId: String,
+        amountRub: Int,
+        comment: String?
+    ) {
+        adminRepository.recordClientRentalCashPayment(
+            accessToken = accessToken,
+            clientRentalId = clientRentalId,
+            amountRub = amountRub,
+            comment = comment
+        )
+    }
+
     suspend fun adjustClientDebt(
         accessToken: String,
         clientId: String,

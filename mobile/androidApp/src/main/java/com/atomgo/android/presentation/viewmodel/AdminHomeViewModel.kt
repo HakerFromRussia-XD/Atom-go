@@ -366,6 +366,25 @@ class AdminHomeViewModel(
         }
     }
 
+    fun recordAdminClientRentalCashPayment(
+        accessToken: String,
+        clientRentalId: String,
+        amountRub: Int,
+        comment: String?,
+        onResult: (Result<Unit>) -> Unit
+    ) {
+        viewModelScope.launch {
+            runCatching {
+                adminUseCases.recordClientRentalCashPayment(
+                    accessToken = accessToken,
+                    clientRentalId = clientRentalId,
+                    amountRub = amountRub,
+                    comment = comment
+                )
+            }.also(onResult)
+        }
+    }
+
     fun adjustAdminClientDebt(
         accessToken: String,
         clientId: String,

@@ -103,6 +103,13 @@ interface AdminRepository {
         comment: String?
     )
 
+    suspend fun recordClientRentalCashPayment(
+        accessToken: String,
+        clientRentalId: String,
+        amountRub: Int,
+        comment: String?
+    )
+
     suspend fun adjustClientDebt(
         accessToken: String,
         clientId: String,

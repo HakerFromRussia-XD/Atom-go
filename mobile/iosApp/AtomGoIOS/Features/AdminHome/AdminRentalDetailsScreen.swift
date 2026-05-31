@@ -600,7 +600,7 @@ struct AdminRentalDetailsScreen: View {
             Text(journalOperationLabel(row))
                 .font(.system(size: 10, weight: .bold))
                 .tracking(0.6)
-                .foregroundStyle(row.paymentMethod == "cash" ? AppDesign.success : AppDesign.paleSky)
+                .foregroundStyle(AppDesign.paleSky)
                 .lineLimit(1)
                 .frame(width: 128, alignment: .leading)
 

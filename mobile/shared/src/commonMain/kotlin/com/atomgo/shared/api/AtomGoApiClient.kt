@@ -307,6 +307,28 @@ class AtomGoApiClient private constructor(
     }
 
     @Throws(AtomGoApiException::class, CancellationException::class)
+    suspend fun recordAdminClientRentalCashPayment(
+        accessToken: String,
+        clientRentalId: String,
+        amountRub: Int,
+        comment: String?
+    ): AdminCashPaymentResponse {
+        val response = executeRequest {
+            httpClient.post("$apiBaseUrl/admin/client-rentals/$clientRentalId/cash-payments") {
+                header(HttpHeaders.Authorization, "Bearer $accessToken")
+                header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+                setBody(
+                    AdminCashPaymentRequest(
+                        amountRub = amountRub,
+                        comment = comment
+                    )
+                )
+            }
+        }
+        return decodeResponse(response)
+    }
+
+    @Throws(AtomGoApiException::class, CancellationException::class)
     suspend fun startAdminClientRentalInExisting(
         accessToken: String,
         rentalId: String,

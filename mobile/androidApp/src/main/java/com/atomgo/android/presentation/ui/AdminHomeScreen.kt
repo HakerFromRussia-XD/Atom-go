@@ -1563,6 +1563,24 @@ internal fun AdminHomeScreen(
                     isRentalAdjustmentVisible = false
                     return@AdminRentalDebtAdjustmentDialog
                 }
+                if (sign == "cash") {
+                    adminHomeViewModel.recordAdminClientRentalCashPayment(
+                        accessToken = session.accessToken,
+                        clientRentalId = clientRentalId,
+                        amountRub = amountRub,
+                        comment = comment.ifBlank { null }
+                    ) { result ->
+                        result.onSuccess {
+                            adminMessage = "Оплата наличными сохранена"
+                            isRentalAdjustmentVisible = false
+                            refreshAllCatalogsAfterStackTransition()
+                            refreshSelectedRentalDetails()
+                        }.onFailure {
+                            adminMessage = "Ошибка оплаты наличными: ${it.message}"
+                        }
+                    }
+                    return@AdminRentalDebtAdjustmentDialog
+                }
                 adminHomeViewModel.adjustAdminClientRentalDebt(
                     accessToken = session.accessToken,
                     clientRentalId = clientRentalId,

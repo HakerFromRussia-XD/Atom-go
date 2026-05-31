@@ -158,7 +158,10 @@ internal fun formatJournalDateLabel(value: String): String {
     return "—"
 }
 
-internal fun ledgerOperationLabel(type: String): String {
+internal fun ledgerOperationLabel(type: String, paymentMethod: String? = null): String {
+    if (type.trim().equals("payment", ignoreCase = true) && paymentMethod?.trim() == "cash") {
+        return "Наличные"
+    }
     return when (type.trim().lowercase()) {
         "payment" -> "Оплата"
         "adjustment" -> "Корректировка"

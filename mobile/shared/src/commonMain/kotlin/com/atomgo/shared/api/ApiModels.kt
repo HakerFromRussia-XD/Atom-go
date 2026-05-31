@@ -423,6 +423,25 @@ data class AdminDebtAdjustmentResponse(
 )
 
 @Serializable
+data class AdminCashPaymentRequest(
+    @SerialName("amount_rub")
+    val amountRub: Int,
+    val comment: String? = null
+)
+
+@Serializable
+data class AdminCashPaymentResponse(
+    @SerialName("client_id")
+    val clientId: String,
+    @SerialName("debt_rub")
+    val debtRub: Int,
+    @SerialName("total_paid_rub")
+    val totalPaidRub: Int,
+    @SerialName("total_adjustment_rub")
+    val totalAdjustmentRub: Int
+)
+
+@Serializable
 data class AdminRentalPipelineStatusRequest(
     @SerialName("pipeline_status")
     val pipelineStatus: String

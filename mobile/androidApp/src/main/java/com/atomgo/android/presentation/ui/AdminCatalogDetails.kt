@@ -1579,7 +1579,7 @@ internal fun AdminRentalDetailsScreenAndroid(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                     Text(
-                                        text = ledgerOperationLabel(row.type),
+                                        text = ledgerOperationLabel(row.type, row.paymentMethod),
                                         color = AppDesign.SubtleText,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
@@ -2461,6 +2461,14 @@ internal fun AdminRentalDebtAdjustmentDialog(
                                     onClick = { selectedSign = "plus" },
                                     modifier = Modifier.weight(1f)
                                 )
+                                AdjustmentSegmentButton(
+                                    title = "+ Наличные",
+                                    selected = selectedSign == "cash",
+                                    onClick = { selectedSign = "cash" },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("debt_adjustment_cash_segment")
+                                )
                             }
                             AdminSheetInputField(
                                 label = "СУММА, ₽",
@@ -2496,7 +2504,12 @@ internal fun AdminRentalDebtAdjustmentDialog(
                                     .height(63.dp)
                                     .testTag("debt_adjustment_apply_button")
                             ) {
-                                Text("Применить", fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.28.sp)
+                                Text(
+                                    if (selectedSign == "cash") "Добавить наличные" else "Применить",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.28.sp
+                                )
                             }
                         }
                     }
