@@ -56,10 +56,14 @@ data class ProviderPaymentInfo(
     val receiptRegistration: String? = null
 )
 
-class MockYooKassaPaymentProvider : PaymentProvider {
+class MockYooKassaPaymentProvider(
+    private val fetchStatusOverride: PaymentStatus? = null
+) : PaymentProvider {
+    private val payments = mutableMapOf<String, ProviderPaymentInfo>()
+
     override fun createPayment(request: ProviderCreatePaymentRequest, taxMode: AdminTaxMode): ProviderPaymentInfo {
         val providerPaymentId = "mock-${request.localPaymentId}"
-        return ProviderPaymentInfo(
+        val payment = ProviderPaymentInfo(
             providerPaymentId = providerPaymentId,
             status = PaymentStatus.PENDING,
             amountRub = request.amountRub,
@@ -70,10 +74,13 @@ class MockYooKassaPaymentProvider : PaymentProvider {
             paymentType = PaymentType.toApi(request.paymentType),
             receiptRegistration = "pending"
         )
+        payments[providerPaymentId] = payment
+        return payment
     }
 
     override fun fetchPayment(providerPaymentId: String, taxMode: AdminTaxMode, adminLogin: String?): ProviderPaymentInfo? {
-        return null
+        val payment = payments[providerPaymentId] ?: return null
+        return fetchStatusOverride?.let { payment.copy(status = it) } ?: payment
     }
 }
 
@@ -204,7 +211,11 @@ class YooKassaPaymentProvider internal constructor(
             val useMock = System.getenv("YOOKASSA_USE_MOCK")?.equals("true", ignoreCase = true) == true
 
             if (useMock) {
-                return MockYooKassaPaymentProvider()
+                val fetchStatusOverride = System.getProperty("atomgo.yookassa.mock.fetchStatus")
+                    ?.trim()
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let(::mapStatus)
+                return MockYooKassaPaymentProvider(fetchStatusOverride)
             }
 
             val missingKeys = buildList {

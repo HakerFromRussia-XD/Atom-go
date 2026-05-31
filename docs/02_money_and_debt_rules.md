@@ -59,10 +59,9 @@ debt = max(0, charges - payments + adjustments_increasing_debt - adjustments_red
 Финальный долг при возврате с перерасходом считается строго по дням:
 
 ```text
-covered_days = floor(total_paid_rub / day_amount)
 used_days = days_between(start_date, end_date)
-overdue_days = max(0, used_days - covered_days)
-final_debt = max(0, overdue_days * day_amount - debt_reducing_adjustments + debt_increasing_adjustments)
+used_charge = used_days * day_amount
+final_debt = max(0, used_charge - total_paid_rub - debt_reducing_adjustments + debt_increasing_adjustments)
 ```
 
 Пример:
@@ -71,7 +70,7 @@ final_debt = max(0, overdue_days * day_amount - debt_reducing_adjustments + debt
 - клиент взял велосипед в понедельник и вернул через неделю и 2 дня в среду;
 - оплатил `3500`, то есть 7 дней;
 - использовал 9 дней;
-- долг `2 * 500 = 1000`.
+- долг `9 * 500 - 3500 = 1000`.
 
 ## 6. Корректировка админом
 

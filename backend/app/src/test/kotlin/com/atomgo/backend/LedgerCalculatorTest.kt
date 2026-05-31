@@ -163,6 +163,23 @@ class LedgerCalculatorTest {
     }
 
     @Test
+    fun `finalDebtOnClosure should not lose reducing adjustment when closing by exact days`() {
+        val entries = listOf(
+            LedgerEntry("p1", "c1", LedgerType.PAYMENT, -1, 11_440, Instant.now(), rentalId = "r1"),
+            LedgerEntry("a1", "c1", LedgerType.ADJUSTMENT, -1, 2_560, Instant.now(), rentalId = "r1")
+        )
+        val finalDebt = LedgerCalculator.finalDebtOnClosure(
+            clientId = "c1",
+            rentalStartDate = LocalDate.parse("2026-04-28"),
+            rentalEndDate = LocalDate.parse("2026-05-29"),
+            weeklyRateRub = 3500,
+            entries = entries,
+            rentalId = "r1"
+        )
+        assertEquals(1500, finalDebt)
+    }
+
+    @Test
     fun `finalDebtOnClosure should apply increasing adjustment`() {
         val entries = listOf(
             LedgerEntry("p1", "c1", LedgerType.PAYMENT, -1, 3500, Instant.now(), rentalId = "r1"),

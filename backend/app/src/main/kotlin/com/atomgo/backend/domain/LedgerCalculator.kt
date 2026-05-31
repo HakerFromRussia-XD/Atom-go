@@ -134,17 +134,16 @@ object LedgerCalculator {
      * долг считается строго по дням перерасхода, а не по неделям.
      *
      *   day_amount     = weekly_rate / 7
-     *   covered_days   = floor(total_paid / day_amount)
      *   used_days      = days_between(start_date, end_date)
-     *   overdue_days   = max(0, used_days - covered_days)
-     *   final_debt     = max(0, overdue_days * day_amount + net_adjustment)
+     *   used_charge    = used_days * day_amount
+     *   final_debt     = max(0, used_charge - total_paid + net_adjustment)
      *
      * Где net_adjustment = totalAdjustmentRub (положительный увеличивает долг,
      * отрицательный уменьшает) для этой `ClientRentalRecord`.
      *
      * Пример из спеки: ставка 3500₽/нед, клиент взял в понедельник, вернул
-     * через 9 дней, оплатил 3500₽ → day=500, covered=7, used=9, overdue=2,
-     * final = 1000.
+     * через 9 дней, оплатил 3500₽ → day=500, used_charge=4500,
+     * final = 4500 - 3500 = 1000.
      */
     fun finalDebtOnClosure(
         clientId: String,
@@ -159,11 +158,9 @@ object LedgerCalculator {
         if (dailyRate <= 0.0) return 0
         val totalPaid = totalPaidRub(entries, clientId, rentalId)
         val adjustment = totalAdjustmentRub(entries, clientId, rentalId)
-        val coveredDays = (totalPaid / dailyRate).toInt().coerceAtLeast(0)
         val usedDays = ChronoUnit.DAYS.between(rentalStartDate, rentalEndDate).toInt()
-        val overdueDays = (usedDays - coveredDays).coerceAtLeast(0)
-        val gross = (overdueDays * dailyRate).roundToInt()
-        return (gross + adjustment).coerceAtLeast(0)
+        val usedCharge = (usedDays * dailyRate).roundToInt()
+        return (usedCharge - totalPaid + adjustment).coerceAtLeast(0)
     }
 
     private fun rubToDays(amountRub: Int, weeklyRateRub: Int): Int {

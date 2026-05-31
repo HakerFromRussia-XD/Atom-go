@@ -117,6 +117,69 @@ class ApiIntegrationTest {
     }
 
     @Test
+    fun `payment return should apply provider success when webhook did not arrive`() {
+        val propertyName = "atomgo.yookassa.mock.fetchStatus"
+        val previousStatus = System.getProperty(propertyName)
+        System.setProperty(propertyName, "succeeded")
+        try {
+            testApplication {
+                application { module() }
+
+                val login = client.post("/api/v1/auth/login") {
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"login":"client1","password":"client123"}""")
+                }
+                assertEquals(HttpStatusCode.OK, login.status)
+
+                val token = json.parseToJsonElement(login.bodyAsText())
+                    .jsonObject["access_token"]
+                    ?.jsonPrimitive
+                    ?.content
+                    ?: error("No token")
+
+                val createPayment = client.post("/api/v1/payments/create") {
+                    bearerAuth(token)
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"payment_type":"week"}""")
+                }
+                assertEquals(HttpStatusCode.OK, createPayment.status)
+                val createPaymentBody = json.parseToJsonElement(createPayment.bodyAsText()).jsonObject
+                val paymentId = createPaymentBody["payment_id"]?.jsonPrimitive?.content ?: error("No payment_id")
+                val amountRub = createPaymentBody["amount_rub"]?.jsonPrimitive?.content?.toInt() ?: error("No amount_rub")
+
+                val returnPage = client.get("/api/v1/payments/$paymentId/return")
+                assertEquals(HttpStatusCode.OK, returnPage.status)
+                assertTrue(returnPage.bodyAsText().contains("Платеж подтвержден и учтен в Atom Go."))
+
+                val secondReturnPage = client.get("/api/v1/payments/$paymentId/return")
+                assertEquals(HttpStatusCode.OK, secondReturnPage.status)
+
+                val ledger = client.get("/api/v1/client/me/ledger") {
+                    bearerAuth(token)
+                }
+                assertEquals(HttpStatusCode.OK, ledger.status)
+                val paymentEntries = json.parseToJsonElement(ledger.bodyAsText())
+                    .jsonObject["entries"]
+                    ?.jsonArray
+                    ?.filter { entry ->
+                        val entryObject = entry.jsonObject
+                        entryObject["type"]?.jsonPrimitive?.content == "payment" &&
+                            entryObject["note"]?.jsonPrimitive?.contentOrNull == "YooKassa payment succeeded"
+                    }
+                    ?: emptyList()
+                assertEquals(1, paymentEntries.size)
+                assertEquals(amountRub, paymentEntries.single().jsonObject["amount_rub"]?.jsonPrimitive?.content?.toInt())
+            }
+        } finally {
+            if (previousStatus == null) {
+                System.clearProperty(propertyName)
+            } else {
+                System.setProperty(propertyName, previousStatus)
+            }
+        }
+    }
+
+    @Test
     fun `admin should create client profile only`() = testApplication {
         application { module() }
 

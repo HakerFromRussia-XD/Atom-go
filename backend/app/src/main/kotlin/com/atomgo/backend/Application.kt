@@ -3,6 +3,7 @@ package com.atomgo.backend
 import com.atomgo.backend.domain.LedgerCalculator
 import com.atomgo.backend.domain.LedgerEntry
 import com.atomgo.backend.domain.LedgerType
+import com.atomgo.backend.domain.PaymentStatus
 import com.atomgo.backend.domain.PaymentType
 import com.atomgo.backend.domain.PricingRules
 import com.atomgo.backend.domain.Role
@@ -65,6 +66,14 @@ import java.time.LocalDate
 import java.util.UUID
 
 private fun JsonObject.string(name: String): String? = this[name]?.jsonPrimitive?.contentOrNull
+
+private fun htmlEscape(value: String): String =
+    value
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace("\"", "&quot;")
+        .replace("'", "&#39;")
 
 @Serializable
 private data class ApiServiceInfoResponse(
@@ -2276,6 +2285,36 @@ fun Application.module() {
         provider = YooKassaPaymentProvider.fromEnvironment(apiJson),
         fiscalizationConfig = fiscalizationConfig
     )
+    saveScope.launch {
+        while (true) {
+            delay(60_000)
+            val pendingPaymentIds = synchronized(stateLock) {
+                store.payments
+                    .filter { it.status == PaymentStatus.PENDING && !it.providerPaymentId.isNullOrBlank() }
+                    .map { it.id }
+            }
+            pendingPaymentIds.forEach { paymentId ->
+                try {
+                    val result = synchronized(stateLock) {
+                        paymentService.refreshPaymentStatus(paymentId)
+                    }
+                    if (result.applied) {
+                        environment.log.info(
+                            "YooKassa pending payment reconciled: paymentId={}, status={}, applied={}",
+                            paymentId,
+                            result.payment.status,
+                            result.applied
+                        )
+                        persistState()
+                    }
+                } catch (e: YooKassaException) {
+                    environment.log.warn("YooKassa pending payment reconciliation failed: paymentId={}", paymentId, e)
+                } catch (e: IllegalArgumentException) {
+                    environment.log.warn("YooKassa pending payment disappeared before reconciliation: paymentId={}", paymentId, e)
+                }
+            }
+        }
+    }
 
     routing {
         get("/") {
@@ -4901,6 +4940,29 @@ fun Application.module() {
 
             get("/payments/{paymentId}/return") {
                 val paymentId = call.parameters["paymentId"] ?: ""
+                val refreshMessage = if (paymentId.isBlank()) {
+                    "ID платежа отсутствует."
+                } else {
+                    try {
+                        val result = synchronized(stateLock) {
+                            val refreshed = paymentService.refreshPaymentStatus(paymentId)
+                            persistState()
+                            refreshed
+                        }
+                        when (result.payment.status) {
+                            PaymentStatus.SUCCEEDED -> "Платеж подтвержден и учтен в Atom Go."
+                            PaymentStatus.CANCELED -> "Платеж отменен."
+                            PaymentStatus.FAILED -> "Платеж не прошел."
+                            else -> "Платеж пока проверяется. Статус обновится автоматически."
+                        }
+                    } catch (_: IllegalArgumentException) {
+                        "Платеж не найден в Atom Go."
+                    } catch (_: YooKassaException) {
+                        "Платеж принят на проверку, но статус ЮKassa временно недоступен."
+                    }
+                }
+                val safePaymentId = htmlEscape(paymentId)
+                val safeRefreshMessage = htmlEscape(refreshMessage)
                 call.respondText(
                     """
                     <!doctype html>
@@ -4918,9 +4980,10 @@ fun Application.module() {
                     </head>
                     <body>
                       <main class="card">
-                        <h1>Платёж отправлен на проверку</h1>
-                        <p>Можно вернуться в приложение Atom Go. Статус платежа обновится автоматически после уведомления ЮKassa.</p>
-                        <p>ID платежа: ${paymentId}</p>
+                        <h1>Платёж проверен</h1>
+                        <p>${safeRefreshMessage}</p>
+                        <p>Можно вернуться в приложение Atom Go.</p>
+                        <p>ID платежа: ${safePaymentId}</p>
                       </main>
                     </body>
                     </html>
