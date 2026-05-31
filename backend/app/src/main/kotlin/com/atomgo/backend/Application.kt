@@ -1920,6 +1920,44 @@ private fun buildAdminClientSummary(
 }
 
 /**
+ * Долг, который показываем в UI для конкретной client_rental.
+ *
+ * Обычная активная аренда живёт по недельной биллинговой модели. Но карточки
+ * `soon_return` должны показывать долг так, как он будет посчитан при возврате
+ * велосипеда сегодня: строго по дням через finalDebtOnClosure.
+ */
+private fun clientRentalDisplayDebtRub(
+    clientId: String,
+    rental: ClientRentalRecord,
+    weeklyRateRub: Int,
+    entries: List<LedgerEntry>,
+    asOf: LocalDate,
+    pipelineStatus: RentalPipelineStatus?
+): Int {
+    if (weeklyRateRub <= 0) return 0
+    val shouldUsePerDayDebt = rental.endDate != null || pipelineStatus == RentalPipelineStatus.SOON_RETURN
+    return if (shouldUsePerDayDebt) {
+        LedgerCalculator.finalDebtOnClosure(
+            clientId = clientId,
+            rentalStartDate = rental.startDate,
+            rentalEndDate = rental.endDate ?: asOf,
+            weeklyRateRub = weeklyRateRub,
+            entries = entries,
+            rentalId = rental.id
+        )
+    } else {
+        LedgerCalculator.debtRub(
+            clientId = clientId,
+            rentalStartDate = rental.startDate,
+            weeklyRateRub = weeklyRateRub,
+            entries = entries,
+            asOf = asOf,
+            rentalId = rental.id
+        )
+    }
+}
+
+/**
  * Суммарный долг клиента по всем его client_rental (активным и закрытым),
  * которые не soft-deleted.
  *
@@ -1934,6 +1972,7 @@ private fun calculateClientTotalDebtRub(
     adminId: String? = null
 ): Int {
     val bikesById = store.bikes.associateBy { it.id }
+    val lifecycleById = store.rentals.associateBy { it.id }
     val ledgerByClientRental = store.ledger.groupBy { it.rentalId ?: "" }
 
     return store.clientRentals
@@ -1950,25 +1989,14 @@ private fun calculateClientTotalDebtRub(
                 return@sumOf 0
             }
             val rentalLedger = ledgerByClientRental[rental.id] ?: emptyList()
-            if (rental.endDate != null) {
-                LedgerCalculator.finalDebtOnClosure(
-                    clientId = client.id,
-                    rentalStartDate = rental.startDate,
-                    rentalEndDate = rental.endDate,
-                    weeklyRateRub = weeklyRateRub,
-                    entries = rentalLedger,
-                    rentalId = rental.id
-                )
-            } else {
-                LedgerCalculator.debtRub(
-                    clientId = client.id,
-                    rentalStartDate = rental.startDate,
-                    weeklyRateRub = weeklyRateRub,
-                    entries = rentalLedger,
-                    asOf = asOf,
-                    rentalId = rental.id
-                )
-            }
+            clientRentalDisplayDebtRub(
+                clientId = client.id,
+                rental = rental,
+                weeklyRateRub = weeklyRateRub,
+                entries = rentalLedger,
+                asOf = asOf,
+                pipelineStatus = lifecycleById[rental.rentalId]?.pipelineStatus
+            )
         }
 }
 
@@ -2058,6 +2086,7 @@ private fun buildAdminClientDetails(
     // несколькими сотнями entries это ощутимо тормозило загрузку карточки.
     // Сейчас группируем ledger по rentalId один раз; bikes — в Map.
     val bikesById: Map<String, BikeAccount> = store.bikes.associateBy { it.id }
+    val lifecycleById: Map<String, RentalRecord> = store.rentals.associateBy { it.id }
     val ledgerByClientRental: Map<String, List<LedgerEntry>> =
         store.ledger.groupBy { it.rentalId ?: "" }
 
@@ -2071,35 +2100,20 @@ private fun buildAdminClientDetails(
         .map {
             val bike = bikesById[it.bikeId]
             val weeklyRateRub = bike?.weeklyRateRub ?: 0
-            val rentalAsOf = it.endDate ?: now
             val rentalLedger = ledgerByClientRental[it.id] ?: emptyList()
             val rentalPaidRub = LedgerCalculator.totalPaidRub(rentalLedger, client.id, it.id)
             val rentalAdjustmentRub = LedgerCalculator.totalAdjustmentRub(rentalLedger, client.id, it.id)
-            // Долг закрытой client_rental считается строго по дням
-            // (docs/02_money_and_debt_rules.md §5, docs/14_rental_lifecycle.md §3) —
-            // одинаково и при /finish (переход в in_stock), и при /delete.
-            // Для активной client_rental по-прежнему используется per-week
-            // (debtRub), т.к. начисление идёт неделями.
+            // Долг для soon_return показываем как финальный долг при закрытии
+            // сегодня: по дням, как при фактическом возврате велосипеда.
             val rentalDebtRub = if (weeklyRateRub > 0) {
-                if (it.endDate != null) {
-                    LedgerCalculator.finalDebtOnClosure(
-                        clientId = client.id,
-                        rentalStartDate = it.startDate,
-                        rentalEndDate = it.endDate,
-                        weeklyRateRub = weeklyRateRub,
-                        entries = rentalLedger,
-                        rentalId = it.id
-                    )
-                } else {
-                    LedgerCalculator.debtRub(
-                        clientId = client.id,
-                        rentalStartDate = it.startDate,
-                        weeklyRateRub = weeklyRateRub,
-                        entries = rentalLedger,
-                        asOf = rentalAsOf,
-                        rentalId = it.id
-                    )
-                }
+                clientRentalDisplayDebtRub(
+                    clientId = client.id,
+                    rental = it,
+                    weeklyRateRub = weeklyRateRub,
+                    entries = rentalLedger,
+                    asOf = now,
+                    pipelineStatus = lifecycleById[it.rentalId]?.pipelineStatus
+                )
             } else {
                 0
             }
@@ -3180,19 +3194,22 @@ fun Application.module() {
                 } else {
                     null
                 }
-                // Долг закрытой client_rental — per-day (см. docs/02_money_and_debt_rules.md §5).
+                val snapshotClientRental = snapshot?.clientRentalId?.let { snapshotRentalId ->
+                    store.clientRentals.firstOrNull { it.id == snapshotRentalId }
+                }
                 val isClosed = snapshot != null && !snapshot.isActive && snapshot.rentalEndDate != null
-                val closedRentalDebt = if (isClosed && snapshot != null) {
-                    LedgerCalculator.finalDebtOnClosure(
+                val debt = if (snapshot != null && snapshotClientRental != null) {
+                    clientRentalDisplayDebtRub(
                         clientId = client.id,
-                        rentalStartDate = snapshot.rentalStartDate,
-                        rentalEndDate = snapshot.rentalEndDate!!,
+                        rental = snapshotClientRental,
                         weeklyRateRub = snapshot.weeklyRateRub,
                         entries = store.ledger,
-                        rentalId = snapshot.clientRentalId
+                        asOf = now,
+                        pipelineStatus = snapshot.pipelineStatus
                     )
-                } else 0
-                val debt = if (isClosed) closedRentalDebt else (projection?.debtRub ?: 0)
+                } else {
+                    projection?.debtRub ?: 0
+                }
                 val paidUntil = projection?.paidUntilDate?.toString() ?: ""
                 val balanceRub = projection?.balanceRub ?: 0
                 val totalAdjustment = LedgerCalculator.totalAdjustmentRub(store.ledger, client.id, snapshot?.clientRentalId)
@@ -3424,9 +3441,8 @@ fun Application.module() {
                         store.clients.firstOrNull { client -> client.id == it.clientId && client.deletedAt == null }
                     }
                     val rentalIsActive = targetClientRental?.isActiveAt(now) == true
-                    // Долг для отображения деталей: для активной — per-week через
-                    // billingProjection; для закрытой client_rental — per-day через
-                    // finalDebtOnClosure (docs/02_money_and_debt_rules.md §5).
+                    // Долг для отображения деталей: обычная активная аренда — per-week,
+                    // soon_return и закрытая client_rental — per-day как при закрытии.
                     val projection = if (targetClientRental != null && rentalIsActive) {
                         LedgerCalculator.billingProjection(
                             clientId = targetClientRental.clientId,
@@ -3439,14 +3455,14 @@ fun Application.module() {
                     } else {
                         null
                     }
-                    val closedRentalDebtRub = if (targetClientRental != null && !rentalIsActive && targetClientRental.endDate != null) {
-                        LedgerCalculator.finalDebtOnClosure(
+                    val displayDebtRub = if (targetClientRental != null) {
+                        clientRentalDisplayDebtRub(
                             clientId = targetClientRental.clientId,
-                            rentalStartDate = targetClientRental.startDate,
-                            rentalEndDate = targetClientRental.endDate,
+                            rental = targetClientRental,
                             weeklyRateRub = bike.weeklyRateRub,
                             entries = store.ledger,
-                            rentalId = targetClientRental.id
+                            asOf = now,
+                            pipelineStatus = rental?.pipelineStatus
                         )
                     } else {
                         0
@@ -3498,7 +3514,7 @@ fun Application.module() {
                         } else {
                             0
                         },
-                        debtRub = projection?.debtRub ?: closedRentalDebtRub,
+                        debtRub = displayDebtRub,
                         totalAdjustmentRub = if (targetClientRental != null) {
                             LedgerCalculator.totalAdjustmentRub(store.ledger, targetClientRental.clientId, targetClientRental.id)
                         } else {

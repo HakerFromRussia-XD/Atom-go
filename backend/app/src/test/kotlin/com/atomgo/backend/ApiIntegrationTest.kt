@@ -1900,6 +1900,122 @@ class ApiIntegrationTest {
         )
     }
 
+    @Test
+    fun `soon return rental should expose per-day debt in cards and client details`() = testApplication {
+        application { module() }
+        val adminToken = loginAsAdmin()
+        val clientId = createClientAndGetId(adminToken, fullName = "Soon Return Per Day", phone = "79000009001")
+        val bikeId = createBikeAndGetId(
+            adminToken = adminToken,
+            frameSerial = "SOON-PERDAY-FRAME",
+            motorSerial = "SOON-PERDAY-MOTOR",
+            weeklyRateRub = 3500
+        )
+        val start = LocalDate.now().minusDays(9).toString()
+
+        val createRental = client.post("/api/v1/admin/rentals") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "client_id":"$clientId",
+                  "bike_id":"$bikeId",
+                  "login":"soon.perday",
+                  "password":"soon123",
+                  "period_start":"$start"
+                }
+                """.trimIndent()
+            )
+        }
+        assertEquals(HttpStatusCode.Created, createRental.status)
+        val rentalId = json.parseToJsonElement(createRental.bodyAsText())
+            .jsonObject["rental_id"]
+            ?.jsonPrimitive
+            ?.content
+            ?: error("No rental_id")
+
+        paySingleWeek(login = "soon.perday", password = "soon123", externalId = "provider-soon-perday-1")
+
+        val longTermRents = client.get("/api/v1/admin/rents") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, longTermRents.status)
+        val longTermCard = json.parseToJsonElement(longTermRents.bodyAsText()).jsonArray.first {
+            it.jsonObject["rental_id"]?.jsonPrimitive?.content == rentalId
+        }.jsonObject
+        assertEquals(
+            3500,
+            longTermCard["debt_rub"]?.jsonPrimitive?.content?.toInt(),
+            "long_term active card keeps weekly debt"
+        )
+
+        val markSoonReturn = client.post("/api/v1/admin/rentals/$rentalId/pipeline-status") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody("""{"pipeline_status":"soon_return"}""")
+        }
+        assertEquals(HttpStatusCode.OK, markSoonReturn.status)
+
+        val rents = client.get("/api/v1/admin/rents") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, rents.status)
+        val soonReturnCard = json.parseToJsonElement(rents.bodyAsText()).jsonArray.first {
+            it.jsonObject["rental_id"]?.jsonPrimitive?.content == rentalId
+        }.jsonObject
+        assertEquals("soon_return", soonReturnCard["rental_pipeline_status"]?.jsonPrimitive?.content)
+        assertEquals(
+            1000,
+            soonReturnCard["debt_rub"]?.jsonPrimitive?.content?.toInt(),
+            "soon_return card must show per-day debt: 9 days * 500 - 3500 = 1000"
+        )
+
+        val clients = client.get("/api/v1/admin/clients") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, clients.status)
+        val clientCard = json.parseToJsonElement(clients.bodyAsText()).jsonArray.first {
+            it.jsonObject["client_id"]?.jsonPrimitive?.content == clientId
+        }.jsonObject
+        assertEquals(1000, clientCard["debt_rub"]?.jsonPrimitive?.content?.toInt())
+
+        val clientDetails = client.get("/api/v1/admin/clients/$clientId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, clientDetails.status)
+        val clientDetailsJson = json.parseToJsonElement(clientDetails.bodyAsText()).jsonObject
+        assertEquals(1000, clientDetailsJson["debt_rub"]?.jsonPrimitive?.content?.toInt())
+        val rentalHistoryRow = clientDetailsJson["rentals"]?.jsonArray?.firstOrNull()?.jsonObject
+            ?: error("No rental history row")
+        assertEquals(1000, rentalHistoryRow["debt_rub"]?.jsonPrimitive?.content?.toInt())
+
+        val rentalDetails = client.get("/api/v1/admin/rentals/$rentalId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, rentalDetails.status)
+        val rentalDetailsJson = json.parseToJsonElement(rentalDetails.bodyAsText()).jsonObject
+        assertEquals("soon_return", rentalDetailsJson["rental_pipeline_status"]?.jsonPrimitive?.content)
+        assertEquals(1000, rentalDetailsJson["debt_rub"]?.jsonPrimitive?.content?.toInt())
+
+        val clientLogin = client.post("/api/v1/auth/login") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"login":"soon.perday","password":"soon123"}""")
+        }
+        assertEquals(HttpStatusCode.OK, clientLogin.status)
+        val clientToken = json.parseToJsonElement(clientLogin.bodyAsText())
+            .jsonObject["access_token"]
+            ?.jsonPrimitive
+            ?.content
+            ?: error("No client token")
+        val dashboard = client.get("/api/v1/client/me/dashboard") {
+            bearerAuth(clientToken)
+        }
+        assertEquals(HttpStatusCode.OK, dashboard.status)
+        val dashboardJson = json.parseToJsonElement(dashboard.bodyAsText()).jsonObject
+        assertEquals(1000, dashboardJson["debt_rub"]?.jsonPrimitive?.content?.toInt())
+    }
+
     // ---------------------------------------------------------------------------
     // Удаление lifecycle-аренды: перенос долга на клиента
     // Покрывает docs/14_rental_lifecycle.md §7 и docs/02_money_and_debt_rules.md §7
