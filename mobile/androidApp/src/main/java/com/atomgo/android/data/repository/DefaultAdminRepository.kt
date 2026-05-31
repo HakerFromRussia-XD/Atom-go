@@ -127,6 +127,10 @@ class DefaultAdminRepository : AdminRepository {
         onIo { apiClient.deleteAdminClient(accessToken = accessToken, clientId = clientId) }
     }
 
+    override suspend fun deleteBike(accessToken: String, bikeId: String) {
+        onIo { apiClient.deleteAdminBike(accessToken = accessToken, bikeId = bikeId) }
+    }
+
     override suspend fun updateClient(
         accessToken: String,
         clientId: String,

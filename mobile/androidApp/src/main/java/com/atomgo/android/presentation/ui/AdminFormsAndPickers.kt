@@ -765,6 +765,7 @@ internal fun AdminFormSheetScaffold(
     contentBottomPadding: androidx.compose.ui.unit.Dp,
     contentSpacing: androidx.compose.ui.unit.Dp,
     titleColor: Color = AppDesign.Accent,
+    extraActions: @Composable () -> Unit = {},
     content: @Composable () -> Unit
 ) {
     Column(
@@ -799,13 +800,19 @@ internal fun AdminFormSheetScaffold(
                 maxLines = 1
             )
             Spacer(Modifier.weight(1f))
-            AdminSheetTopButton(
-                onClick = onSubmit,
-                dark = true,
-                testTag = submitTag,
-                iconRes = R.drawable.ic_ok,
-                iconSize = 16.dp
-            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                extraActions()
+                AdminSheetTopButton(
+                    onClick = onSubmit,
+                    dark = true,
+                    testTag = submitTag,
+                    iconRes = R.drawable.ic_ok,
+                    iconSize = 16.dp
+                )
+            }
         }
 
         Column(
@@ -818,6 +825,37 @@ internal fun AdminFormSheetScaffold(
         ) {
             content()
         }
+    }
+}
+
+@Composable
+internal fun AdminSheetVectorTopButton(
+    onClick: () -> Unit,
+    testTag: String,
+    imageVector: androidx.compose.ui.graphics.vector.ImageVector,
+    tint: Color,
+    iconSize: androidx.compose.ui.unit.Dp = 16.dp
+) {
+    val shape = RoundedCornerShape(14.dp)
+    Box(
+        modifier = Modifier
+            .size(47.dp)
+            .adminClickable(shape = shape, onClick = onClick)
+            .background(AppDesign.SurfaceBackground, shape)
+            .border(
+                width = AppDesign.ThinStroke,
+                color = tint,
+                shape = shape
+            )
+            .testTag(testTag),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = imageVector,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(iconSize)
+        )
     }
 }
 
@@ -1745,7 +1783,8 @@ internal fun AdminUpdateBikeDialog(
     bike: AdminBikeResponse,
     bikes: List<AdminBikeResponse>,
     onDismiss: () -> Unit,
-    onUpdate: (String, String?, String, String, String, String, String, String) -> Unit
+    onUpdate: (String, String?, String, String, String, String, String, String) -> Unit,
+    onDelete: (String) -> Unit
 ) {
     var model by remember(bike.bikeId) { mutableStateOf(bike.bikeModel) }
     var rate by remember(bike.bikeId) { mutableStateOf(bike.weeklyRateRub.toString()) }
@@ -1755,6 +1794,7 @@ internal fun AdminUpdateBikeDialog(
     var battery2 by remember(bike.bikeId) { mutableStateOf(bike.batterySerialNumber2.orEmpty()) }
     var photoDataUrl by remember(bike.bikeId) { mutableStateOf<String?>(null) }
     var toastMessage by remember { mutableStateOf<String?>(null) }
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val photoSource = photoDataUrl ?: bike.photoUrl
 
@@ -1835,7 +1875,15 @@ internal fun AdminUpdateBikeDialog(
             topBarTopPadding = 8.dp,
             contentTopPadding = 14.dp,
             contentBottomPadding = 24.dp,
-            contentSpacing = 14.dp
+            contentSpacing = 14.dp,
+            extraActions = {
+                AdminSheetVectorTopButton(
+                    onClick = { showDeleteConfirmation = true },
+                    testTag = "edit_bike_delete_button",
+                    imageVector = Icons.Filled.Delete,
+                    tint = AppDesign.Danger
+                )
+            }
         ) {
             AdminBikePhotoCard(
                 testTag = "edit_bike_photo_picker",
@@ -1895,6 +1943,27 @@ internal fun AdminUpdateBikeDialog(
                 testTag = "edit_bike_battery2_input",
                 keyboardType = KeyboardType.Text,
                 isDashed = true
+            )
+        }
+
+        if (showDeleteConfirmation) {
+            AlertDialog(
+                onDismissRequest = { showDeleteConfirmation = false },
+                title = { Text("Удалить велосипед?") },
+                text = { Text("Велосипед будет скрыт в приложении, данные останутся на сервере.") },
+                confirmButton = {
+                    OutlinedButton(onClick = {
+                        showDeleteConfirmation = false
+                        onDelete(bike.bikeId)
+                    }) {
+                        Text("Удалить")
+                    }
+                },
+                dismissButton = {
+                    OutlinedButton(onClick = { showDeleteConfirmation = false }) {
+                        Text("Отмена")
+                    }
+                }
             )
         }
 

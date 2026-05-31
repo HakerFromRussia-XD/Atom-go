@@ -204,6 +204,10 @@ struct BikeCatalogSheet: View {
                 onSave: { payload in
                     onSave(payload)
                     editingBike = nil
+                },
+                onDelete: { bikeId in
+                    onDelete(bikeId)
+                    editingBike = nil
                 }
             )
         }
@@ -229,7 +233,7 @@ struct BikeCatalogSheet: View {
                 bikePendingDeletion = nil
             }
         } message: {
-            Text("Велосипед без истории аренд будет удален из каталога.")
+            Text("Велосипед будет скрыт в приложении, данные останутся на сервере.")
         }
         .onChange(of: apiErrorMessage) { newValue in
             presentToast(newValue)
@@ -526,10 +530,8 @@ struct BikeCatalogSheet: View {
             Button("Редактировать") {
                 editingBike = bike
             }
-            if !runtime.hasActiveRental && runtime.totalDebtRub == 0 {
-                Button("Удалить", role: .destructive) {
-                    bikePendingDeletion = bike
-                }
+            Button("Удалить", role: .destructive) {
+                bikePendingDeletion = bike
             }
         }
         .disabled(isSaving)

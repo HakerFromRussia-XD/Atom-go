@@ -711,6 +711,16 @@ private fun ClientRentalRecord.isActiveAt(asOf: LocalDate): Boolean {
     return startDate <= asOf && (endDate == null || endDate.isAfter(asOf))
 }
 
+private fun isVisibleClient(store: InMemoryStore, clientId: String?): Boolean {
+    if (clientId.isNullOrBlank()) return false
+    return store.clients.any { it.id == clientId && it.deletedAt == null }
+}
+
+private fun isVisibleBike(store: InMemoryStore, bikeId: String?): Boolean {
+    if (bikeId.isNullOrBlank()) return false
+    return store.bikes.any { it.id == bikeId && it.deletedAt == null }
+}
+
 private fun clientRentalIdForLegacyRentalId(rentalId: String): String = "client-rental-$rentalId"
 
 private fun lifecycleRentalForClientRental(
@@ -742,6 +752,8 @@ private fun activeClientRentalForLifecycle(
         .filter { it.rentalId == rental.id }
         .filter { it.adminId == rental.adminId }
         .filter { it.deletedAt == null }
+        .filter { isVisibleClient(store, it.clientId) }
+        .filter { isVisibleBike(store, it.bikeId) }
         .filter { it.isActiveAt(asOf) }
         .sortedByDescending { it.startDate }
         .firstOrNull()
@@ -759,6 +771,8 @@ private fun resolveCurrentClientRental(
         .filter { it.clientId == clientId }
         .filter { adminId == null || it.adminId == adminId }
         .filter { it.deletedAt == null }
+        .filter { isVisibleClient(store, it.clientId) }
+        .filter { isVisibleBike(store, it.bikeId) }
         .sortedByDescending { it.startDate }
         .toList()
     if (clientRentals.isEmpty()) return null
@@ -1000,7 +1014,8 @@ private fun resolveClientBillingSnapshot(
         resolveCurrentClientRental(clientId = clientId, store = store, asOf = asOf, adminId = adminId)
             ?.takeIf { includeInactiveFallback || it.isActiveAt(asOf) }
     } ?: return null
-    val bike = store.bikes.firstOrNull { it.id == clientRental.bikeId } ?: return null
+    if (clientRental.deletedAt != null || !isVisibleClient(store, clientRental.clientId)) return null
+    val bike = store.bikes.firstOrNull { it.id == clientRental.bikeId && it.deletedAt == null } ?: return null
     val lifecycleRental = lifecycleRentalForClientRental(clientRental, store)
     return ClientBillingSnapshot(
         clientRentalId = clientRental.id,
@@ -1083,7 +1098,7 @@ private fun bikeToApiResponse(bike: BikeAccount, isInRental: Boolean = false): A
  */
 private fun bikeToApiResponse(bike: BikeAccount, store: InMemoryStore): ApiAdminBikeResponse {
     val inRental = store.rentals.any {
-        it.bikeId == bike.id && it.adminId == bike.adminId && it.deletedAt == null
+        it.bikeId == bike.id && it.adminId == bike.adminId && it.deletedAt == null && bike.deletedAt == null
     }
     return bikeToApiResponse(bike, isInRental = inRental)
 }
@@ -1507,7 +1522,7 @@ private fun startClientRentalInExistingRental(
             return@synchronized StartClientRentalOutcome.Failure(HttpStatusCode.Conflict, "rental is already active")
         }
 
-        val client = store.clients.firstOrNull { it.id == clientId }
+        val client = store.clients.firstOrNull { it.id == clientId && it.deletedAt == null }
             ?: return@synchronized StartClientRentalOutcome.Failure(HttpStatusCode.NotFound, "client not found")
         if (!adminOwnsClient(store, adminId, client.id)) {
             return@synchronized StartClientRentalOutcome.Failure(HttpStatusCode.Forbidden, "Forbidden")
@@ -1733,7 +1748,7 @@ private fun applyCarriedDebtOperation(
     comment: String?,
     today: LocalDate
 ): CarriedDebtOutcome {
-    val clientIdx = store.clients.indexOfFirst { it.id == clientId }
+    val clientIdx = store.clients.indexOfFirst { it.id == clientId && it.deletedAt == null }
     if (clientIdx < 0) {
         return CarriedDebtOutcome.Failure(HttpStatusCode.NotFound, "Client not found")
     }
@@ -1927,7 +1942,10 @@ private fun calculateClientTotalDebtRub(
         .filter { adminId == null || it.adminId == adminId }
         .filter { it.deletedAt == null }
         .sumOf { rental ->
-            val weeklyRateRub = bikesById[rental.bikeId]?.weeklyRateRub ?: 0
+            val weeklyRateRub = bikesById[rental.bikeId]
+                ?.takeIf { bike -> bike.deletedAt == null }
+                ?.weeklyRateRub
+                ?: 0
             if (weeklyRateRub <= 0) {
                 return@sumOf 0
             }
@@ -1959,9 +1977,11 @@ private fun buildAdminRentSummaryFromRental(
     store: InMemoryStore,
     now: LocalDate
 ): ApiAdminClientSummaryResponse {
-    val bike = store.bikes.firstOrNull { it.id == rental.bikeId }
+    val bike = store.bikes.firstOrNull { it.id == rental.bikeId && it.deletedAt == null }
     val activeClientRental = activeClientRentalForLifecycle(rental, store, now)
-    val client = activeClientRental?.let { store.clients.firstOrNull { client -> client.id == it.clientId } }
+    val client = activeClientRental?.let {
+        store.clients.firstOrNull { client -> client.id == it.clientId && client.deletedAt == null }
+    }
 
     if (activeClientRental != null && client != null) {
         return buildAdminClientSummary(
@@ -2046,6 +2066,7 @@ private fun buildAdminClientDetails(
         .filter { it.clientId == client.id }
         .filter { adminId == null || it.adminId == adminId }
         .filter { it.deletedAt == null }  // не показываем soft-deleted client_rentals в истории
+        .filter { bikesById[it.bikeId]?.deletedAt == null }
         .sortedByDescending { it.startDate }
         .map {
             val bike = bikesById[it.bikeId]
@@ -3130,7 +3151,7 @@ fun Application.module() {
                     return@get
                 }
 
-                val client = store.clients.firstOrNull { it.id == session.clientId }
+                val client = store.clients.firstOrNull { it.id == session.clientId && it.deletedAt == null }
                 if (client == null) {
                     call.respond(HttpStatusCode.NotFound, ApiErrorResponse(message = "Client not found"))
                     return@get
@@ -3284,7 +3305,7 @@ fun Application.module() {
                 }
 
                 val updated = synchronized(stateLock) {
-                    val client = store.clients.firstOrNull { it.id == session.clientId }
+                    val client = store.clients.firstOrNull { it.id == session.clientId && it.deletedAt == null }
                         ?: return@synchronized false
                     if (client.phones.none { normalizeReceiptEmail(it.number) == email }) {
                         client.phones.removeAll { it.label.equals("Email", ignoreCase = true) && normalizeReceiptEmail(it.number) != null }
@@ -3308,12 +3329,14 @@ fun Application.module() {
                 }
 
                 val now = LocalDate.now()
-                val response = store.clients
-                    .asSequence()
-                    .filter { client -> client.deletedAt == null }
-                    .filter { client -> adminOwnsClient(store, session.userId, client.id) }
-                    .map { client -> buildAdminClientSummary(client, store, now, session.userId) }
-                    .toList()
+                val response = synchronized(stateLock) {
+                    store.clients
+                        .asSequence()
+                        .filter { client -> client.deletedAt == null }
+                        .filter { client -> adminOwnsClient(store, session.userId, client.id) }
+                        .map { client -> buildAdminClientSummary(client, store, now, session.userId) }
+                        .toList()
+                }
                 call.respond(response)
             }
 
@@ -3333,6 +3356,7 @@ fun Application.module() {
                         .asSequence()
                         .filter { rental -> rental.adminId == session.userId }
                         .filter { rental -> rental.deletedAt == null }
+                        .filter { rental -> isVisibleBike(store, rental.bikeId) }
                         .sortedByDescending { rental -> rental.startDate }
                         .map { rental -> buildAdminRentSummaryFromRental(rental, store, now) }
                         .toList()
@@ -3348,9 +3372,12 @@ fun Application.module() {
                 }
 
                 val now = LocalDate.now()
-                val response = store.clients
-                    .filter { client -> adminOwnsClient(store, session.userId, client.id) }
-                    .map { client -> buildAdminClientSummary(client, store, now, session.userId) }
+                val response = synchronized(stateLock) {
+                    store.clients
+                        .filter { client -> client.deletedAt == null }
+                        .filter { client -> adminOwnsClient(store, session.userId, client.id) }
+                        .map { client -> buildAdminClientSummary(client, store, now, session.userId) }
+                }
                 call.respond(response)
             }
 
@@ -3370,19 +3397,32 @@ fun Application.module() {
                 val now = LocalDate.now()
                 val response = synchronized(stateLock) {
                     // normalize не нужен на чтении — см. /admin/rents endpoint выше.
-                    val lifecycleRental = store.rentals.firstOrNull { it.id == rentalId && it.adminId == session.userId && it.deletedAt == null }
+                    val lifecycleRental = store.rentals.firstOrNull {
+                        it.id == rentalId &&
+                            it.adminId == session.userId &&
+                            it.deletedAt == null &&
+                            isVisibleBike(store, it.bikeId)
+                    }
                     val targetClientRental = if (lifecycleRental != null) {
                         activeClientRentalForLifecycle(lifecycleRental, store, now)
                     } else {
                         // Удалённая client_rental — не открываем (она исчезла из истории
                         // по запросу админа). Soft-delete сохраняет данные в БД,
                         // но интерактивный просмотр заблокирован.
-                        store.clientRentals.firstOrNull { it.id == rentalId && it.adminId == session.userId && it.deletedAt == null }
+                        store.clientRentals.firstOrNull {
+                            it.id == rentalId &&
+                                it.adminId == session.userId &&
+                                it.deletedAt == null &&
+                                isVisibleClient(store, it.clientId) &&
+                                isVisibleBike(store, it.bikeId)
+                        }
                     }
                     val rental = lifecycleRental ?: targetClientRental?.let { lifecycleRentalForClientRental(it, store) }
                     val bikeId = targetClientRental?.bikeId ?: rental?.bikeId ?: return@synchronized null
-                    val bike = store.bikes.firstOrNull { it.id == bikeId } ?: return@synchronized null
-                    val client = targetClientRental?.let { store.clients.firstOrNull { client -> client.id == it.clientId } }
+                    val bike = store.bikes.firstOrNull { it.id == bikeId && it.deletedAt == null } ?: return@synchronized null
+                    val client = targetClientRental?.let {
+                        store.clients.firstOrNull { client -> client.id == it.clientId && client.deletedAt == null }
+                    }
                     val rentalIsActive = targetClientRental?.isActiveAt(now) == true
                     // Долг для отображения деталей: для активной — per-week через
                     // billingProjection; для закрытой client_rental — per-day через
@@ -3495,17 +3535,27 @@ fun Application.module() {
                     return@get
                 }
 
-                val client = store.clients.firstOrNull { it.id == clientId }
-                if (client == null) {
-                    call.respond(HttpStatusCode.NotFound, ApiErrorResponse(message = "Client not found"))
-                    return@get
+                val detailsResult = synchronized(stateLock) {
+                    val client = store.clients.firstOrNull { it.id == clientId && it.deletedAt == null }
+                        ?: return@synchronized HttpStatusCode.NotFound to null
+                    if (!adminOwnsClient(store, session.userId, client.id)) {
+                        return@synchronized HttpStatusCode.Forbidden to null
+                    }
+
+                    HttpStatusCode.OK to buildAdminClientDetails(client, store, LocalDate.now(), session.userId)
                 }
-                if (!adminOwnsClient(store, session.userId, client.id)) {
-                    call.respond(HttpStatusCode.Forbidden, ApiErrorResponse(message = "Forbidden"))
+                val details = detailsResult.second
+                if (details == null) {
+                    val message = if (detailsResult.first == HttpStatusCode.Forbidden) {
+                        "Forbidden"
+                    } else {
+                        "Client not found"
+                    }
+                    call.respond(detailsResult.first, ApiErrorResponse(message = message))
                     return@get
                 }
 
-                call.respond(buildAdminClientDetails(client, store, LocalDate.now(), session.userId))
+                call.respond(details)
             }
 
             get("/admin/bikes") {
@@ -3669,7 +3719,7 @@ fun Application.module() {
                 }
 
                 val updated = synchronized(stateLock) {
-                    val bikeIndex = store.bikes.indexOfFirst { it.id == bikeId }
+                    val bikeIndex = store.bikes.indexOfFirst { it.id == bikeId && it.deletedAt == null }
                     if (bikeIndex < 0) {
                         null
                     } else {
@@ -3722,11 +3772,25 @@ fun Application.module() {
                         val bike = store.bikes[bikeIndex]
                         if (bike.adminId != session.userId) {
                             HttpStatusCode.NotFound to "Bike not found"
-                        } else if (store.rentals.any { it.bikeId == bikeId && it.adminId == session.userId && it.deletedAt == null }) {
-                            HttpStatusCode.Conflict to "bike is used by rentals"
                         } else {
+                            val affectedClientIds = store.clientRentals
+                                .asSequence()
+                                .filter { it.bikeId == bikeId && it.adminId == session.userId }
+                                .map { it.clientId }
+                                .toSet()
+                            val affectedRentalIds = store.clientRentals
+                                .asSequence()
+                                .filter { it.bikeId == bikeId && it.adminId == session.userId }
+                                .map { it.id }
+                                .toSet()
+
                             // Soft-delete: метим как удалённый, оставляя запись в store.
+                            // Любые активные клиентские сессии по этому велосипеду сбрасываем:
+                            // в приложении удалённый велосипед больше не должен открываться.
                             store.bikes[bikeIndex] = bike.copy(deletedAt = java.time.Instant.now())
+                            store.sessions.entries.removeAll {
+                                it.value.clientId in affectedClientIds || it.value.rentalId in affectedRentalIds
+                            }
                             persistState()
                             null
                         }
@@ -3838,7 +3902,7 @@ fun Application.module() {
                     .toMutableList()
 
 	                val updated = synchronized(stateLock) {
-	                    val index = store.clients.indexOfFirst { it.id == clientId }
+	                    val index = store.clients.indexOfFirst { it.id == clientId && it.deletedAt == null }
 	                    if (index < 0) {
 	                        null
 	                    } else {
@@ -3890,16 +3954,18 @@ fun Application.module() {
                         if (!adminOwnsClient(store, session.userId, client.id)) {
                             return@synchronized HttpStatusCode.NotFound to "Client not found"
                         }
-                        // Удалять клиента можно только если у него нет истории
-                        // client_rentals — иначе нужно редактировать профиль.
-                        // Эта проверка не зависит от soft-delete: история сохраняется
-                        // и не должна теряться вместе с клиентом.
-                        if (store.clientRentals.any { it.clientId == clientId && it.adminId == session.userId }) {
+                        val hasVisibleRentals = store.clientRentals.any { rental ->
+                            rental.clientId == client.id &&
+                                rental.adminId == session.userId &&
+                                rental.deletedAt == null &&
+                                store.bikes.firstOrNull { it.id == rental.bikeId }?.deletedAt == null
+                        }
+                        if (hasVisibleRentals) {
                             return@synchronized HttpStatusCode.Conflict to "client is used by rentals"
                         }
                         // Soft-delete: помечаем клиента deletedAt, сессии очищаем,
-                        // AppUser оставляем нетронутыми (logins должны продолжать работать
-                        // для просмотра закрытых аренд, если такие есть).
+                        // AppUser и history-строки оставляем в store/БД, но AuthService
+                        // больше не выдаёт клиентскую сессию для soft-deleted клиента.
                         store.clients[clientIndex] = client.copy(deletedAt = java.time.Instant.now())
                         store.sessions.entries.removeAll { it.value.clientId == clientId }
                         persistState()
@@ -3934,7 +4000,7 @@ fun Application.module() {
                     return@post
                 }
 
-                val client = store.clients.firstOrNull { it.id == clientId }
+                val client = store.clients.firstOrNull { it.id == clientId && it.deletedAt == null }
                 if (client == null) {
                     call.respond(HttpStatusCode.NotFound, ApiErrorResponse(message = "Client not found"))
                     return@post
@@ -4013,7 +4079,7 @@ fun Application.module() {
                     return@post
                 }
 
-                val client = store.clients.firstOrNull { it.id == clientId }
+                val client = store.clients.firstOrNull { it.id == clientId && it.deletedAt == null }
                 if (client == null) {
                     call.respond(HttpStatusCode.NotFound, ApiErrorResponse(message = "Client not found"))
                     return@post
@@ -4426,7 +4492,7 @@ fun Application.module() {
                     if (rentalIndex < 0 && directClientRentalIndex < 0) {
                         null
                     } else {
-                        val bike = store.bikes.firstOrNull { it.id == bikeId }
+                        val bike = store.bikes.firstOrNull { it.id == bikeId && it.deletedAt == null }
                             ?: return@synchronized RentalCreationOutcome.Failure(HttpStatusCode.NotFound, "Bike not found")
                         val currentRental = rentalIndex.takeIf { it >= 0 }?.let { store.rentals[it] }
                         val directClientRental = directClientRentalIndex.takeIf { it >= 0 }?.let { store.clientRentals[it] }

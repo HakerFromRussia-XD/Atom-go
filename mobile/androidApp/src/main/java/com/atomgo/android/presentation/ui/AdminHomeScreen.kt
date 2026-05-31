@@ -561,6 +561,7 @@ internal fun AdminHomeScreen(
     var showUpdateRental by remember { mutableStateOf(false) }
     var confirmDeleteRentalId by remember { mutableStateOf<String?>(null) }
     var confirmDeleteClientId by remember { mutableStateOf<String?>(null) }
+    var deletingClientId by remember { mutableStateOf<String?>(null) }
     var showFinishRentalFor by remember { mutableStateOf<AdminClientSummaryResponse?>(null) }
     var showStartRental by remember { mutableStateOf(false) }
     var detailClientId by remember { mutableStateOf<String?>(null) }
@@ -1284,6 +1285,15 @@ internal fun AdminHomeScreen(
                         refreshAllCatalogsAfterStackTransition()
                     }.onFailure { adminMessage = "Ошибка обновления велосипеда: ${it.message}" }
                 }
+            },
+            onDelete = { bikeId ->
+                adminHomeViewModel.deleteAdminBike(session.accessToken, bikeId) { result ->
+                    result.onSuccess {
+                        adminMessage = "Велосипед удален"
+                        selectedBikeForEdit = null
+                        refreshAllCatalogsAfterStackTransition()
+                    }.onFailure { adminMessage = "Ошибка удаления велосипеда: ${it.message}" }
+                }
             }
         )
     }
@@ -1354,27 +1364,6 @@ internal fun AdminHomeScreen(
         )
     }
 
-    if (confirmDeleteClientId != null) {
-        AlertDialog(
-            onDismissRequest = { confirmDeleteClientId = null },
-            title = { Text("Удалить клиента?") },
-            text = { Text("Будут удалены связанные данные клиента.") },
-            confirmButton = {
-                OutlinedButton(onClick = {
-                    val clientId = confirmDeleteClientId ?: return@OutlinedButton
-                    adminHomeViewModel.deleteAdminClient(session.accessToken, clientId) { result ->
-                        result.onSuccess {
-                            adminMessage = "Клиент удален"
-                            confirmDeleteClientId = null
-                            refreshAllCatalogsAfterStackTransition()
-                        }.onFailure { adminMessage = "Ошибка удаления клиента: ${it.message}" }
-                    }
-                }) { Text("Удалить") }
-            },
-            dismissButton = { OutlinedButton(onClick = { confirmDeleteClientId = null }) { Text("Отмена") } }
-        )
-    }
-
     AppStackVisibility(
         visible = detailClientId != null,
         modifier = Modifier
@@ -1388,6 +1377,7 @@ internal fun AdminHomeScreen(
         AdminClientDetailsScreen(
             details = detailPayload,
             isLoading = isDetailLoading,
+            isOperationInProgress = deletingClientId != null,
             onClose = { detailClientId = null },
             onRetry = { detailClientId?.let(::openClientDetails) },
             onEditProfile = {
@@ -1398,6 +1388,44 @@ internal fun AdminHomeScreen(
             },
             onOpenRental = { preview ->
                 openRentalDetails(rentalId = preview.rentalId, fallback = preview)
+            }
+        )
+    }
+
+    if (confirmDeleteClientId != null) {
+        AlertDialog(
+            onDismissRequest = { confirmDeleteClientId = null },
+            title = { Text("Удалить клиента?") },
+            text = { Text("Клиент будет скрыт в приложении, данные останутся на сервере.") },
+            confirmButton = {
+                OutlinedButton(
+                    enabled = deletingClientId == null,
+                    onClick = {
+                        val clientId = confirmDeleteClientId ?: return@OutlinedButton
+                        confirmDeleteClientId = null
+                        deletingClientId = clientId
+                        adminHomeViewModel.deleteAdminClient(session.accessToken, clientId) { result ->
+                            deletingClientId = null
+                            result.onSuccess {
+                                if (detailClientId == clientId) {
+                                    detailClientId = null
+                                    detailPayload = null
+                                    isDetailLoading = false
+                                }
+                                adminMessage = "Клиент удален"
+                                refreshAllCatalogsAfterStackTransition()
+                            }.onFailure {
+                                adminMessage = "Ошибка удаления клиента: ${it.message}"
+                            }
+                        }
+                    }
+                ) { Text("Удалить") }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    enabled = deletingClientId == null,
+                    onClick = { confirmDeleteClientId = null }
+                ) { Text("Отмена") }
             }
         )
     }

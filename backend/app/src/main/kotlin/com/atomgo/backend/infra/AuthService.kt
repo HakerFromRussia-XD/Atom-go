@@ -6,6 +6,16 @@ import java.util.UUID
 
 class AuthService(private val store: InMemoryStore) {
 
+    private fun isVisibleClient(clientId: String?): Boolean {
+        if (clientId.isNullOrBlank()) return false
+        return store.clients.any { it.id == clientId && it.deletedAt == null }
+    }
+
+    private fun isVisibleBike(bikeId: String?): Boolean {
+        if (bikeId.isNullOrBlank()) return false
+        return store.bikes.any { it.id == bikeId && it.deletedAt == null }
+    }
+
     fun login(login: String, password: String): Pair<String, UserSession>? {
         val adminUser = store.users.firstOrNull {
             it.role == Role.ADMIN && it.login == login && it.password == password
@@ -18,9 +28,12 @@ class AuthService(private val store: InMemoryStore) {
         }
 
         val rentalByCredentials = store.clientRentals.firstOrNull { rental ->
-            rental.clientId.isNotBlank() &&
+            rental.deletedAt == null &&
+                rental.clientId.isNotBlank() &&
                 rental.clientLogin == login &&
-                rental.clientPassword == password
+                rental.clientPassword == password &&
+                isVisibleClient(rental.clientId) &&
+                isVisibleBike(rental.bikeId)
         }
         if (rentalByCredentials != null) {
             val token = UUID.randomUUID().toString()
@@ -35,21 +48,26 @@ class AuthService(private val store: InMemoryStore) {
         }
 
         val clientUser = store.users.firstOrNull {
-            it.role == Role.CLIENT && it.login == login && it.password == password
+            it.role == Role.CLIENT &&
+                it.login == login &&
+                it.password == password &&
+                isVisibleClient(it.clientId)
         } ?: return null
 
         val activeOrLatestClientRental = store.clientRentals
             .asSequence()
             .filter { it.clientId == clientUser.clientId }
+            .filter { it.deletedAt == null }
+            .filter { isVisibleBike(it.bikeId) }
             .sortedByDescending { it.startDate }
-            .firstOrNull()
+            .firstOrNull() ?: return null
 
         val token = UUID.randomUUID().toString()
         val session = UserSession(
             userId = clientUser.id,
             role = clientUser.role,
             clientId = clientUser.clientId,
-            rentalId = activeOrLatestClientRental?.id
+            rentalId = activeOrLatestClientRental.id
         )
         store.sessions[token] = session
         return token to session

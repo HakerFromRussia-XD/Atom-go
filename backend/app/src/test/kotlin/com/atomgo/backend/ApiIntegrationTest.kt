@@ -1226,7 +1226,7 @@ class ApiIntegrationTest {
     }
 
     @Test
-    fun `admin should delete only clients and bikes without rental history`() = testApplication {
+    fun `admin should soft delete clients without visible rentals and bikes with rental history`() = testApplication {
         application { module() }
         val adminToken = loginAsAdmin()
 
@@ -1269,22 +1269,144 @@ class ApiIntegrationTest {
         }
         assertEquals(HttpStatusCode.Created, createRental.status)
 
+        val rentedClientDetails = client.get("/api/v1/admin/clients/$rentedClientId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, rentedClientDetails.status)
+        val activeClientRentalId = json.parseToJsonElement(rentedClientDetails.bodyAsText())
+            .jsonObject["rentals"]
+            ?.jsonArray
+            ?.firstOrNull()
+            ?.jsonObject
+            ?.get("rental_id")
+            ?.jsonPrimitive
+            ?.content
+            ?: error("No visible client rental id")
+
+        val blockedClientDelete = client.post("/api/v1/admin/clients/$rentedClientId/delete") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.Conflict, blockedClientDelete.status)
+
+        val deleteActiveClientRental = client.post("/api/v1/admin/rentals/$activeClientRentalId/delete") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, deleteActiveClientRental.status)
+
+        val deleteClosedClientRental = client.post("/api/v1/admin/rentals/$activeClientRentalId/delete") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, deleteClosedClientRental.status)
+
+        val emptyRentalHistoryDetails = client.get("/api/v1/admin/clients/$rentedClientId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, emptyRentalHistoryDetails.status)
+        val emptyRentalHistory = json.parseToJsonElement(emptyRentalHistoryDetails.bodyAsText())
+            .jsonObject["rentals"]
+            ?.jsonArray
+            ?: error("No rentals array")
+        assertEquals(0, emptyRentalHistory.size)
+
         val deleteRentedClient = client.post("/api/v1/admin/clients/$rentedClientId/delete") {
             bearerAuth(adminToken)
         }
-        assertEquals(HttpStatusCode.Conflict, deleteRentedClient.status)
-        assertEquals(
-            "client is used by rentals",
-            json.parseToJsonElement(deleteRentedClient.bodyAsText()).jsonObject["message"]?.jsonPrimitive?.content
-        )
+        assertEquals(HttpStatusCode.OK, deleteRentedClient.status)
 
-        val deleteRentedBike = client.post("/api/v1/admin/bikes/$rentedBikeId/delete") {
+        val clientsAfterDelete = client.get("/api/v1/admin/clients") {
             bearerAuth(adminToken)
         }
-        assertEquals(HttpStatusCode.Conflict, deleteRentedBike.status)
-        assertEquals(
-            "bike is used by rentals",
-            json.parseToJsonElement(deleteRentedBike.bodyAsText()).jsonObject["message"]?.jsonPrimitive?.content
+        assertEquals(HttpStatusCode.OK, clientsAfterDelete.status)
+        assertTrue(
+            json.parseToJsonElement(clientsAfterDelete.bodyAsText()).jsonArray.none {
+                it.jsonObject["client_id"]?.jsonPrimitive?.content == rentedClientId
+            }
+        )
+
+        val clientCatalogAfterDelete = client.get("/api/v1/admin/client-catalog") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, clientCatalogAfterDelete.status)
+        assertTrue(
+            json.parseToJsonElement(clientCatalogAfterDelete.bodyAsText()).jsonArray.none {
+                it.jsonObject["client_id"]?.jsonPrimitive?.content == rentedClientId
+            }
+        )
+
+        val deletedClientDetails = client.get("/api/v1/admin/clients/$rentedClientId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.NotFound, deletedClientDetails.status)
+
+        val deletedClientLogin = client.post("/api/v1/auth/login") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"login":"delete.rules.client","password":"delete-rules-client-pwd"}""")
+        }
+        assertEquals(HttpStatusCode.Unauthorized, deletedClientLogin.status)
+
+        val bikeOwnerClientId = createClientAndGetId(adminToken, fullName = "Bike Owner Client", phone = "79005559903")
+        val bikeWithHistoryId = createBikeAndGetId(
+            adminToken = adminToken,
+            frameSerial = "RENTED-FRAME-2",
+            motorSerial = "RENTED-MOTOR-2"
+        )
+        val createBikeRental = client.post("/api/v1/admin/rentals") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "client_id":"$bikeOwnerClientId",
+                  "bike_id":"$bikeWithHistoryId",
+                  "login":"delete.rules.bike",
+                  "password":"delete-rules-bike-pwd",
+                  "period_start":"2026-05-06"
+                }
+                """.trimIndent()
+            )
+        }
+        assertEquals(HttpStatusCode.Created, createBikeRental.status)
+        val bikeRentalId = json.parseToJsonElement(createBikeRental.bodyAsText())
+            .jsonObject["rental_id"]
+            ?.jsonPrimitive
+            ?.content
+            ?: error("No rental_id")
+
+        val deleteRentedBike = client.post("/api/v1/admin/bikes/$bikeWithHistoryId/delete") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, deleteRentedBike.status)
+
+        val bikesAfterDelete = client.get("/api/v1/admin/bikes") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, bikesAfterDelete.status)
+        assertTrue(
+            json.parseToJsonElement(bikesAfterDelete.bodyAsText()).jsonArray.none {
+                it.jsonObject["bike_id"]?.jsonPrimitive?.content == bikeWithHistoryId
+            }
+        )
+
+        val rentsAfterBikeDelete = client.get("/api/v1/admin/rents") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, rentsAfterBikeDelete.status)
+        assertTrue(
+            json.parseToJsonElement(rentsAfterBikeDelete.bodyAsText()).jsonArray.none {
+                it.jsonObject["rental_id"]?.jsonPrimitive?.content == bikeRentalId
+            }
+        )
+
+        val deletedBikeLogin = client.post("/api/v1/auth/login") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"login":"delete.rules.bike","password":"delete-rules-bike-pwd"}""")
+        }
+        assertEquals(HttpStatusCode.Unauthorized, deletedBikeLogin.status)
+
+        createBikeAndGetId(
+            adminToken = adminToken,
+            frameSerial = "RENTED-FRAME-2",
+            motorSerial = "RENTED-MOTOR-2"
         )
     }
 

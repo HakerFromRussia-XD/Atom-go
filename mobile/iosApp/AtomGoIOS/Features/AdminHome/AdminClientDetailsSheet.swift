@@ -173,7 +173,7 @@ struct AdminClientDetailsSheet: View {
                     }
                     Button("Отмена", role: .cancel) {}
                 } message: {
-                    Text("Клиент без истории аренд будет удален из каталога.")
+                    Text("Клиент будет скрыт в приложении, данные останутся на сервере.")
                 }
                 .overlay(alignment: .center) {
                     if isOperationInProgress {
@@ -217,6 +217,7 @@ struct AdminClientDetailsSheet: View {
                 }
                 .disabled(!details.rentals.isEmpty || isOperationInProgress)
                 .opacity(details.rentals.isEmpty ? 1 : 0.45)
+                .accessibilityIdentifier("clientDetails.deleteClientButton")
             }
         }
         .frame(height: 62)
@@ -707,7 +708,7 @@ struct AdminClientDetailsSheet: View {
             }
             Button("Отмена", role: .cancel) {}
         } message: {
-            Text("Клиент без истории аренд будет удален из каталога.")
+            Text("Клиент будет скрыт в приложении, данные останутся на сервере.")
         }
     }
 

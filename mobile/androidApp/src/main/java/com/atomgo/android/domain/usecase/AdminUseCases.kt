@@ -102,6 +102,10 @@ class AdminUseCases(
         adminRepository.deleteClient(accessToken = accessToken, clientId = clientId)
     }
 
+    suspend fun deleteBike(accessToken: String, bikeId: String) {
+        adminRepository.deleteBike(accessToken = accessToken, bikeId = bikeId)
+    }
+
     suspend fun updateClient(
         accessToken: String,
         clientId: String,

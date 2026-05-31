@@ -47,6 +47,7 @@ interface AdminRepository {
     suspend fun fetchRentalDetails(accessToken: String, rentalId: String): AdminRentalDetailsResponse
     suspend fun deleteRental(accessToken: String, rentalId: String)
     suspend fun deleteClient(accessToken: String, clientId: String)
+    suspend fun deleteBike(accessToken: String, bikeId: String)
 
     suspend fun updateClient(
         accessToken: String,

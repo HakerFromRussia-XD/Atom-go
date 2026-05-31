@@ -418,8 +418,8 @@ struct ClientCatalogSheet: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("clientCatalog.open.\(client.fullName)")
         }
-        .accessibilityIdentifier("clientCatalog.open.\(client.fullName)")
     }
 
     private func callButton(for client: AdminClientSummaryResponse) -> some View {

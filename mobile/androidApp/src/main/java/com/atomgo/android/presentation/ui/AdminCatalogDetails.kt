@@ -811,6 +811,7 @@ internal fun rentalPreviewIsRunning(details: AdminRentalPreview): Boolean {
 internal fun AdminClientDetailsScreen(
     details: AdminClientDetailsResponse?,
     isLoading: Boolean,
+    isOperationInProgress: Boolean,
     onClose: () -> Unit,
     onRetry: () -> Unit,
     onEditProfile: () -> Unit,
@@ -865,10 +866,11 @@ internal fun AdminClientDetailsScreen(
                             contentScale = ContentScale.Fit
                         )
                     }
-                    val canDelete = details?.rentals?.isEmpty() == true
+                    val hasNoRentals = details?.rentals?.isEmpty() == true
+                    val canDeleteClient = hasNoRentals && !isOperationInProgress
                     OutlinedButton(
                         onClick = { details?.clientId?.let(onDeleteClient) },
-                        enabled = canDelete,
+                        enabled = canDeleteClient,
                         contentPadding = PaddingValues(0.dp),
                         shape = RoundedCornerShape(14.dp),
                         border = androidx.compose.foundation.BorderStroke(AppDesign.HairlineStroke, AppDesign.Danger),
@@ -878,7 +880,7 @@ internal fun AdminClientDetailsScreen(
                         ),
                         modifier = Modifier
                             .size(47.dp)
-                            .alpha(if (canDelete) 1f else 0.45f)
+                            .alpha(if (hasNoRentals) 1f else 0.45f)
                             .testTag("admin_client_details_delete")
                     ) {
                         Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(15.dp))

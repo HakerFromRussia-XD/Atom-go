@@ -165,6 +165,18 @@ class AdminHomeViewModel(
         }
     }
 
+    fun deleteAdminBike(
+        accessToken: String,
+        bikeId: String,
+        onResult: (Result<Unit>) -> Unit
+    ) {
+        viewModelScope.launch {
+            runCatching {
+                adminUseCases.deleteBike(accessToken = accessToken, bikeId = bikeId)
+            }.also(onResult)
+        }
+    }
+
     fun updateAdminClient(
         accessToken: String,
         clientId: String,

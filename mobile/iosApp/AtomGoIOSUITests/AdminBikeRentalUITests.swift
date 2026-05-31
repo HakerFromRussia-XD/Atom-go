@@ -783,6 +783,66 @@ final class AdminCashPaymentRealBackendUITests: XCTestCase {
         )
     }
 
+    func testDeleteNamedClientThroughUIOnRealBackend() throws {
+        #if REAL_BACKEND_CLIENT_DELETE_TEST
+        let shouldRunDeleteTest = true
+        #else
+        let shouldRunDeleteTest = false
+        #endif
+        guard shouldRunDeleteTest else {
+            throw XCTSkip("Compile with REAL_BACKEND_CLIENT_DELETE_TEST to run this mutating real-backend UI test")
+        }
+
+        let backendBaseURL = ProcessInfo.processInfo.environment["ATOMGO_REAL_BACKEND_UI_TEST_URL"]
+            ?? "https://atomgo.157.22.203.6.nip.io/api/v1"
+        let adminLogin = ProcessInfo.processInfo.environment["ATOMGO_REAL_BACKEND_ADMIN_LOGIN"] ?? "Every-XD"
+        let adminPassword = ProcessInfo.processInfo.environment["ATOMGO_REAL_BACKEND_ADMIN_PASSWORD"] ?? "Roma89157719183_"
+        let clientName = ProcessInfo.processInfo.environment["ATOMGO_REAL_BACKEND_DELETE_CLIENT_NAME"] ?? "Тестовый Человек"
+
+        let token = try apiLogin(baseURL: backendBaseURL, login: adminLogin, password: adminPassword)
+        let clientId = try ensureClientExists(baseURL: backendBaseURL, token: token, fullName: clientName)
+
+        app = XCUIApplication()
+        app.launchArguments += ["-ATOMGO_DISABLE_PAYMENT_SAFARI_AUTOPEN"]
+        app.launchEnvironment["ATOMGO_BACKEND_URL"] = backendBaseURL
+        app.launchEnvironment["ATOMGO_TEST_LOGIN"] = adminLogin
+        app.launchEnvironment["ATOMGO_TEST_PASSWORD"] = adminPassword
+        app.launch()
+
+        try loginAsAdminIfNeeded()
+        openClientsTab()
+
+        let searchField = app.textFields["clientCatalog.searchField"].firstMatch
+        XCTAssertTrue(searchField.waitForExistence(timeout: 8), "Client catalog search field is unavailable")
+        searchField.replaceText(clientName)
+
+        let openClient = app.buttons["clientCatalog.open.\(clientName)"].firstMatch
+        XCTAssertTrue(waitForElementWithScroll(openClient, timeout: 8), "Client \(clientName) is absent in the UI catalog")
+        openClient.tap()
+
+        let deleteButton = app.buttons["clientDetails.deleteClientButton"].firstMatch
+        XCTAssertTrue(waitForElementWithScroll(deleteButton, timeout: 8), "Delete client button is unavailable")
+        deleteButton.tap()
+
+        let confirmDelete = app.buttons["Удалить"].firstMatch
+        XCTAssertTrue(confirmDelete.waitForExistence(timeout: 8), "Delete confirmation button did not appear")
+        confirmDelete.tap()
+
+        XCTAssertTrue(
+            waitUntilClientIsAbsentFromApi(baseURL: backendBaseURL, token: token, clientId: clientId, timeout: 30),
+            "Backend still returns client \(clientName) / \(clientId) after UI delete"
+        )
+
+        let detailsStatus = try apiStatus(
+            baseURL: backendBaseURL,
+            path: "/admin/clients/\(clientId)",
+            method: "GET",
+            token: token,
+            body: nil
+        )
+        XCTAssertEqual(detailsStatus.statusCode, 404, "Deleted client details endpoint must return 404")
+    }
+
     private struct Fixture {
         let clientId: String
         let rentalId: String
@@ -863,23 +923,74 @@ final class AdminCashPaymentRealBackendUITests: XCTestCase {
     }
 
     private func loginAsAdminIfNeeded() throws {
-        if app.buttons["admin.openServiceButton"].waitForExistence(timeout: 2) {
+        if isAdminScreenVisible() {
             return
         }
 
         let submit = app.buttons["login.submitButton"]
-        guard submit.waitForExistence(timeout: 12) else {
+        guard submit.waitForExistence(timeout: 8) else {
             throw XCTSkip("Login screen is unavailable for real-backend UI test")
         }
         submit.tap()
 
-        let adminSearchField = app.textFields["admin.searchField"].firstMatch
-        guard app.buttons["admin.openServiceButton"].waitForExistence(timeout: 30)
-            || adminSearchField.waitForExistence(timeout: 2) else {
+        guard waitForAdminScreen(timeout: 30) else {
             let status = app.descendants(matching: .any)["login.statusText"]
             XCTFail("Admin screen did not open. Status: \(status.exists ? status.label : "login status text is absent")")
             return
         }
+    }
+
+    private func openClientsTab() {
+        if app.textFields["clientCatalog.searchField"].firstMatch.exists {
+            return
+        }
+
+        let clientsTab = app.buttons["admin.tab.clients"].firstMatch
+        if waitUntil(timeout: 6, condition: { clientsTab.exists }) {
+            clientsTab.tap()
+            XCTAssertTrue(
+                waitUntil(timeout: 8, condition: { self.app.textFields["clientCatalog.searchField"].firstMatch.exists }),
+                "Client catalog did not open from tab"
+            )
+            return
+        }
+
+        let serviceButton = app.buttons["admin.openServiceButton"].firstMatch
+        XCTAssertTrue(waitForElementWithScroll(serviceButton, timeout: 6), "Admin service button is unavailable")
+        serviceButton.tap()
+        let clientsCatalog = app.buttons["admin.service.clientsCatalogButton"].firstMatch
+        XCTAssertTrue(clientsCatalog.waitForExistence(timeout: 6), "Clients catalog button is unavailable")
+        clientsCatalog.tap()
+        XCTAssertTrue(
+            waitUntil(timeout: 8, condition: { self.app.textFields["clientCatalog.searchField"].firstMatch.exists }),
+            "Client catalog did not open from service sheet"
+        )
+    }
+
+    private func isAdminScreenVisible() -> Bool {
+        app.textFields["admin.searchField"].firstMatch.exists
+            || app.buttons["admin.tab.clients"].firstMatch.exists
+            || app.buttons["admin.openServiceButton"].firstMatch.exists
+            || app.textFields["clientCatalog.searchField"].firstMatch.exists
+    }
+
+    private func waitForAdminScreen(timeout: TimeInterval) -> Bool {
+        waitUntil(timeout: timeout, condition: { self.isAdminScreenVisible() })
+    }
+
+    private func waitUntil(
+        timeout: TimeInterval,
+        interval: TimeInterval = 0.25,
+        condition: () -> Bool
+    ) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if condition() {
+                return true
+            }
+            RunLoop.current.run(until: Date().addingTimeInterval(interval))
+        }
+        return condition()
     }
 
     private func apiLogin(baseURL: String, login: String, password: String) throws -> String {
@@ -904,6 +1015,56 @@ final class AdminCashPaymentRealBackendUITests: XCTestCase {
             throw testError("Unexpected API object response for \(path)")
         }
         return object
+    }
+
+    private func apiArray(baseURL: String, path: String, token: String) throws -> [[String: Any]] {
+        let value = try apiRequest(baseURL: baseURL, path: path, method: "GET", token: token, body: nil)
+        guard let array = value as? [[String: Any]] else {
+            throw testError("Unexpected API array response for \(path)")
+        }
+        return array
+    }
+
+    private func ensureClientExists(baseURL: String, token: String, fullName: String) throws -> String {
+        if let existingId = try clientId(baseURL: baseURL, token: token, fullName: fullName) {
+            return existingId
+        }
+
+        let created = try apiObject(
+            baseURL: baseURL,
+            path: "/admin/clients",
+            method: "POST",
+            token: token,
+            body: [
+                "full_name": fullName,
+                "address": "UI delete real backend",
+                "passport_data": "UI DELETE",
+                "phones": [["label": "Test", "number": "79000000001"]]
+            ]
+        )
+        return try requireString(created["client_id"], field: "client_id")
+    }
+
+    private func clientId(baseURL: String, token: String, fullName: String) throws -> String? {
+        let clients = try apiArray(baseURL: baseURL, path: "/admin/clients", token: token)
+        return clients.first { ($0["full_name"] as? String) == fullName }?["client_id"] as? String
+    }
+
+    private func waitUntilClientIsAbsentFromApi(
+        baseURL: String,
+        token: String,
+        clientId: String,
+        timeout: TimeInterval
+    ) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if let clients = try? apiArray(baseURL: baseURL, path: "/admin/clients", token: token),
+               !clients.contains(where: { ($0["client_id"] as? String) == clientId }) {
+                return true
+            }
+            Thread.sleep(forTimeInterval: 1)
+        }
+        return false
     }
 
     private func apiRequest(

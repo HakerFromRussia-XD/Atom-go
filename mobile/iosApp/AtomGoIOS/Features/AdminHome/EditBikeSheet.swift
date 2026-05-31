@@ -9,6 +9,7 @@ struct EditBikeSheet: View {
     let apiErrorMessage: String?
     let onCancel: () -> Void
     let onSave: (UpdateBikePayload) -> Void
+    let onDelete: (String) -> Void
 
     @State private var bikeModel: String
     @State private var weeklyRateRub: String
@@ -22,6 +23,7 @@ struct EditBikeSheet: View {
     @State private var overridePhotoDataUrl: String?
     @State private var toastMessage: String?
     @State private var toastDismissTask: Task<Void, Never>?
+    @State private var isDeleteConfirmationPresented = false
 
     private let ebonyClay = AppDesign.darkControl
     private let paleSky = AppDesign.paleSky
@@ -36,7 +38,8 @@ struct EditBikeSheet: View {
         isSaving: Bool,
         apiErrorMessage: String?,
         onCancel: @escaping () -> Void,
-        onSave: @escaping (UpdateBikePayload) -> Void
+        onSave: @escaping (UpdateBikePayload) -> Void,
+        onDelete: @escaping (String) -> Void
     ) {
         self.bike = bike
         self.bikes = bikes
@@ -44,6 +47,7 @@ struct EditBikeSheet: View {
         self.apiErrorMessage = apiErrorMessage
         self.onCancel = onCancel
         self.onSave = onSave
+        self.onDelete = onDelete
         _bikeModel = State(initialValue: bike.bikeModel)
         _weeklyRateRub = State(initialValue: "\(bike.weeklyRateRub)")
         _frameSerialNumber = State(initialValue: bike.frameSerialNumber)
@@ -132,6 +136,18 @@ struct EditBikeSheet: View {
         .onChange(of: apiErrorMessage) { newValue in
             presentToast(newValue)
         }
+        .confirmationDialog(
+            "Удалить велосипед?",
+            isPresented: $isDeleteConfirmationPresented,
+            titleVisibility: .visible
+        ) {
+            Button("Удалить", role: .destructive) {
+                onDelete(bike.bikeId)
+            }
+            Button("Отмена", role: .cancel) {}
+        } message: {
+            Text("Велосипед будет скрыт в приложении, данные останутся на сервере.")
+        }
         .appToast(message: $toastMessage, bottomPadding: 96)
     }
 
@@ -155,17 +171,44 @@ struct EditBikeSheet: View {
 
             Spacer(minLength: 12)
 
-            createBikeTopButton(
-                assetName: "ok",
-                assetSize: 16,
-                isDark: true,
-                accessibilityIdentifier: "editBike.submitButton",
-                action: submit
-            )
-            .disabled(isSaving)
-            .opacity(isSaving ? 0.45 : 1)
+            HStack(spacing: 8) {
+                deleteTopButton {
+                    isDeleteConfirmationPresented = true
+                }
+                .disabled(isSaving)
+                .opacity(isSaving ? 0.45 : 1)
+
+                createBikeTopButton(
+                    assetName: "ok",
+                    assetSize: 16,
+                    isDark: true,
+                    accessibilityIdentifier: "editBike.submitButton",
+                    action: submit
+                )
+                .disabled(isSaving)
+                .opacity(isSaving ? 0.45 : 1)
+            }
         }
         .frame(height: 47)
+    }
+
+    private func deleteTopButton(action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(AppDesign.surfaceBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(AppDesign.danger, lineWidth: 1.5)
+                )
+                .overlay(
+                    Image(systemName: "trash")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(AppDesign.danger)
+                )
+                .frame(width: 47, height: 47)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("editBike.deleteButton")
     }
 
     private func createBikeTopButton(
