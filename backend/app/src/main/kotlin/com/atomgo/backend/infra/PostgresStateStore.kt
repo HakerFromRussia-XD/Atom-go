@@ -26,6 +26,10 @@ import java.sql.Timestamp
 import java.time.Instant
 import java.time.LocalDate
 
+private fun normalizedPaymentDay(paymentDay: Int?, startDate: LocalDate): Int {
+    return paymentDay?.takeIf { it in 1..7 } ?: startDate.dayOfWeek.value
+}
+
 class PostgresStateStore private constructor(
     private val jdbcUrl: String,
     private val dbUser: String,
@@ -163,6 +167,7 @@ class PostgresStateStore private constructor(
             statement.execute("ALTER TABLE atomgo_rentals ADD COLUMN IF NOT EXISTS client_login TEXT")
             statement.execute("ALTER TABLE atomgo_rentals ADD COLUMN IF NOT EXISTS client_password TEXT")
             statement.execute("ALTER TABLE atomgo_rentals ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ")
+            statement.execute("ALTER TABLE atomgo_rentals ADD COLUMN IF NOT EXISTS payment_day INT")
             statement.execute(
                 """
                 CREATE TABLE IF NOT EXISTS atomgo_client_rentals (
@@ -184,6 +189,7 @@ class PostgresStateStore private constructor(
             )
             statement.execute("ALTER TABLE atomgo_client_rentals ADD COLUMN IF NOT EXISTS client_password_fingerprint TEXT NOT NULL DEFAULT ''")
             statement.execute("ALTER TABLE atomgo_client_rentals ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ")
+            statement.execute("ALTER TABLE atomgo_client_rentals ADD COLUMN IF NOT EXISTS payment_day INT")
             statement.execute(
                 """
                 CREATE TABLE IF NOT EXISTS atomgo_ledger_entries (
@@ -529,24 +535,26 @@ class PostgresStateStore private constructor(
         val rentals = mutableListOf<RentalRecord>()
         connection.prepareStatement(
             """
-            SELECT id, client_id, bike_id, client_login, client_password, start_date, end_date, video_url, contract_url, comment, admin_id, tax_mode, pipeline_status, deleted_at
+            SELECT id, client_id, bike_id, client_login, client_password, start_date, end_date, video_url, contract_url, comment, payment_day, admin_id, tax_mode, pipeline_status, deleted_at
             FROM atomgo_rentals
             ORDER BY start_date DESC, id
             """.trimIndent()
         ).use { statement ->
             statement.executeQuery().use { rs ->
                 while (rs.next()) {
+                    val startDate = rs.getDate("start_date").toLocalDate()
                     rentals += RentalRecord(
                         id = rs.getString("id"),
                         clientId = rs.getString("client_id") ?: "",
                         bikeId = rs.getString("bike_id"),
                         clientLogin = rs.getString("client_login"),
                         clientPassword = rs.getString("client_password"),
-                        startDate = rs.getDate("start_date").toLocalDate(),
+                        startDate = startDate,
                         endDate = rs.getDate("end_date")?.toLocalDate(),
                         videoUrl = rs.getString("video_url"),
                         contractUrl = rs.getString("contract_url"),
                         comment = rs.getString("comment"),
+                        paymentDay = normalizedPaymentDay(rs.getInt("payment_day").takeUnless { rs.wasNull() }, startDate),
                         adminId = rs.getString("admin_id"),
                         taxMode = enumValueOf<AdminTaxMode>(rs.getString("tax_mode")),
                         pipelineStatus = enumValueOf<RentalPipelineStatus>(rs.getString("pipeline_status")),
@@ -560,13 +568,14 @@ class PostgresStateStore private constructor(
         connection.prepareStatement(
             """
             SELECT id, rental_id, client_id, bike_id, client_login, client_password, start_date, end_date,
-                   video_url, contract_url, comment, admin_id, tax_mode, client_password_fingerprint, deleted_at
+                   video_url, contract_url, comment, payment_day, admin_id, tax_mode, client_password_fingerprint, deleted_at
             FROM atomgo_client_rentals
             ORDER BY start_date DESC, id
             """.trimIndent()
         ).use { statement ->
             statement.executeQuery().use { rs ->
                 while (rs.next()) {
+                    val startDate = rs.getDate("start_date").toLocalDate()
                     clientRentals += ClientRentalRecord(
                         id = rs.getString("id"),
                         rentalId = rs.getString("rental_id"),
@@ -574,11 +583,12 @@ class PostgresStateStore private constructor(
                         bikeId = rs.getString("bike_id"),
                         clientLogin = rs.getString("client_login"),
                         clientPassword = rs.getString("client_password"),
-                        startDate = rs.getDate("start_date").toLocalDate(),
+                        startDate = startDate,
                         endDate = rs.getDate("end_date")?.toLocalDate(),
                         videoUrl = rs.getString("video_url"),
                         contractUrl = rs.getString("contract_url"),
                         comment = rs.getString("comment"),
+                        paymentDay = normalizedPaymentDay(rs.getInt("payment_day").takeUnless { rs.wasNull() }, startDate),
                         adminId = rs.getString("admin_id"),
                         taxMode = enumValueOf<AdminTaxMode>(rs.getString("tax_mode")),
                         clientPasswordFingerprint = rs.getString("client_password_fingerprint") ?: "",
@@ -791,12 +801,13 @@ class PostgresStateStore private constructor(
                 video_url,
                 contract_url,
                 comment,
+                payment_day,
                 admin_id,
                 tax_mode,
                 pipeline_status,
                 deleted_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent()
         ).use { statement ->
             state.rentals.forEach { rental ->
@@ -810,10 +821,11 @@ class PostgresStateStore private constructor(
                 statement.setString(8, rental.videoUrl)
                 statement.setString(9, rental.contractUrl)
                 statement.setString(10, rental.comment)
-                statement.setString(11, rental.adminId)
-                statement.setString(12, rental.taxMode.name)
-                statement.setString(13, rental.pipelineStatus.name)
-                statement.setTimestamp(14, rental.deletedAt?.let { java.sql.Timestamp.from(it) })
+                statement.setInt(11, normalizedPaymentDay(rental.paymentDay, rental.startDate))
+                statement.setString(12, rental.adminId)
+                statement.setString(13, rental.taxMode.name)
+                statement.setString(14, rental.pipelineStatus.name)
+                statement.setTimestamp(15, rental.deletedAt?.let { java.sql.Timestamp.from(it) })
                 statement.addBatch()
             }
             statement.executeBatch()
@@ -833,12 +845,13 @@ class PostgresStateStore private constructor(
                 video_url,
                 contract_url,
                 comment,
+                payment_day,
                 admin_id,
                 tax_mode,
                 client_password_fingerprint,
                 deleted_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent()
         ).use { statement ->
             state.clientRentals.forEach { rental ->
@@ -853,10 +866,11 @@ class PostgresStateStore private constructor(
                 statement.setString(9, rental.videoUrl)
                 statement.setString(10, rental.contractUrl)
                 statement.setString(11, rental.comment)
-                statement.setString(12, rental.adminId)
-                statement.setString(13, rental.taxMode.name)
-                statement.setString(14, rental.clientPasswordFingerprint)
-                statement.setTimestamp(15, rental.deletedAt?.let { java.sql.Timestamp.from(it) })
+                statement.setInt(12, normalizedPaymentDay(rental.paymentDay, rental.startDate))
+                statement.setString(13, rental.adminId)
+                statement.setString(14, rental.taxMode.name)
+                statement.setString(15, rental.clientPasswordFingerprint)
+                statement.setTimestamp(16, rental.deletedAt?.let { java.sql.Timestamp.from(it) })
                 statement.addBatch()
             }
             statement.executeBatch()
@@ -1145,6 +1159,7 @@ private object InMemoryStoreJsonMapper {
         val videoUrl: String? = null,
         val contractUrl: String? = null,
         val comment: String? = null,
+        val paymentDay: Int? = null,
         val adminId: String? = null,
         val taxMode: String = AdminTaxMode.SELF_EMPLOYED.name,
         val pipelineStatus: String = RentalPipelineStatus.LONG_TERM.name,
@@ -1164,6 +1179,7 @@ private object InMemoryStoreJsonMapper {
         val videoUrl: String? = null,
         val contractUrl: String? = null,
         val comment: String? = null,
+        val paymentDay: Int? = null,
         val adminId: String? = null,
         val taxMode: String = AdminTaxMode.SELF_EMPLOYED.name,
         val clientPasswordFingerprint: String = "",
@@ -1271,6 +1287,7 @@ private object InMemoryStoreJsonMapper {
                     videoUrl = it.videoUrl,
                     contractUrl = it.contractUrl,
                     comment = it.comment,
+                    paymentDay = normalizedPaymentDay(it.paymentDay, it.startDate),
                     adminId = it.adminId,
                     taxMode = it.taxMode.name,
                     pipelineStatus = it.pipelineStatus.name,
@@ -1290,6 +1307,7 @@ private object InMemoryStoreJsonMapper {
                     videoUrl = it.videoUrl,
                     contractUrl = it.contractUrl,
                     comment = it.comment,
+                    paymentDay = normalizedPaymentDay(it.paymentDay, it.startDate),
                     adminId = it.adminId,
                     taxMode = it.taxMode.name,
                     clientPasswordFingerprint = it.clientPasswordFingerprint,
@@ -1394,17 +1412,19 @@ private object InMemoryStoreJsonMapper {
                 rentalModel = rental.bikeModel,
                 rentalPhoto = rental.bikeAvatarUrl
             )
+            val startDate = LocalDate.parse(rental.startDate)
             RentalRecord(
                 id = rental.id,
                 clientId = rental.clientId,
                 bikeId = resolvedBikeId,
                 clientLogin = rental.clientLogin,
                 clientPassword = rental.clientPassword,
-                startDate = LocalDate.parse(rental.startDate),
+                startDate = startDate,
                 endDate = rental.endDate?.let(LocalDate::parse),
                 videoUrl = rental.videoUrl,
                 contractUrl = rental.contractUrl,
                 comment = rental.comment,
+                paymentDay = normalizedPaymentDay(rental.paymentDay, startDate),
                 adminId = rental.adminId,
                 taxMode = enumValueOf<AdminTaxMode>(rental.taxMode),
                 pipelineStatus = enumValueOf<RentalPipelineStatus>(rental.pipelineStatus),
@@ -1440,6 +1460,7 @@ private object InMemoryStoreJsonMapper {
             bikes = bikesById.values.toMutableList(),
             rentals = rentals,
             clientRentals = persisted.clientRentals.map {
+                val startDate = LocalDate.parse(it.startDate)
                 ClientRentalRecord(
                     id = it.id,
                     rentalId = it.rentalId,
@@ -1447,11 +1468,12 @@ private object InMemoryStoreJsonMapper {
                     bikeId = it.bikeId,
                     clientLogin = it.clientLogin,
                     clientPassword = it.clientPassword,
-                    startDate = LocalDate.parse(it.startDate),
+                    startDate = startDate,
                     endDate = it.endDate?.let(LocalDate::parse),
                     videoUrl = it.videoUrl,
                     contractUrl = it.contractUrl,
                     comment = it.comment,
+                    paymentDay = normalizedPaymentDay(it.paymentDay, startDate),
                     adminId = it.adminId,
                     taxMode = enumValueOf<AdminTaxMode>(it.taxMode),
                     clientPasswordFingerprint = it.clientPasswordFingerprint,

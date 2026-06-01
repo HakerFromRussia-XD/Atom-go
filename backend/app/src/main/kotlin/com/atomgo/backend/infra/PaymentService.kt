@@ -9,6 +9,7 @@ import com.atomgo.backend.domain.PaymentRecord
 import com.atomgo.backend.domain.PaymentStatus
 import com.atomgo.backend.domain.PaymentType
 import com.atomgo.backend.domain.PricingRules
+import com.atomgo.backend.domain.RentalPipelineStatus
 import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
@@ -68,6 +69,8 @@ class PaymentService(
         val clientName: String,
         val bikeModel: String,
         val taxMode: AdminTaxMode,
+        val pipelineStatus: RentalPipelineStatus,
+        val paymentDay: Int,
         val adminLogin: String? = null
     )
 
@@ -86,11 +89,12 @@ class PaymentService(
         // активной — per-week. Это влияет и на отображаемый debt, и на расчёт
         // amount для DEBT_EXACT.
         val isClosed = terms.rentalEndDate != null && !terms.rentalEndDate.isAfter(now)
-        val debt = if (isClosed) {
+        val useFinalDebt = isClosed || terms.pipelineStatus == RentalPipelineStatus.SOON_RETURN
+        val debt = if (useFinalDebt) {
             LedgerCalculator.finalDebtOnClosure(
                 clientId = clientId,
                 rentalStartDate = terms.rentalStartDate,
-                rentalEndDate = terms.rentalEndDate!!,
+                rentalEndDate = terms.rentalEndDate ?: now,
                 weeklyRateRub = terms.weeklyRateRub,
                 entries = store.ledger,
                 rentalId = terms.rentalId
@@ -102,7 +106,8 @@ class PaymentService(
                 weeklyRateRub = terms.weeklyRateRub,
                 entries = store.ledger,
                 asOf = now,
-                rentalId = terms.rentalId
+                rentalId = terms.rentalId,
+                paymentDay = terms.paymentDay
             )
         }
         val rawAmount = PricingRules.amountForType(paymentType, terms.weeklyRateRub, debt)
@@ -358,14 +363,27 @@ class PaymentService(
             return WebhookResult(applied = applied, message = message, paymentId = payment.id, clientId = payment.clientId)
         }
 
-        val debt = LedgerCalculator.debtRub(
-            clientId = payment.clientId,
-            rentalStartDate = terms.rentalStartDate,
-            weeklyRateRub = terms.weeklyRateRub,
-            entries = store.ledger,
-            asOf = now,
-            rentalId = terms.rentalId
-        )
+        val isClosed = terms.rentalEndDate != null && !terms.rentalEndDate.isAfter(now)
+        val debt = if (isClosed || terms.pipelineStatus == RentalPipelineStatus.SOON_RETURN) {
+            LedgerCalculator.finalDebtOnClosure(
+                clientId = payment.clientId,
+                rentalStartDate = terms.rentalStartDate,
+                rentalEndDate = terms.rentalEndDate ?: now,
+                weeklyRateRub = terms.weeklyRateRub,
+                entries = store.ledger,
+                rentalId = terms.rentalId
+            )
+        } else {
+            LedgerCalculator.debtRub(
+                clientId = payment.clientId,
+                rentalStartDate = terms.rentalStartDate,
+                weeklyRateRub = terms.weeklyRateRub,
+                entries = store.ledger,
+                asOf = now,
+                rentalId = terms.rentalId,
+                paymentDay = terms.paymentDay
+            )
+        }
         return WebhookResult(
             applied = applied,
             message = message,
@@ -408,6 +426,8 @@ class PaymentService(
             clientName = client.fullName,
             bikeModel = bike.model,
             taxMode = lifecycleRental?.taxMode ?: activeRental.taxMode,
+            pipelineStatus = lifecycleRental?.pipelineStatus ?: RentalPipelineStatus.LONG_TERM,
+            paymentDay = normalizedPaymentDay(activeRental.paymentDay, activeRental.startDate),
             adminLogin = adminLogin
         )
     }
@@ -418,6 +438,10 @@ class PaymentService(
         val lifecycleRental = clientRental?.rentalId?.let { id -> store.rentals.firstOrNull { it.id == id } }
         val adminId = lifecycleRental?.adminId ?: clientRental?.adminId
         return adminId?.let { id -> store.users.firstOrNull { it.id == id }?.login }
+    }
+
+    private fun normalizedPaymentDay(paymentDay: Int, startDate: LocalDate): Int {
+        return paymentDay.takeIf { it in 1..7 } ?: startDate.dayOfWeek.value
     }
 }
 

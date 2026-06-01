@@ -34,7 +34,8 @@ class AdminRentalEditLogicTest {
                 periodEnd = "",
                 videoUrl = "https://video.example/active",
                 contractUrl = "https://contract.example/active",
-                comment = "active comment"
+                comment = "active comment",
+                paymentDay = 3
             ),
             state
         )
@@ -66,7 +67,8 @@ class AdminRentalEditLogicTest {
                 periodEnd = "2026-05-28",
                 videoUrl = "https://video.example/completed",
                 contractUrl = "https://contract.example/completed",
-                comment = "completed comment"
+                comment = "completed comment",
+                paymentDay = 3
             ),
             state
         )
@@ -87,6 +89,7 @@ class AdminRentalEditLogicTest {
             totalPaidRub = 0,
             totalAdjustmentRub = 0,
             weeklyRateRub = 3000,
+            paymentDay = 5,
             clientLogin = "client-login",
             clientPassword = "client-password",
             videoUrl = null,
@@ -109,6 +112,7 @@ class AdminRentalEditLogicTest {
         )
 
         assertEquals("bike-ninebot", state.bikeId)
+        assertEquals(5, state.paymentDay)
     }
 
     @Test
@@ -123,6 +127,12 @@ class AdminRentalEditLogicTest {
             AdminRentalEditEndBeforeStartMessage,
             adminRentalEditValidationError(periodStart = "2026-05-10", periodEnd = "2026-05-09")
         )
+    }
+
+    @Test
+    fun normalizedPaymentDay_fallsBackToStartWeekday() {
+        assertEquals(3, normalizedRentalPaymentDay(paymentDay = 9, periodStart = "2026-05-27"))
+        assertEquals(7, normalizedRentalPaymentDay(paymentDay = 7, periodStart = "2026-05-27"))
     }
 
     private fun rentalDetails(
@@ -151,6 +161,7 @@ class AdminRentalEditLogicTest {
         totalAdjustmentRub = 0,
         rentalPipelineStatus = "long_term",
         rentalIsActive = rentalIsActive,
+        paymentDay = 3,
         journalEntries = emptyList(),
         videoUrl = videoUrl,
         contractUrl = contractUrl,

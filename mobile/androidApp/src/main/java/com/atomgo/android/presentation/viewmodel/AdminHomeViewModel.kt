@@ -94,6 +94,7 @@ class AdminHomeViewModel(
         password: String,
         periodStart: String,
         periodEnd: String? = null,
+        paymentDay: Int,
         videoUrl: String? = null,
         contractUrl: String? = null,
         comment: String? = null,
@@ -109,6 +110,7 @@ class AdminHomeViewModel(
                     password = password,
                     periodStart = periodStart,
                     periodEnd = periodEnd,
+                    paymentDay = paymentDay,
                     videoUrl = videoUrl,
                     contractUrl = contractUrl,
                     comment = comment
@@ -237,6 +239,7 @@ class AdminHomeViewModel(
         bikeId: String,
         periodStart: String,
         periodEnd: String?,
+        paymentDay: Int,
         login: String?,
         password: String?,
         videoUrl: String? = null,
@@ -252,6 +255,7 @@ class AdminHomeViewModel(
                     bikeId = bikeId,
                     periodStart = periodStart,
                     periodEnd = periodEnd,
+                    paymentDay = paymentDay,
                     login = login,
                     password = password,
                     videoUrl = videoUrl,
@@ -276,6 +280,8 @@ class AdminHomeViewModel(
             bikeId = bikeId,
             periodStart = periodStart,
             periodEnd = finishDate,
+            paymentDay = runCatching { java.time.LocalDate.parse(periodStart).dayOfWeek.value }
+                .getOrDefault(java.time.LocalDate.now().dayOfWeek.value),
             login = null,
             password = null,
             videoUrl = null,
@@ -292,6 +298,7 @@ class AdminHomeViewModel(
         login: String,
         password: String,
         periodStart: String,
+        paymentDay: Int,
         onResult: (Result<Unit>) -> Unit
     ) {
         createAdminRental(
@@ -301,6 +308,7 @@ class AdminHomeViewModel(
             login = login,
             password = password,
             periodStart = periodStart,
+            paymentDay = paymentDay,
             onResult = onResult
         )
     }
@@ -341,6 +349,7 @@ class AdminHomeViewModel(
         login: String,
         password: String,
         periodStart: String,
+        paymentDay: Int,
         onResult: (Result<Unit>) -> Unit
     ) {
         viewModelScope.launch {
@@ -351,7 +360,8 @@ class AdminHomeViewModel(
                     clientId = clientId,
                     login = login,
                     password = password,
-                    periodStart = periodStart
+                    periodStart = periodStart,
+                    paymentDay = paymentDay
                 )
             }.also(onResult)
         }

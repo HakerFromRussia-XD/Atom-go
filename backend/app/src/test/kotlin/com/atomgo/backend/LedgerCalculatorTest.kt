@@ -74,6 +74,79 @@ class LedgerCalculatorTest {
         assertEquals("Долг за 7 дн.", projection.statusText)
     }
 
+    @Test
+    fun `payment day shift should charge transition days before first selected payment day`() {
+        val debt = LedgerCalculator.debtRub(
+            clientId = "c1",
+            rentalStartDate = LocalDate.parse("2026-05-27"),
+            weeklyRateRub = 3500,
+            entries = emptyList(),
+            asOf = LocalDate.parse("2026-05-27"),
+            rentalId = "r1",
+            paymentDay = 5
+        )
+
+        assertEquals(1000, debt)
+    }
+
+    @Test
+    fun `payment day shift should keep paid week as credit until first selected payment day`() {
+        val entries = listOf(
+            LedgerEntry("p1", "c1", LedgerType.PAYMENT, -1, 3500, Instant.now(), rentalId = "r1")
+        )
+
+        val debt = LedgerCalculator.debtRub(
+            clientId = "c1",
+            rentalStartDate = LocalDate.parse("2026-05-27"),
+            weeklyRateRub = 3500,
+            entries = entries,
+            asOf = LocalDate.parse("2026-05-29"),
+            rentalId = "r1",
+            paymentDay = 5
+        )
+
+        assertEquals(1000, debt)
+    }
+
+    @Test
+    fun `payment day shift should switch unpaid debt to weekly amount on first selected payment day`() {
+        val debt = LedgerCalculator.debtRub(
+            clientId = "c1",
+            rentalStartDate = LocalDate.parse("2026-05-27"),
+            weeklyRateRub = 3500,
+            entries = emptyList(),
+            asOf = LocalDate.parse("2026-05-29"),
+            rentalId = "r1",
+            paymentDay = 5
+        )
+
+        assertEquals(3500, debt)
+    }
+
+    @Test
+    fun `payment day equal to start weekday should keep old weekly schedule`() {
+        val shifted = LedgerCalculator.debtRub(
+            clientId = "c1",
+            rentalStartDate = LocalDate.parse("2026-05-27"),
+            weeklyRateRub = 3500,
+            entries = emptyList(),
+            asOf = LocalDate.parse("2026-06-03"),
+            rentalId = "r1",
+            paymentDay = 3
+        )
+        val old = LedgerCalculator.debtRub(
+            clientId = "c1",
+            rentalStartDate = LocalDate.parse("2026-05-27"),
+            weeklyRateRub = 3500,
+            entries = emptyList(),
+            asOf = LocalDate.parse("2026-06-03"),
+            rentalId = "r1"
+        )
+
+        assertEquals(old, shifted)
+        assertEquals(7000, shifted)
+    }
+
     // --- finalDebtOnClosure ---
 
     /**

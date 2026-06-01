@@ -10,9 +10,37 @@ struct RentalEditorInitialValues {
     let password: String
     let periodStart: String
     let periodEnd: String?
+    let paymentDay: Int
     let videoUrl: String?
     let contractUrl: String?
     let comment: String?
+}
+
+private struct RentalPaymentDayOption {
+    let value: Int
+    let label: String
+}
+
+private let paymentDayOptions: [RentalPaymentDayOption] = [
+    .init(value: 1, label: "пн"),
+    .init(value: 2, label: "вт"),
+    .init(value: 3, label: "ср"),
+    .init(value: 4, label: "чт"),
+    .init(value: 5, label: "пт"),
+    .init(value: 6, label: "сб"),
+    .init(value: 7, label: "вс")
+]
+
+private func currentIsoWeekday() -> Int {
+    let weekday = Calendar(identifier: .gregorian).component(.weekday, from: Date())
+    return ((weekday + 5) % 7) + 1
+}
+
+private func normalizedPaymentDay(_ paymentDay: Int, fallbackDate: String) -> Int {
+    if (1...7).contains(paymentDay) { return paymentDay }
+    guard let date = DateFormatter.apiDate.date(from: fallbackDate) else { return currentIsoWeekday() }
+    let weekday = Calendar(identifier: .gregorian).component(.weekday, from: date)
+    return ((weekday + 5) % 7) + 1
 }
 
 struct CreateRentalSheet: View {
@@ -50,6 +78,7 @@ struct CreateRentalSheet: View {
     @State private var password: String
     @State private var periodStart: String
     @State private var periodEnd: String
+    @State private var paymentDay: Int
     @State private var videoUrl: String
     @State private var contractUrl: String
     @State private var comment: String
@@ -84,6 +113,7 @@ struct CreateRentalSheet: View {
         _password = State(initialValue: "")
         _periodStart = State(initialValue: DateFormatter.apiDate.string(from: Date()))
         _periodEnd = State(initialValue: "")
+        _paymentDay = State(initialValue: currentIsoWeekday())
         _videoUrl = State(initialValue: "")
         _contractUrl = State(initialValue: "")
         _comment = State(initialValue: "")
@@ -111,6 +141,7 @@ struct CreateRentalSheet: View {
         _password = State(initialValue: initialValues.password)
         _periodStart = State(initialValue: initialValues.periodStart)
         _periodEnd = State(initialValue: initialValues.periodEnd ?? "")
+        _paymentDay = State(initialValue: normalizedPaymentDay(initialValues.paymentDay, fallbackDate: initialValues.periodStart))
         _videoUrl = State(initialValue: initialValues.videoUrl ?? "")
         _contractUrl = State(initialValue: initialValues.contractUrl ?? "")
         _comment = State(initialValue: initialValues.comment ?? "")
@@ -160,6 +191,8 @@ struct CreateRentalSheet: View {
                             id: "createRental.periodEndField",
                             isDashed: true
                         )
+
+                        paymentDaySelector
 
                         sectionTitle("ДОСТУП КЛИЕНТА", topPadding: 6)
 
@@ -453,6 +486,48 @@ struct CreateRentalSheet: View {
         )
     }
 
+    private var paymentDaySelector: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("день оплаты аренды")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(AppDesign.paleSky)
+
+            HStack(spacing: 0) {
+                ForEach(paymentDayOptions, id: \.value) { option in
+                    paymentDaySegment(option)
+                }
+            }
+            .frame(height: 46)
+            .background(AppDesign.segmentBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .accessibilityIdentifier("createRental.paymentDaySelector")
+        }
+    }
+
+    private func paymentDaySegment(_ option: RentalPaymentDayOption) -> some View {
+        Button {
+            paymentDay = option.value
+        } label: {
+            Text(option.label)
+                .font(.system(size: 12, weight: paymentDay == option.value ? .bold : .medium))
+                .foregroundStyle(paymentDay == option.value ? AppDesign.darkControl : AppDesign.subtleText)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity)
+                .frame(height: 38)
+                .background {
+                    RoundedRectangle(cornerRadius: 15, style: .continuous)
+                        .fill(paymentDay == option.value ? AppDesign.surfaceBackground : AppDesign.clear)
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: 15, style: .continuous)
+                        .stroke(paymentDay == option.value ? AppDesign.darkControl : AppDesign.clear, lineWidth: 1.5)
+                }
+                .padding(4)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("createRental.paymentDay.\(option.value)")
+    }
+
     private func generateCredentials() {
         let symbols = Array("ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%")
         password = String((0..<12).compactMap { _ in symbols.randomElement() })
@@ -541,6 +616,7 @@ struct CreateRentalSheet: View {
                     password: normalizedPassword,
                     periodStart: normalizedStart,
                     periodEnd: normalizedEnd,
+                    paymentDay: paymentDay,
                     videoUrl: videoUrl.trimmedToOptional,
                     contractUrl: contractUrl.trimmedToOptional,
                     comment: comment.trimmedToOptional
@@ -554,6 +630,7 @@ struct CreateRentalSheet: View {
                     bikeId: selectedBikeId,
                     periodStart: normalizedStart,
                     periodEnd: normalizedEnd,
+                    paymentDay: paymentDay,
                     login: normalizedLogin,
                     password: normalizedPassword,
                     videoUrl: videoUrl.trimmedToOptional,

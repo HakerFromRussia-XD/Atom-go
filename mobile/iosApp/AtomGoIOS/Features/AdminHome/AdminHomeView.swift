@@ -424,7 +424,8 @@ struct AdminHomeView: View {
                         clientId: payload.clientId,
                         login: payload.login,
                         password: payload.password,
-                        periodStart: payload.periodStart
+                        periodStart: payload.periodStart,
+                        paymentDay: payload.paymentDay
                     ) {
                         viewModel.openRentalDetails(rentalId: rentalId)
                     }
@@ -479,7 +480,8 @@ struct AdminHomeView: View {
                         clientId: payload.clientId,
                         login: payload.login,
                         password: payload.password,
-                        periodStart: payload.periodStart
+                        periodStart: payload.periodStart,
+                        paymentDay: payload.paymentDay
                     ) {
                         rentalDetailsContext = RentalDetailsContext(
                             clientId: payload.clientId,

@@ -2,6 +2,11 @@ import SwiftUI
 import PhotosUI
 import UIKit
 
+private func currentRentalStartPaymentDay() -> Int {
+    let weekday = Calendar(identifier: .gregorian).component(.weekday, from: Date())
+    return ((weekday + 5) % 7) + 1
+}
+
 struct AdminRentalDetailsScreen: View {
     let details: AdminRentalDetailsResponse?
     let fallbackSummary: AdminClientSummaryResponse?
@@ -769,6 +774,7 @@ struct AdminRentalDetailsScreen: View {
             password: normalizedCredential(details?.clientPassword),
             periodStart: details?.rentalStart ?? DateFormatter.apiDate.string(from: Date()),
             periodEnd: details?.completedAt,
+            paymentDay: details?.paymentDay ?? currentRentalStartPaymentDay(),
             videoUrl: details?.videoUrl,
             contractUrl: details?.contractUrl,
             comment: details?.comment
@@ -1064,6 +1070,7 @@ struct AdminRentalDetailsScreen: View {
             password: password,
             periodStart: DateFormatter.apiDate.string(from: Date()),
             periodEnd: nil,
+            paymentDay: currentRentalStartPaymentDay(),
             videoUrl: nil,
             contractUrl: nil,
             comment: nil

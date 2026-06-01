@@ -1235,7 +1235,7 @@ internal fun AdminHomeScreen(
             clients = clientsCatalog,
             bikes = bikesCatalog,
             onDismiss = { showCreateRental = false },
-            onCreate = { clientId, bikeId, login, password, periodStart, periodEnd, videoUrl, contractUrl, comment ->
+            onCreate = { clientId, bikeId, login, password, periodStart, periodEnd, paymentDay, videoUrl, contractUrl, comment ->
                 adminHomeViewModel.createAdminRental(
                     accessToken = session.accessToken,
                     clientId = clientId.ifBlank { null },
@@ -1244,6 +1244,7 @@ internal fun AdminHomeScreen(
                     password = password,
                     periodStart = periodStart,
                     periodEnd = periodEnd.ifBlank { null },
+                    paymentDay = paymentDay,
                     videoUrl = videoUrl.ifBlank { null },
                     contractUrl = contractUrl.ifBlank { null },
                     comment = comment.ifBlank { null }
@@ -1331,7 +1332,8 @@ internal fun AdminHomeScreen(
                     bikeId = bikeId,
                     login = login,
                     password = password,
-                    periodStart = periodStart
+                    periodStart = periodStart,
+                    paymentDay = todayRentalPaymentDay()
                 ) { result ->
                     result.onSuccess {
                         adminMessage = "Аренда запущена"
@@ -1486,7 +1488,8 @@ internal fun AdminHomeScreen(
                     clientId = clientId,
                     login = login,
                     password = password,
-                    periodStart = periodStart
+                    periodStart = periodStart,
+                    paymentDay = todayRentalPaymentDay()
                 ) { result ->
                     result.onSuccess {
                         adminMessage = "Новая клиентская аренда запущена"
@@ -1553,13 +1556,14 @@ internal fun AdminHomeScreen(
                 clients = clientsCatalog,
                 bikes = bikesCatalog,
                 onDismiss = { showUpdateRental = false },
-                onUpdate = { rentalId, _, bikeId, periodStart, periodEnd, login, password, videoUrl, contractUrl, comment ->
+                onUpdate = { rentalId, _, bikeId, periodStart, periodEnd, paymentDay, login, password, videoUrl, contractUrl, comment ->
                     adminHomeViewModel.updateAdminRental(
                         accessToken = session.accessToken,
                         rentalId = rentalId,
                         bikeId = bikeId,
                         periodStart = periodStart,
                         periodEnd = periodEnd.ifBlank { null },
+                        paymentDay = paymentDay,
                         login = login.ifBlank { null },
                         password = password.ifBlank { null },
                         videoUrl = videoUrl.ifBlank { null },

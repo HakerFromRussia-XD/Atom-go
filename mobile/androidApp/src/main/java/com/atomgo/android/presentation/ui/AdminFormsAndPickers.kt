@@ -453,7 +453,7 @@ internal fun AdminCreateRentalDialog(
     clients: List<AdminClientSummaryResponse>,
     bikes: List<AdminBikeResponse>,
     onDismiss: () -> Unit,
-    onCreate: (String, String, String, String, String, String, String, String, String) -> Unit
+    onCreate: (String, String, String, String, String, String, Int, String, String, String) -> Unit
 ) {
     var clientId by remember { mutableStateOf("") }
     var bikeId by remember { mutableStateOf("") }
@@ -461,6 +461,7 @@ internal fun AdminCreateRentalDialog(
     var password by remember { mutableStateOf("") }
     var periodStart by remember { mutableStateOf(LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)) }
     var periodEnd by remember { mutableStateOf("") }
+    var paymentDay by remember { mutableStateOf(todayRentalPaymentDay()) }
     var videoUrl by remember { mutableStateOf("") }
     var contractUrl by remember { mutableStateOf("") }
     var comment by remember { mutableStateOf("") }
@@ -562,6 +563,7 @@ internal fun AdminCreateRentalDialog(
                     password.trim(),
                     start,
                     periodEnd.trim(),
+                    paymentDay,
                     videoUrl.trim(),
                     contractUrl.trim(),
                     comment.trim()
@@ -618,6 +620,11 @@ internal fun AdminCreateRentalDialog(
                 testTag = "create_rental_end_date_input",
                 keyboardType = KeyboardType.Text,
                 isDashed = true
+            )
+            AdminRentalPaymentDaySelector(
+                selectedDay = paymentDay,
+                onSelect = { paymentDay = it },
+                testTagPrefix = "create_rental_payment_day"
             )
 
             AdminFormSectionTitle("ДОСТУП КЛИЕНТА", topPadding = 6.dp)
@@ -747,6 +754,72 @@ internal fun AdminCreateRentalDialog(
                 listTag = "create_rental_bike_picker_list"
             )
         }
+    }
+}
+
+@Composable
+private fun AdminRentalPaymentDaySelector(
+    selectedDay: Int,
+    onSelect: (Int) -> Unit,
+    testTagPrefix: String
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            text = "день оплаты аренды",
+            color = AppDesign.PaleSky,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(start = 2.dp)
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(46.dp)
+                .background(AppDesign.SegmentBackground, RoundedCornerShape(16.dp))
+                .testTag("${testTagPrefix}_selector")
+        ) {
+            AdminRentalPaymentDayOptions.forEach { option ->
+                AdminRentalPaymentDaySegment(
+                    label = option.label,
+                    selected = selectedDay == option.value,
+                    onClick = { onSelect(option.value) },
+                    modifier = Modifier
+                        .weight(1f)
+                        .testTag("${testTagPrefix}_${option.value}")
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AdminRentalPaymentDaySegment(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(15.dp)
+    Box(
+        modifier = modifier
+            .padding(4.dp)
+            .fillMaxHeight()
+            .adminClickable(shape = shape, onClick = onClick)
+            .background(if (selected) AppDesign.SurfaceBackground else AppDesign.Transparent, shape)
+            .border(
+                width = if (selected) 1.5.dp else 0.dp,
+                color = if (selected) AppDesign.DarkControl else AppDesign.Transparent,
+                shape = shape
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            color = if (selected) AppDesign.DarkControl else AppDesign.SubtleText,
+            fontSize = 12.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            maxLines = 1
+        )
     }
 }
 
@@ -1981,7 +2054,7 @@ internal fun AdminUpdateRentalDialog(
     clients: List<AdminClientSummaryResponse>,
     bikes: List<AdminBikeResponse>,
     onDismiss: () -> Unit,
-    onUpdate: (String, String, String, String, String, String, String, String, String, String) -> Unit
+    onUpdate: (String, String, String, String, String, Int, String, String, String, String, String) -> Unit
 ) {
     val initialState = remember(details, bikes) { adminRentalEditInitialState(details, bikes) }
     var clientId by remember(initialState) { mutableStateOf(initialState.clientId) }
@@ -1990,6 +2063,7 @@ internal fun AdminUpdateRentalDialog(
     var password by remember(initialState) { mutableStateOf(initialState.password) }
     var periodStart by remember(initialState) { mutableStateOf(initialState.periodStart) }
     var periodEnd by remember(initialState) { mutableStateOf(initialState.periodEnd) }
+    var paymentDay by remember(initialState) { mutableStateOf(initialState.paymentDay) }
     var videoUrl by remember(initialState) { mutableStateOf(initialState.videoUrl) }
     var contractUrl by remember(initialState) { mutableStateOf(initialState.contractUrl) }
     var comment by remember(initialState) { mutableStateOf(initialState.comment) }
@@ -2066,6 +2140,7 @@ internal fun AdminUpdateRentalDialog(
                         bikeId.trim(),
                         normalizedStart,
                         normalizedEnd,
+                        paymentDay,
                         normalizedLogin,
                         normalizedPassword,
                         videoUrl.trim(),
@@ -2124,6 +2199,11 @@ internal fun AdminUpdateRentalDialog(
                 testTag = "edit_rental_end_date_input",
                 keyboardType = KeyboardType.Text,
                 isDashed = true
+            )
+            AdminRentalPaymentDaySelector(
+                selectedDay = paymentDay,
+                onSelect = { paymentDay = it },
+                testTagPrefix = "edit_rental_payment_day"
             )
 
             AdminFormSectionTitle("ДОСТУП КЛИЕНТА", topPadding = 6.dp)

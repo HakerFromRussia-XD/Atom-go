@@ -212,6 +212,8 @@ private data class ApiAdminRentalHistoryItemResponse(
     val debtRub: Int = 0,
     @SerialName("total_adjustment_rub")
     val totalAdjustmentRub: Int = 0,
+    @SerialName("payment_day")
+    val paymentDay: Int = 1,
     @SerialName("admin_id")
     val adminId: String?,
     @SerialName("tax_mode")
@@ -381,6 +383,8 @@ private data class ApiAdminCreateRentalRequest(
     val periodStart: String,
     @SerialName("period_end")
     val periodEnd: String? = null,
+    @SerialName("payment_day")
+    val paymentDay: Int? = null,
     @SerialName("video_url")
     val videoUrl: String? = null,
     @SerialName("contract_url")
@@ -395,7 +399,9 @@ private data class ApiAdminStartClientRentalRequest(
     val login: String,
     val password: String,
     @SerialName("period_start")
-    val periodStart: String
+    val periodStart: String,
+    @SerialName("payment_day")
+    val paymentDay: Int? = null
 )
 
 @Serializable
@@ -467,6 +473,8 @@ private data class ApiAdminUpdateRentalRequest(
     val bikeId: String,
     @SerialName("period_start")
     val periodStart: String,
+    @SerialName("payment_day")
+    val paymentDay: Int? = null,
     @SerialName("period_end")
     val periodEnd: String? = null,
     val login: String? = null,
@@ -508,6 +516,8 @@ private data class ApiAdminStartClientRentalResponse(
     val clientId: String,
     @SerialName("period_start")
     val periodStart: String,
+    @SerialName("payment_day")
+    val paymentDay: Int = 1,
     @SerialName("pipeline_status")
     val pipelineStatus: String
 )
@@ -605,6 +615,8 @@ private data class ApiAdminRentalDetailsResponse(
     val rentalPipelineStatus: String,
     @SerialName("rental_is_active")
     val rentalIsActive: Boolean,
+    @SerialName("payment_day")
+    val paymentDay: Int = 1,
     @SerialName("journal_entries")
     val journalEntries: List<ApiAdminRentalJournalEntryResponse>,
     @SerialName("video_url")
@@ -700,6 +712,7 @@ private data class ClientBillingSnapshot(
     val bikePhotoUrl: String?,
     val taxMode: AdminTaxMode,
     val pipelineStatus: RentalPipelineStatus,
+    val paymentDay: Int,
     val isActive: Boolean
 )
 
@@ -709,6 +722,30 @@ private fun RentalRecord.isActiveAt(asOf: LocalDate): Boolean {
 
 private fun ClientRentalRecord.isActiveAt(asOf: LocalDate): Boolean {
     return startDate <= asOf && (endDate == null || endDate.isAfter(asOf))
+}
+
+private fun normalizedPaymentDay(paymentDay: Int?, startDate: LocalDate): Int {
+    return paymentDay?.takeIf { it in 1..7 } ?: startDate.dayOfWeek.value
+}
+
+private fun validatePaymentDay(paymentDay: Int?): Boolean {
+    return paymentDay == null || paymentDay in 1..7
+}
+
+private fun activeDebtPaymentDay(rental: ClientRentalRecord, pipelineStatus: RentalPipelineStatus?): Int {
+    return if (pipelineStatus == RentalPipelineStatus.SOON_RETURN) {
+        rental.startDate.dayOfWeek.value
+    } else {
+        normalizedPaymentDay(rental.paymentDay, rental.startDate)
+    }
+}
+
+private fun billingProjectionPaymentDay(snapshot: ClientBillingSnapshot): Int {
+    return if (snapshot.pipelineStatus == RentalPipelineStatus.SOON_RETURN) {
+        snapshot.rentalStartDate.dayOfWeek.value
+    } else {
+        normalizedPaymentDay(snapshot.paymentDay, snapshot.rentalStartDate)
+    }
 }
 
 private fun isVisibleClient(store: InMemoryStore, clientId: String?): Boolean {
@@ -806,6 +843,7 @@ private fun ensureClientRentalModel(store: InMemoryStore): Boolean {
                     videoUrl = rental.videoUrl,
                     contractUrl = rental.contractUrl,
                     comment = rental.comment,
+                    paymentDay = normalizedPaymentDay(rental.paymentDay, rental.startDate),
                     adminId = rental.adminId,
                     taxMode = rental.taxMode
                 )
@@ -973,6 +1011,7 @@ private fun ensureClientRentalModel(store: InMemoryStore): Boolean {
             rental.clientLogin != null ||
             rental.clientPassword != null ||
             rental.startDate != activeClientRental.startDate ||
+            rental.paymentDay != activeClientRental.paymentDay ||
             rental.endDate != null
         ) {
             changed = true
@@ -981,6 +1020,7 @@ private fun ensureClientRentalModel(store: InMemoryStore): Boolean {
                 clientLogin = null,
                 clientPassword = null,
                 startDate = activeClientRental.startDate,
+                paymentDay = activeClientRental.paymentDay,
                 endDate = null,
                 pipelineStatus = if (rental.pipelineStatus == RentalPipelineStatus.IN_STOCK) {
                     RentalPipelineStatus.LONG_TERM
@@ -1028,6 +1068,7 @@ private fun resolveClientBillingSnapshot(
         bikePhotoUrl = bike.photoUrl,
         taxMode = clientRental.taxMode,
         pipelineStatus = lifecycleRental?.pipelineStatus ?: RentalPipelineStatus.LONG_TERM,
+        paymentDay = normalizedPaymentDay(clientRental.paymentDay, clientRental.startDate),
         isActive = clientRental.isActiveAt(asOf)
     )
 }
@@ -1385,6 +1426,10 @@ private fun createRentalForClient(
     if (periodEnd != null && periodEnd.isBefore(periodStart)) {
         return RentalCreationOutcome.Failure(HttpStatusCode.BadRequest, "period_end must be after or equal to period_start")
     }
+    if (!validatePaymentDay(request.paymentDay)) {
+        return RentalCreationOutcome.Failure(HttpStatusCode.BadRequest, "payment_day must be between 1 and 7")
+    }
+    val paymentDay = normalizedPaymentDay(request.paymentDay, periodStart)
 
     val client = store.clients.firstOrNull { it.id == clientId && it.deletedAt == null }
         ?: return RentalCreationOutcome.Failure(HttpStatusCode.NotFound, "Client not found")
@@ -1437,6 +1482,7 @@ private fun createRentalForClient(
             videoUrl = null,
             contractUrl = null,
             comment = null,
+            paymentDay = paymentDay,
             adminId = adminId,
             taxMode = taxMode
         )
@@ -1452,6 +1498,7 @@ private fun createRentalForClient(
             videoUrl = request.videoUrl?.trim()?.ifBlank { null },
             contractUrl = request.contractUrl?.trim()?.ifBlank { null },
             comment = request.comment?.trim()?.ifBlank { null },
+            paymentDay = paymentDay,
             adminId = adminId,
             taxMode = taxMode,
             clientPasswordFingerprint = newPasswordFingerprint
@@ -1470,6 +1517,7 @@ private fun createRentalForClient(
                 videoUrl = clientRental.videoUrl,
                 contractUrl = clientRental.contractUrl,
                 comment = clientRental.comment,
+                paymentDay = paymentDay,
                 adminId = rental.adminId,
                 taxMode = rental.taxMode.name.lowercase()
             )
@@ -1505,6 +1553,10 @@ private fun startClientRentalInExistingRental(
     } catch (_: Throwable) {
         return StartClientRentalOutcome.Failure(HttpStatusCode.BadRequest, "period_start must be YYYY-MM-DD")
     }
+    if (!validatePaymentDay(request.paymentDay)) {
+        return StartClientRentalOutcome.Failure(HttpStatusCode.BadRequest, "payment_day must be between 1 and 7")
+    }
+    val paymentDay = normalizedPaymentDay(request.paymentDay, periodStart)
 
     return synchronized(stateLock) {
         val rentalIndex = store.rentals.indexOfFirst { it.id == rentalId && it.deletedAt == null }
@@ -1569,6 +1621,7 @@ private fun startClientRentalInExistingRental(
             clientLogin = null,
             clientPassword = null,
             startDate = periodStart,
+            paymentDay = paymentDay,
             endDate = null,
             pipelineStatus = RentalPipelineStatus.LONG_TERM
         )
@@ -1584,6 +1637,7 @@ private fun startClientRentalInExistingRental(
             videoUrl = null,
             contractUrl = null,
             comment = null,
+            paymentDay = paymentDay,
             adminId = adminId,
             taxMode = currentRental.taxMode,
             clientPasswordFingerprint = newPasswordFingerprint
@@ -1597,6 +1651,7 @@ private fun startClientRentalInExistingRental(
                 rentalId = restartedRental.id,
                 clientId = restartedRental.clientId,
                 periodStart = restartedRental.startDate.toString(),
+                paymentDay = paymentDay,
                 pipelineStatus = RentalPipelineStatus.toApi(restartedRental.pipelineStatus)
             )
         )
@@ -1875,7 +1930,8 @@ private fun buildAdminClientSummary(
             weeklyRateRub = snapshot.weeklyRateRub,
             entries = store.ledger,
             asOf = now,
-            rentalId = snapshot.clientRentalId
+            rentalId = snapshot.clientRentalId,
+            paymentDay = billingProjectionPaymentDay(snapshot)
         )
     } else {
         null
@@ -1952,7 +2008,8 @@ private fun clientRentalDisplayDebtRub(
             weeklyRateRub = weeklyRateRub,
             entries = entries,
             asOf = asOf,
-            rentalId = rental.id
+            rentalId = rental.id,
+            paymentDay = activeDebtPaymentDay(rental, pipelineStatus)
         )
     }
 }
@@ -2071,7 +2128,8 @@ private fun buildAdminClientDetails(
             weeklyRateRub = snapshot.weeklyRateRub,
             entries = store.ledger,
             asOf = now,
-            rentalId = snapshot.clientRentalId
+            rentalId = snapshot.clientRentalId,
+            paymentDay = billingProjectionPaymentDay(snapshot)
         )
     } else {
         null
@@ -2137,6 +2195,7 @@ private fun buildAdminClientDetails(
                 totalPaidRub = rentalPaidRub,
                 debtRub = rentalDebtRub,
                 totalAdjustmentRub = rentalAdjustmentRub,
+                paymentDay = normalizedPaymentDay(it.paymentDay, it.startDate),
                 adminId = it.adminId,
                 taxMode = it.taxMode.name.lowercase()
             )
@@ -3189,7 +3248,8 @@ fun Application.module() {
                         weeklyRateRub = snapshot.weeklyRateRub,
                         entries = store.ledger,
                         asOf = chargeAsOf,
-                        rentalId = snapshot.clientRentalId
+                        rentalId = snapshot.clientRentalId,
+                        paymentDay = billingProjectionPaymentDay(snapshot)
                     )
                 } else {
                     null
@@ -3450,7 +3510,8 @@ fun Application.module() {
                             weeklyRateRub = bike.weeklyRateRub,
                             entries = store.ledger,
                             asOf = now,
-                            rentalId = targetClientRental.id
+                            rentalId = targetClientRental.id,
+                            paymentDay = activeDebtPaymentDay(targetClientRental, rental?.pipelineStatus)
                         )
                     } else {
                         null
@@ -3522,6 +3583,9 @@ fun Application.module() {
                         },
                         rentalPipelineStatus = RentalPipelineStatus.toApi(rental?.pipelineStatus ?: RentalPipelineStatus.LONG_TERM),
                         rentalIsActive = rentalIsActive,
+                        paymentDay = targetClientRental?.let { normalizedPaymentDay(it.paymentDay, it.startDate) }
+                            ?: rental?.let { normalizedPaymentDay(it.paymentDay, it.startDate) }
+                            ?: 1,
                         journalEntries = journal,
                         videoUrl = targetClientRental?.videoUrl ?: rental?.videoUrl,
                         contractUrl = targetClientRental?.contractUrl ?: rental?.contractUrl,
@@ -4057,14 +4121,17 @@ fun Application.module() {
                     persistState()
                     val now = LocalDate.now()
                     val snapshot = resolveClientBillingSnapshot(client.id, store, now, session.userId)
-                    val debt = if (snapshot?.isActive == true) {
-                        LedgerCalculator.debtRub(
+                    val snapshotRental = snapshot?.clientRentalId?.let { clientRentalId ->
+                        store.clientRentals.firstOrNull { it.id == clientRentalId }
+                    }
+                    val debt = if (snapshot?.isActive == true && snapshotRental != null) {
+                        clientRentalDisplayDebtRub(
                             clientId = client.id,
-                            rentalStartDate = snapshot.rentalStartDate,
+                            rental = snapshotRental,
                             weeklyRateRub = snapshot.weeklyRateRub,
                             entries = store.ledger,
                             asOf = now,
-                            rentalId = snapshot.clientRentalId
+                            pipelineStatus = snapshot.pipelineStatus
                         )
                     } else {
                         0
@@ -4195,7 +4262,11 @@ fun Application.module() {
                             weeklyRateRub = bike.weeklyRateRub,
                             entries = store.ledger,
                             asOf = today,
-                            rentalId = clientRental.id
+                            rentalId = clientRental.id,
+                            paymentDay = activeDebtPaymentDay(
+                                clientRental,
+                                store.rentals.firstOrNull { it.id == clientRental.rentalId }?.pipelineStatus
+                            )
                         )
                     } else if (clientRental.endDate != null) {
                         LedgerCalculator.finalDebtOnClosure(
@@ -4495,6 +4566,10 @@ fun Application.module() {
                     call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "login and password are required"))
                     return@post
                 }
+                if (!validatePaymentDay(request.paymentDay)) {
+                    call.respond(HttpStatusCode.BadRequest, ApiErrorResponse(message = "payment_day must be between 1 and 7"))
+                    return@post
+                }
 
                 val updatedRental = synchronized(stateLock) {
                     val today = LocalDate.now()
@@ -4523,6 +4598,10 @@ fun Application.module() {
                         val newVideoUrl = request.videoUrl?.trim()?.ifBlank { null }
                         val newContractUrl = request.contractUrl?.trim()?.ifBlank { null }
                         val newComment = request.comment?.trim()?.ifBlank { null }
+                        val newPaymentDay = request.paymentDay?.let { normalizedPaymentDay(it, periodStart) }
+                            ?: targetClientRental?.paymentDay
+                            ?: currentRental?.paymentDay
+                            ?: periodStart.dayOfWeek.value
 
                         if (shouldUpdateCredentials && targetClientRental == null) {
                             return@synchronized RentalCreationOutcome.Failure(
@@ -4547,7 +4626,8 @@ fun Application.module() {
                                 endDate = periodEnd,
                                 videoUrl = newVideoUrl ?: currentRental.videoUrl,
                                 contractUrl = newContractUrl ?: currentRental.contractUrl,
-                                comment = newComment ?: currentRental.comment
+                                comment = newComment ?: currentRental.comment,
+                                paymentDay = newPaymentDay
                             )
 
                             targetClientRental?.let { currentClientRental ->
@@ -4562,6 +4642,7 @@ fun Application.module() {
                                         videoUrl = newVideoUrl ?: currentClientRental.videoUrl,
                                         contractUrl = newContractUrl ?: currentClientRental.contractUrl,
                                         comment = newComment ?: currentClientRental.comment,
+                                        paymentDay = newPaymentDay,
                                         clientPasswordFingerprint = normalizedPassword
                                             ?.let(::passwordFingerprint)
                                             ?: currentClientRental.clientPasswordFingerprint
@@ -4595,6 +4676,7 @@ fun Application.module() {
                                 videoUrl = updated.videoUrl,
                                 contractUrl = updated.contractUrl,
                                 comment = updated.comment,
+                                paymentDay = newPaymentDay,
                                 adminId = updated.adminId,
                                 taxMode = updated.taxMode.name.lowercase()
                             )
@@ -4610,6 +4692,7 @@ fun Application.module() {
                                 videoUrl = newVideoUrl ?: currentClientRental.videoUrl,
                                 contractUrl = newContractUrl ?: currentClientRental.contractUrl,
                                 comment = newComment ?: currentClientRental.comment,
+                                paymentDay = newPaymentDay,
                                 clientPasswordFingerprint = normalizedPassword
                                     ?.let(::passwordFingerprint)
                                     ?: currentClientRental.clientPasswordFingerprint
@@ -4645,6 +4728,7 @@ fun Application.module() {
                                 videoUrl = updatedClientRental.videoUrl,
                                 contractUrl = updatedClientRental.contractUrl,
                                 comment = updatedClientRental.comment,
+                                paymentDay = newPaymentDay,
                                 adminId = updatedClientRental.adminId,
                                 taxMode = updatedClientRental.taxMode.name.lowercase()
                             )

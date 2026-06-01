@@ -18,7 +18,11 @@ class AdminCashPaymentServiceTest {
         val store = InMemoryStore.seed()
         store.ledger.clear()
         store.bikes[0] = store.bikes[0].copy(weeklyRateRub = 3500)
-        store.clientRentals[0] = store.clientRentals[0].copy(startDate = today, endDate = null)
+        store.clientRentals[0] = store.clientRentals[0].copy(
+            startDate = today,
+            endDate = null,
+            paymentDay = today.dayOfWeek.value
+        )
         val service = AdminCashPaymentService(store)
 
         val result = service.recordForActiveClient(

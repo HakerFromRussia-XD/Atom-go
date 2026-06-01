@@ -173,6 +173,81 @@ private struct NativeAdminBikeRequest: Encodable {
     }
 }
 
+private struct NativeAdminCreateRentalRequest: Encodable {
+    let clientId: String
+    let bikeId: String
+    let login: String
+    let password: String
+    let periodStart: String
+    let periodEnd: String?
+    let paymentDay: Int
+    let videoUrl: String?
+    let contractUrl: String?
+    let comment: String?
+
+    enum CodingKeys: String, CodingKey {
+        case clientId = "client_id"
+        case bikeId = "bike_id"
+        case login
+        case password
+        case periodStart = "period_start"
+        case periodEnd = "period_end"
+        case paymentDay = "payment_day"
+        case videoUrl = "video_url"
+        case contractUrl = "contract_url"
+        case comment
+    }
+
+    init(payload: CreateRentalPayload) {
+        clientId = payload.clientId
+        bikeId = payload.bikeId
+        login = payload.login
+        password = payload.password
+        periodStart = payload.periodStart
+        periodEnd = payload.periodEnd
+        paymentDay = payload.paymentDay
+        videoUrl = payload.videoUrl
+        contractUrl = payload.contractUrl
+        comment = payload.comment
+    }
+}
+
+private struct NativeAdminUpdateRentalRequest: Encodable {
+    let bikeId: String
+    let periodStart: String
+    let periodEnd: String?
+    let paymentDay: Int
+    let login: String?
+    let password: String?
+    let videoUrl: String?
+    let contractUrl: String?
+    let comment: String?
+
+    enum CodingKeys: String, CodingKey {
+        case bikeId = "bike_id"
+        case periodStart = "period_start"
+        case periodEnd = "period_end"
+        case paymentDay = "payment_day"
+        case login
+        case password
+        case videoUrl = "video_url"
+        case contractUrl = "contract_url"
+        case comment
+    }
+
+    init(payload: UpdateRentalPayload) {
+        bikeId = payload.bikeId
+        periodStart = payload.periodStart
+        periodEnd = payload.periodEnd
+        paymentDay = payload.paymentDay
+        login = payload.login
+        password = payload.password
+        videoUrl = payload.videoUrl
+        contractUrl = payload.contractUrl
+        comment = payload.comment
+    }
+}
+
 private struct NativeUpdateRentalPipelineStatusRequest: Encodable {
     let pipelineStatus: String
 
@@ -206,12 +281,14 @@ private struct NativeStartClientRentalInExistingRequest: Encodable {
     let login: String
     let password: String
     let periodStart: String
+    let paymentDay: Int
 
     enum CodingKeys: String, CodingKey {
         case clientId = "client_id"
         case login
         case password
         case periodStart = "period_start"
+        case paymentDay = "payment_day"
     }
 }
 
@@ -219,12 +296,14 @@ private struct NativeStartClientRentalInExistingResponse: Decodable {
     let rentalId: String
     let clientId: String
     let periodStart: String
+    let paymentDay: Int
     let pipelineStatus: String
 
     enum CodingKeys: String, CodingKey {
         case rentalId = "rental_id"
         case clientId = "client_id"
         case periodStart = "period_start"
+        case paymentDay = "payment_day"
         case pipelineStatus = "pipeline_status"
     }
 }
@@ -254,6 +333,7 @@ private struct NativeAdminRentalHistoryItem: Decodable {
     let totalPaidRub: Int
     let debtRub: Int
     let totalAdjustmentRub: Int
+    let paymentDay: Int
 
     enum CodingKeys: String, CodingKey {
         case rentalId = "rental_id"
@@ -269,6 +349,7 @@ private struct NativeAdminRentalHistoryItem: Decodable {
         case totalPaidRub = "total_paid_rub"
         case debtRub = "debt_rub"
         case totalAdjustmentRub = "total_adjustment_rub"
+        case paymentDay = "payment_day"
     }
 }
 
@@ -436,7 +517,8 @@ protocol BackendServicing {
         clientId: String,
         login: String,
         password: String,
-        periodStart: String
+        periodStart: String,
+        paymentDay: Int
     ) async throws
     func adjustAdminClientDebt(
         accessToken: String,
@@ -820,23 +902,7 @@ final class BackendService: BackendServicing {
                 number: phone.number
             )
         }
-        let rentals = native.rentals.map { rental in
-            AdminRentalHistoryItem(
-                id: rental.rentalId,
-                bikeId: rental.bikeId,
-                bikeAvatarUrl: rental.bikeAvatarUrl,
-                periodStart: rental.periodStart,
-                periodEnd: rental.periodEnd,
-                bikeModel: rental.bikeModel,
-                videoUrl: rental.videoUrl,
-                contractUrl: rental.contractUrl,
-                comment: rental.comment,
-                weeklyRateRub: rental.weeklyRateRub,
-                totalPaidRub: rental.totalPaidRub,
-                debtRub: rental.debtRub,
-                totalAdjustmentRub: rental.totalAdjustmentRub
-            )
-        }
+        let rentals = native.rentals.map(mapNativeAdminRentalHistoryItem)
         return AdminClientDetailsResponse(
             clientId: native.clientId,
             fullName: native.fullName,
@@ -854,6 +920,25 @@ final class BackendService: BackendServicing {
             rentals: rentals,
             carriedDebtRub: native.carriedDebtRub ?? 0,
             comment: native.comment
+        )
+    }
+
+    private func mapNativeAdminRentalHistoryItem(_ rental: NativeAdminRentalHistoryItem) -> AdminRentalHistoryItem {
+        AdminRentalHistoryItem(
+            id: rental.rentalId,
+            bikeId: rental.bikeId,
+            bikeAvatarUrl: rental.bikeAvatarUrl,
+            periodStart: rental.periodStart,
+            periodEnd: rental.periodEnd,
+            bikeModel: rental.bikeModel,
+            videoUrl: rental.videoUrl,
+            contractUrl: rental.contractUrl,
+            comment: rental.comment,
+            weeklyRateRub: rental.weeklyRateRub,
+            totalPaidRub: rental.totalPaidRub,
+            debtRub: rental.debtRub,
+            totalAdjustmentRub: rental.totalAdjustmentRub,
+            paymentDay: rental.paymentDay
         )
     }
 
@@ -904,78 +989,26 @@ final class BackendService: BackendServicing {
         accessToken: String,
         payload: CreateRentalPayload
     ) async throws -> AdminRentalHistoryItem {
-        let request = shared.AdminCreateRentalRequest(
-            clientId: payload.clientId,
-            bikeId: payload.bikeId,
-            login: payload.login,
-            password: payload.password,
-            periodStart: payload.periodStart,
-            periodEnd: payload.periodEnd,
-            videoUrl: payload.videoUrl,
-            contractUrl: payload.contractUrl,
-            comment: payload.comment
+        let response: NativeAdminRentalHistoryItem = try await sendNativeRequest(
+            path: "/admin/rentals",
+            method: "POST",
+            accessToken: accessToken,
+            body: NativeAdminCreateRentalRequest(payload: payload)
         )
-        let response: shared.AdminRentalHistoryItemResponse = try await awaitResult { completion in
-            self.apiClient.createAdminRental(
-                accessToken: accessToken,
-                requestBody: request,
-                completionHandler: completion
-            )
-        }
-        return AdminRentalHistoryItem(
-            id: response.rentalId,
-            bikeId: response.bikeId,
-            bikeAvatarUrl: response.bikeAvatarUrl,
-            periodStart: response.periodStart,
-            periodEnd: response.periodEnd,
-            bikeModel: response.bikeModel,
-            videoUrl: response.videoUrl,
-            contractUrl: response.contractUrl,
-            comment: response.comment,
-            weeklyRateRub: Int(response.weeklyRateRub),
-            totalPaidRub: Int(response.totalPaidRub),
-            debtRub: Int(response.debtRub),
-            totalAdjustmentRub: Int(response.totalAdjustmentRub)
-        )
+        return mapNativeAdminRentalHistoryItem(response)
     }
 
     func updateAdminRental(
         accessToken: String,
         payload: UpdateRentalPayload
     ) async throws -> AdminRentalHistoryItem {
-        let request = shared.AdminUpdateRentalRequest(
-            bikeId: payload.bikeId,
-            periodStart: payload.periodStart,
-            periodEnd: payload.periodEnd,
-            login: payload.login,
-            password: payload.password,
-            videoUrl: payload.videoUrl,
-            contractUrl: payload.contractUrl,
-            comment: payload.comment
+        let response: NativeAdminRentalHistoryItem = try await sendNativeRequest(
+            path: "/admin/rentals/\(payload.rentalId)",
+            method: "POST",
+            accessToken: accessToken,
+            body: NativeAdminUpdateRentalRequest(payload: payload)
         )
-        let response: shared.AdminRentalHistoryItemResponse = try await awaitResult { completion in
-            self.apiClient.updateAdminRental(
-                accessToken: accessToken,
-                rentalId: payload.rentalId,
-                requestBody: request,
-                completionHandler: completion
-            )
-        }
-        return AdminRentalHistoryItem(
-            id: response.rentalId,
-            bikeId: response.bikeId,
-            bikeAvatarUrl: response.bikeAvatarUrl,
-            periodStart: response.periodStart,
-            periodEnd: response.periodEnd,
-            bikeModel: response.bikeModel,
-            videoUrl: response.videoUrl,
-            contractUrl: response.contractUrl,
-            comment: response.comment,
-            weeklyRateRub: Int(response.weeklyRateRub),
-            totalPaidRub: Int(response.totalPaidRub),
-            debtRub: Int(response.debtRub),
-            totalAdjustmentRub: Int(response.totalAdjustmentRub)
-        )
+        return mapNativeAdminRentalHistoryItem(response)
     }
 
     func deleteAdminRental(
@@ -1027,7 +1060,8 @@ final class BackendService: BackendServicing {
         clientId: String,
         login: String,
         password: String,
-        periodStart: String
+        periodStart: String,
+        paymentDay: Int
     ) async throws {
         let _: NativeStartClientRentalInExistingResponse = try await sendNativeRequest(
             path: "/admin/rentals/\(rentalId)/client-rentals",
@@ -1037,7 +1071,8 @@ final class BackendService: BackendServicing {
                 clientId: clientId,
                 login: login,
                 password: password,
-                periodStart: periodStart
+                periodStart: periodStart,
+                paymentDay: paymentDay
             )
         )
     }
@@ -1403,7 +1438,8 @@ final class BackendService: BackendServicing {
                 weeklyRateRub: Int($0.weeklyRateRub),
                 totalPaidRub: Int($0.totalPaidRub),
                 debtRub: Int($0.debtRub),
-                totalAdjustmentRub: Int($0.totalAdjustmentRub)
+                totalAdjustmentRub: Int($0.totalAdjustmentRub),
+                paymentDay: paymentDayFallback(periodStart: $0.periodStart)
             )
         }
 
@@ -1424,6 +1460,12 @@ final class BackendService: BackendServicing {
             rentals: rentals,
             carriedDebtRub: Int(details.carriedDebtRub)
         )
+    }
+
+    private func paymentDayFallback(periodStart: String) -> Int {
+        guard let date = DateFormatter.apiDate.date(from: periodStart) else { return 1 }
+        let weekday = Calendar(identifier: .gregorian).component(.weekday, from: date)
+        return ((weekday + 5) % 7) + 1
     }
 
     private static func healthCheckURL(fromBaseURL baseUrl: String) -> URL? {
@@ -1650,7 +1692,8 @@ final class LazyBackendService: BackendServicing {
         clientId: String,
         login: String,
         password: String,
-        periodStart: String
+        periodStart: String,
+        paymentDay: Int
     ) async throws {
         try await withFallback { service in
             try await service.startAdminClientRentalInExisting(
@@ -1659,7 +1702,8 @@ final class LazyBackendService: BackendServicing {
                 clientId: clientId,
                 login: login,
                 password: password,
-                periodStart: periodStart
+                periodStart: periodStart,
+                paymentDay: paymentDay
             )
         }
     }

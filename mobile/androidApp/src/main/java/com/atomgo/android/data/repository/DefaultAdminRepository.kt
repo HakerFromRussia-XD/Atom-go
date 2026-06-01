@@ -89,6 +89,7 @@ class DefaultAdminRepository : AdminRepository {
         password: String,
         periodStart: String,
         periodEnd: String?,
+        paymentDay: Int,
         videoUrl: String?,
         contractUrl: String?,
         comment: String?
@@ -103,6 +104,7 @@ class DefaultAdminRepository : AdminRepository {
                     password = password,
                     periodStart = periodStart,
                     periodEnd = periodEnd,
+                    paymentDay = paymentDay,
                     videoUrl = videoUrl,
                     contractUrl = contractUrl,
                     comment = comment
@@ -189,6 +191,7 @@ class DefaultAdminRepository : AdminRepository {
         bikeId: String,
         periodStart: String,
         periodEnd: String?,
+        paymentDay: Int,
         login: String?,
         password: String?,
         videoUrl: String?,
@@ -203,6 +206,7 @@ class DefaultAdminRepository : AdminRepository {
                     bikeId = bikeId,
                     periodStart = periodStart,
                     periodEnd = periodEnd,
+                    paymentDay = paymentDay,
                     login = login,
                     password = password,
                     videoUrl = videoUrl,
@@ -233,7 +237,8 @@ class DefaultAdminRepository : AdminRepository {
         clientId: String,
         login: String,
         password: String,
-        periodStart: String
+        periodStart: String,
+        paymentDay: Int
     ) {
         onIo {
             apiClient.startAdminClientRentalInExisting(
@@ -242,7 +247,8 @@ class DefaultAdminRepository : AdminRepository {
                 clientId = clientId,
                 login = login,
                 password = password,
-                periodStart = periodStart
+                periodStart = periodStart,
+                paymentDay = paymentDay
             )
         }
     }

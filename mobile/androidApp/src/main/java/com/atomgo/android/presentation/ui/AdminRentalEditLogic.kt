@@ -5,6 +5,21 @@ import java.time.LocalDate
 
 internal const val AdminRentalEditEndBeforeStartMessage = "Дата окончания не может быть раньше даты начала"
 
+internal data class AdminRentalPaymentDayOption(
+    val value: Int,
+    val label: String
+)
+
+internal val AdminRentalPaymentDayOptions = listOf(
+    AdminRentalPaymentDayOption(1, "пн"),
+    AdminRentalPaymentDayOption(2, "вт"),
+    AdminRentalPaymentDayOption(3, "ср"),
+    AdminRentalPaymentDayOption(4, "чт"),
+    AdminRentalPaymentDayOption(5, "пт"),
+    AdminRentalPaymentDayOption(6, "сб"),
+    AdminRentalPaymentDayOption(7, "вс")
+)
+
 internal data class AdminRentalEditInitialState(
     val clientId: String,
     val bikeId: String,
@@ -14,7 +29,8 @@ internal data class AdminRentalEditInitialState(
     val periodEnd: String,
     val videoUrl: String,
     val contractUrl: String,
-    val comment: String
+    val comment: String,
+    val paymentDay: Int
 )
 
 internal fun adminRentalEditInitialState(
@@ -30,7 +46,8 @@ internal fun adminRentalEditInitialState(
         periodEnd = details.periodEnd.orEmpty(),
         videoUrl = details.videoUrl.orEmpty(),
         contractUrl = details.contractUrl.orEmpty(),
-        comment = details.comment.orEmpty()
+        comment = details.comment.orEmpty(),
+        paymentDay = normalizedRentalPaymentDay(details.paymentDay, details.periodStart)
     )
 }
 
@@ -59,3 +76,10 @@ private fun parseRentalEditDate(value: String): LocalDate? {
     if (value.isEmpty()) return null
     return runCatching { LocalDate.parse(value) }.getOrNull()
 }
+
+internal fun normalizedRentalPaymentDay(paymentDay: Int, periodStart: String): Int {
+    if (paymentDay in 1..7) return paymentDay
+    return parseRentalEditDate(periodStart)?.dayOfWeek?.value ?: LocalDate.now().dayOfWeek.value
+}
+
+internal fun todayRentalPaymentDay(): Int = LocalDate.now().dayOfWeek.value

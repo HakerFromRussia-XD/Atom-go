@@ -144,7 +144,9 @@ data class AdminRentalHistoryItemResponse(
     @SerialName("debt_rub")
     val debtRub: Int = 0,
     @SerialName("total_adjustment_rub")
-    val totalAdjustmentRub: Int = 0
+    val totalAdjustmentRub: Int = 0,
+    @SerialName("payment_day")
+    val paymentDay: Int = 1
 )
 
 @Serializable
@@ -227,6 +229,8 @@ data class AdminRentalDetailsResponse(
     val rentalPipelineStatus: String = "",
     @SerialName("rental_is_active")
     val rentalIsActive: Boolean = false,
+    @SerialName("payment_day")
+    val paymentDay: Int = 1,
     @SerialName("journal_entries")
     val journalEntries: List<AdminRentalJournalEntryResponse> = emptyList(),
     @SerialName("video_url")
@@ -273,6 +277,8 @@ data class AdminCreateRentalRequest(
     val periodStart: String,
     @SerialName("period_end")
     val periodEnd: String? = null,
+    @SerialName("payment_day")
+    val paymentDay: Int,
     @SerialName("video_url")
     val videoUrl: String? = null,
     @SerialName("contract_url")
@@ -287,7 +293,9 @@ data class AdminStartClientRentalRequest(
     val login: String,
     val password: String,
     @SerialName("period_start")
-    val periodStart: String
+    val periodStart: String,
+    @SerialName("payment_day")
+    val paymentDay: Int
 )
 
 @Serializable
@@ -298,6 +306,8 @@ data class AdminStartClientRentalResponse(
     val clientId: String,
     @SerialName("period_start")
     val periodStart: String,
+    @SerialName("payment_day")
+    val paymentDay: Int = 1,
     @SerialName("pipeline_status")
     val pipelineStatus: String
 )
@@ -372,6 +382,8 @@ data class AdminUpdateRentalRequest(
     val periodStart: String,
     @SerialName("period_end")
     val periodEnd: String? = null,
+    @SerialName("payment_day")
+    val paymentDay: Int,
     val login: String? = null,
     val password: String? = null,
     @SerialName("video_url")

@@ -68,6 +68,7 @@ class AdminUseCases(
         password: String,
         periodStart: String,
         periodEnd: String? = null,
+        paymentDay: Int,
         videoUrl: String? = null,
         contractUrl: String? = null,
         comment: String? = null
@@ -80,6 +81,7 @@ class AdminUseCases(
             password = password,
             periodStart = periodStart,
             periodEnd = periodEnd,
+            paymentDay = paymentDay,
             videoUrl = videoUrl,
             contractUrl = contractUrl,
             comment = comment
@@ -156,6 +158,7 @@ class AdminUseCases(
         bikeId: String,
         periodStart: String,
         periodEnd: String?,
+        paymentDay: Int,
         login: String?,
         password: String?,
         videoUrl: String?,
@@ -168,6 +171,7 @@ class AdminUseCases(
             bikeId = bikeId,
             periodStart = periodStart,
             periodEnd = periodEnd,
+            paymentDay = paymentDay,
             login = login,
             password = password,
             videoUrl = videoUrl,
@@ -198,7 +202,8 @@ class AdminUseCases(
         clientId: String,
         login: String,
         password: String,
-        periodStart: String
+        periodStart: String,
+        paymentDay: Int
     ) {
         adminRepository.startClientRentalInExisting(
             accessToken = accessToken,
@@ -206,7 +211,8 @@ class AdminUseCases(
             clientId = clientId,
             login = login,
             password = password,
-            periodStart = periodStart
+            periodStart = periodStart,
+            paymentDay = paymentDay
         )
     }
 

@@ -335,7 +335,8 @@ class AtomGoApiClient private constructor(
         clientId: String,
         login: String,
         password: String,
-        periodStart: String
+        periodStart: String,
+        paymentDay: Int
     ): AdminStartClientRentalResponse {
         val response = executeRequest {
             httpClient.post("$apiBaseUrl/admin/rentals/$rentalId/client-rentals") {
@@ -346,7 +347,8 @@ class AtomGoApiClient private constructor(
                         clientId = clientId,
                         login = login,
                         password = password,
-                        periodStart = periodStart
+                        periodStart = periodStart,
+                        paymentDay = paymentDay
                     )
                 )
             }

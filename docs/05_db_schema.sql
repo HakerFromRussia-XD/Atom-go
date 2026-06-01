@@ -64,6 +64,7 @@ create table client_rental (
   bike_id uuid not null references bike(id),
   period_start date not null,
   period_end date,
+  payment_day smallint not null default 1 check (payment_day between 1 and 7),
   status text not null default 'active' check (status in ('active', 'completed')),
   login text not null unique,
   password_hash text not null,

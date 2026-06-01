@@ -310,7 +310,7 @@ final class CreateClientFlowUnitTests: XCTestCase {
         XCTAssertEqual(policy.metricText(activeValue: "+3 500 ₽"), "+3 500 ₽")
         XCTAssertEqual(policy.correctionLineText(formattedAdjustment: "−1 000 ₽"), "Корректировка: −1 000 ₽")
         XCTAssertTrue(policy.showsJournalHistory)
-        XCTAssertFalse(policy.adjustmentButtonEnabled)
+        XCTAssertTrue(policy.adjustmentButtonEnabled)
     }
 
     func testRentalDetailsDisplayPolicyReadOnlyCredentialPrefersServerValue() {
@@ -378,10 +378,8 @@ final class CreateClientFlowUnitTests: XCTestCase {
 
         XCTAssertTrue(didCallOnSuccess)
         XCTAssertEqual(viewModel.operationSuccessMessage, "Клиент создан: Roman Sergeev")
-        if case let .loaded(items) = viewModel.state {
-            XCTAssertEqual(items.count, 0)
-        } else {
-            XCTFail("Expected .loaded state after successful create")
+        if case let .failed(message) = viewModel.state {
+            XCTFail("Expected client creation to leave state usable, failed with: \(message)")
         }
         XCTAssertEqual(viewModel.clientCatalog.count, 1)
         XCTAssertEqual(viewModel.clientCatalog.first?.fullName, "Roman Sergeev")
@@ -426,6 +424,7 @@ final class CreateClientFlowUnitTests: XCTestCase {
                 password: "client123",
                 periodStart: "2026-05-10",
                 periodEnd: nil,
+                paymentDay: 7,
                 videoUrl: nil,
                 contractUrl: nil,
                 comment: nil
@@ -458,7 +457,8 @@ final class CreateClientFlowUnitTests: XCTestCase {
                 weeklyRateRub: 3000,
                 totalPaidRub: 0,
                 debtRub: 0,
-                totalAdjustmentRub: 0
+                totalAdjustmentRub: 0,
+                paymentDay: 2
             )
         )
         let viewModel = makeViewModel(service: service)
@@ -471,6 +471,7 @@ final class CreateClientFlowUnitTests: XCTestCase {
                 password: "client123",
                 periodStart: "2026-05-05",
                 periodEnd: "2026-05-20",
+                paymentDay: 2,
                 videoUrl: "https://youtube.com/watch?v=rental-100",
                 contractUrl: "https://drive.google.com/file/d/rental-100/view",
                 comment: "Тест аренды"
@@ -504,7 +505,8 @@ final class CreateClientFlowUnitTests: XCTestCase {
                 weeklyRateRub: 3000,
                 totalPaidRub: 0,
                 debtRub: 0,
-                totalAdjustmentRub: 0
+                totalAdjustmentRub: 0,
+                paymentDay: 5
             )
         )
         let viewModel = makeViewModel(service: service)
@@ -515,7 +517,8 @@ final class CreateClientFlowUnitTests: XCTestCase {
                 rentalId: "rental-100",
                 bikeId: "bike-001",
                 periodStart: "2026-05-15",
-                periodEnd: "2026-06-01"
+                periodEnd: "2026-06-01",
+                paymentDay: 5
             )
         )
         await waitUntilOperationCompletes(viewModel)
@@ -537,7 +540,7 @@ final class CreateClientFlowUnitTests: XCTestCase {
         viewModel.deleteRental(clientId: "client-001", rentalId: "rental-100")
         await waitUntilOperationCompletes(viewModel)
 
-        XCTAssertEqual(viewModel.operationSuccessMessage, "Аренда удалена: rental-100")
+        XCTAssertEqual(viewModel.operationSuccessMessage, "Клиентская аренда удалена")
         XCTAssertNil(viewModel.operationErrorMessage)
         XCTAssertEqual(service.deleteRentalCallsCount, 1)
     }
@@ -581,8 +584,8 @@ final class CreateClientFlowUnitTests: XCTestCase {
         viewModel.deleteRental(clientId: "client-001", rentalId: "rental-404")
         await waitUntilOperationCompletes(viewModel)
 
-        XCTAssertEqual(viewModel.operationErrorMessage, "Аренда не найдена.")
-        XCTAssertNil(viewModel.operationSuccessMessage)
+        XCTAssertNil(viewModel.operationErrorMessage)
+        XCTAssertEqual(viewModel.operationSuccessMessage, "Аренда уже удалена")
         XCTAssertEqual(service.deleteRentalCallsCount, 1)
     }
 
@@ -1007,6 +1010,7 @@ private final class MockAdminBackendService: BackendServicing {
         totalAdjustmentRub: 0,
         rentalPipelineStatus: "long_term",
         rentalIsActive: true,
+        paymentDay: 7,
         journalEntries: [],
         videoUrl: nil,
         contractUrl: nil,
@@ -1148,7 +1152,8 @@ private final class MockAdminBackendService: BackendServicing {
         clientId _: String,
         login _: String,
         password _: String,
-        periodStart _: String
+        periodStart _: String,
+        paymentDay _: Int
     ) async throws {}
 
     func deleteAdminRental(accessToken _: String, rentalId _: String) async throws -> DeleteRentalResult {

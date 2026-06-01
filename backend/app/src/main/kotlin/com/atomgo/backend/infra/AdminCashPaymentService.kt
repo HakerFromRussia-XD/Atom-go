@@ -4,6 +4,7 @@ import com.atomgo.backend.domain.ClientRentalRecord
 import com.atomgo.backend.domain.LedgerCalculator
 import com.atomgo.backend.domain.LedgerEntry
 import com.atomgo.backend.domain.LedgerType
+import com.atomgo.backend.domain.RentalPipelineStatus
 import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
@@ -77,20 +78,22 @@ class AdminCashPaymentService(
             rentalId = clientRental.id
         )
 
-        val debt = if (clientRental.isActiveAt(today)) {
+        val lifecycleStatus = store.rentals.firstOrNull { it.id == clientRental.rentalId }?.pipelineStatus
+        val debt = if (clientRental.isActiveAt(today) && lifecycleStatus != RentalPipelineStatus.SOON_RETURN) {
             LedgerCalculator.debtRub(
                 clientId = clientRental.clientId,
                 rentalStartDate = clientRental.startDate,
                 weeklyRateRub = bike.weeklyRateRub,
                 entries = store.ledger,
                 asOf = today,
-                rentalId = clientRental.id
+                rentalId = clientRental.id,
+                paymentDay = normalizedPaymentDay(clientRental.paymentDay, clientRental.startDate)
             )
-        } else if (clientRental.endDate != null) {
+        } else if (clientRental.endDate != null || lifecycleStatus == RentalPipelineStatus.SOON_RETURN) {
             LedgerCalculator.finalDebtOnClosure(
                 clientId = clientRental.clientId,
                 rentalStartDate = clientRental.startDate,
-                rentalEndDate = clientRental.endDate,
+                rentalEndDate = clientRental.endDate ?: today,
                 weeklyRateRub = bike.weeklyRateRub,
                 entries = store.ledger,
                 rentalId = clientRental.id
@@ -120,6 +123,10 @@ class AdminCashPaymentService(
                 entry.note?.trim()?.lowercase()?.startsWith(CASH_PAYMENT_NOTE_PREFIX) == true
         }
     }
+}
+
+private fun normalizedPaymentDay(paymentDay: Int, startDate: LocalDate): Int {
+    return paymentDay.takeIf { it in 1..7 } ?: startDate.dayOfWeek.value
 }
 
 private fun ClientRentalRecord.isActiveAt(asOf: LocalDate): Boolean {

@@ -341,7 +341,8 @@ struct RentalHistoryCard: View {
                 rentalId: rental.id,
                 bikeId: selectedBikeId,
                 periodStart: start,
-                periodEnd: normalizedEnd
+                periodEnd: normalizedEnd,
+                paymentDay: rental.paymentDay
             )
         )
         isEditingRental = false

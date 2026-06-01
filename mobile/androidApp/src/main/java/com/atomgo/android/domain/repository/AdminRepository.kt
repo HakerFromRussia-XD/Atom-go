@@ -38,6 +38,7 @@ interface AdminRepository {
         password: String,
         periodStart: String,
         periodEnd: String?,
+        paymentDay: Int,
         videoUrl: String?,
         contractUrl: String?,
         comment: String?
@@ -77,6 +78,7 @@ interface AdminRepository {
         bikeId: String,
         periodStart: String,
         periodEnd: String?,
+        paymentDay: Int,
         login: String?,
         password: String?,
         videoUrl: String?,
@@ -93,7 +95,8 @@ interface AdminRepository {
         clientId: String,
         login: String,
         password: String,
-        periodStart: String
+        periodStart: String,
+        paymentDay: Int
     )
 
     suspend fun adjustClientRentalDebt(

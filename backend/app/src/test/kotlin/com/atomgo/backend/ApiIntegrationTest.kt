@@ -15,6 +15,7 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import java.time.Instant
 import java.time.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -261,6 +262,7 @@ class ApiIntegrationTest {
                   "password":"roman-client-pwd",
                   "period_start":"2026-05-05",
                   "period_end":"2026-05-20",
+                  "payment_day":5,
                   "video_url":"https://youtube.com/watch?v=rent-1",
                   "contract_url":"https://drive.google.com/file/d/rent-1/view",
                   "comment":"Тест аренды"
@@ -273,6 +275,7 @@ class ApiIntegrationTest {
         val rentalId = rentalBody["rental_id"]?.jsonPrimitive?.content ?: error("No rental_id")
         assertEquals(createdBikeId, rentalBody["bike_id"]?.jsonPrimitive?.content)
         assertEquals("Монстер", rentalBody["bike_model"]?.jsonPrimitive?.content)
+        assertEquals(5, rentalBody["payment_day"]?.jsonPrimitive?.content?.toInt())
 
         val loginAsCreatedClient = client.post("/api/v1/auth/login") {
             contentType(ContentType.Application.Json)
@@ -287,7 +290,8 @@ class ApiIntegrationTest {
         val rentals = json.parseToJsonElement(details.bodyAsText()).jsonObject["rentals"]?.jsonArray ?: error("No rentals")
         assertTrue(rentals.any { item ->
             item.jsonObject["bike_id"]?.jsonPrimitive?.content == createdBikeId &&
-                item.jsonObject["period_start"]?.jsonPrimitive?.content == "2026-05-05"
+                item.jsonObject["period_start"]?.jsonPrimitive?.content == "2026-05-05" &&
+                item.jsonObject["payment_day"]?.jsonPrimitive?.content?.toInt() == 5
         })
     }
 
@@ -376,7 +380,8 @@ class ApiIntegrationTest {
                   "login":"update.rental.client",
                   "password":"update-rental-client-pwd",
                   "period_start":"$createStart",
-                  "period_end":"$createEnd"
+                  "period_end":"$createEnd",
+                  "payment_day":2
                 }
                 """.trimIndent()
             )
@@ -394,6 +399,7 @@ class ApiIntegrationTest {
                   "bike_id":"$secondBikeId",
                   "period_start":"$updateStart",
                   "period_end":"$updateEnd",
+                  "payment_day":6,
                   "login":"updated.rental.client",
                   "password":"updated-rental-password",
                   "video_url":"https://example.com/video-updated",
@@ -408,6 +414,7 @@ class ApiIntegrationTest {
         assertEquals(secondBikeId, updated["bike_id"]?.jsonPrimitive?.content)
         assertEquals(updateStart, updated["period_start"]?.jsonPrimitive?.content)
         assertEquals(updateEnd, updated["period_end"]?.jsonPrimitive?.content)
+        assertEquals(6, updated["payment_day"]?.jsonPrimitive?.content?.toInt())
         assertEquals("https://example.com/video-updated", updated["video_url"]?.jsonPrimitive?.content)
         assertEquals("https://example.com/contract-updated", updated["contract_url"]?.jsonPrimitive?.content)
         assertEquals("updated comment", updated["comment"]?.jsonPrimitive?.content)
@@ -422,6 +429,7 @@ class ApiIntegrationTest {
         assertEquals("https://example.com/video-updated", detailsBody["video_url"]?.jsonPrimitive?.content)
         assertEquals("https://example.com/contract-updated", detailsBody["contract_url"]?.jsonPrimitive?.content)
         assertEquals("updated comment", detailsBody["comment"]?.jsonPrimitive?.content)
+        assertEquals(6, detailsBody["payment_day"]?.jsonPrimitive?.content?.toInt())
 
         val clientLogin = client.post("/api/v1/auth/login") {
             contentType(ContentType.Application.Json)
@@ -3062,9 +3070,8 @@ class ApiIntegrationTest {
         val adjustmentEntry = journal.firstOrNull { it.jsonObject["type"]?.jsonPrimitive?.content == "adjustment" }
             ?.jsonObject ?: error("No adjustment entry in journal")
         assertEquals(500, adjustmentEntry["amount_rub"]?.jsonPrimitive?.content?.toInt())
-        assertTrue(
-            adjustmentEntry["created_at"]?.jsonPrimitive?.content?.startsWith(LocalDate.now().toString()) == true
-        )
+        val adjustmentCreatedAt = adjustmentEntry["created_at"]?.jsonPrimitive?.content ?: error("No adjustment created_at")
+        assertTrue(runCatching { Instant.parse(adjustmentCreatedAt) }.isSuccess)
     }
 
     @Test

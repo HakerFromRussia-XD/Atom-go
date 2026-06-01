@@ -413,6 +413,7 @@ final class AdminHomeViewModel: ObservableObject {
         login: String,
         password: String,
         periodStart: String,
+        paymentDay: Int,
         onSuccess: (() -> Void)? = nil
     ) {
         isOperationInProgress = true
@@ -427,7 +428,8 @@ final class AdminHomeViewModel: ObservableObject {
                     clientId: clientId,
                     login: login,
                     password: password,
-                    periodStart: periodStart
+                    periodStart: periodStart,
+                    paymentDay: paymentDay
                 )
                 operationSuccessMessage = "Новая клиентская аренда запущена"
                 // Запуск новой client_rental в существующей lifecycle:

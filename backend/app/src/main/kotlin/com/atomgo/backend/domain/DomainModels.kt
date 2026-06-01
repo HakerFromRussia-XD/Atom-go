@@ -110,6 +110,7 @@ data class RentalRecord(
     var videoUrl: String?,
     var contractUrl: String?,
     var comment: String?,
+    val paymentDay: Int = startDate.dayOfWeek.value,
     val adminId: String? = null,
     val taxMode: AdminTaxMode = AdminTaxMode.SELF_EMPLOYED,
     val pipelineStatus: RentalPipelineStatus = RentalPipelineStatus.LONG_TERM,
@@ -133,6 +134,7 @@ data class ClientRentalRecord(
     var videoUrl: String?,
     var contractUrl: String?,
     var comment: String?,
+    val paymentDay: Int = startDate.dayOfWeek.value,
     val adminId: String? = null,
     val taxMode: AdminTaxMode = AdminTaxMode.SELF_EMPLOYED,
     /**

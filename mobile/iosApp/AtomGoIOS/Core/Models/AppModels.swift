@@ -339,6 +339,7 @@ struct AdminRentalHistoryItem: Identifiable, Equatable {
     let totalPaidRub: Int
     let debtRub: Int
     let totalAdjustmentRub: Int
+    let paymentDay: Int
 }
 
 struct AdminClientDetailsResponse: Equatable {
@@ -419,6 +420,7 @@ struct CreateRentalPayload {
     var password: String
     var periodStart: String
     var periodEnd: String?
+    var paymentDay: Int
     var videoUrl: String?
     var contractUrl: String?
     var comment: String?
@@ -514,6 +516,7 @@ struct UpdateRentalPayload {
     var bikeId: String
     var periodStart: String
     var periodEnd: String?
+    var paymentDay: Int
     var login: String? = nil
     var password: String? = nil
     var videoUrl: String? = nil
@@ -659,6 +662,7 @@ struct AdminRentalDetailsResponse: Decodable, Equatable {
     let totalAdjustmentRub: Int
     let rentalPipelineStatus: String
     let rentalIsActive: Bool
+    let paymentDay: Int
     let journalEntries: [AdminRentalJournalEntry]
     let videoUrl: String?
     let contractUrl: String?
@@ -683,6 +687,7 @@ struct AdminRentalDetailsResponse: Decodable, Equatable {
         case totalAdjustmentRub = "total_adjustment_rub"
         case rentalPipelineStatus = "rental_pipeline_status"
         case rentalIsActive = "rental_is_active"
+        case paymentDay = "payment_day"
         case journalEntries = "journal_entries"
         case videoUrl = "video_url"
         case contractUrl = "contract_url"
