@@ -2024,6 +2024,72 @@ class ApiIntegrationTest {
         assertEquals(1000, dashboardJson["debt_rub"]?.jsonPrimitive?.content?.toInt())
     }
 
+    @Test
+    fun `soon return rental should use common rounded day amount for non divisible weekly rate`() = testApplication {
+        application { module() }
+        val adminToken = loginAsAdmin()
+        val clientId = createClientAndGetId(adminToken, fullName = "Soon Return Rounded Day", phone = "79000009002")
+        val bikeId = createBikeAndGetId(
+            adminToken = adminToken,
+            frameSerial = "SOON-ROUND-FRAME",
+            motorSerial = "SOON-ROUND-MOTOR",
+            weeklyRateRub = 3000
+        )
+        val start = LocalDate.now().minusDays(10).toString()
+
+        val createRental = client.post("/api/v1/admin/rentals") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody(
+                """
+                {
+                  "client_id":"$clientId",
+                  "bike_id":"$bikeId",
+                  "login":"soon.rounded",
+                  "password":"soonRounded123",
+                  "period_start":"$start"
+                }
+                """.trimIndent()
+            )
+        }
+        assertEquals(HttpStatusCode.Created, createRental.status)
+        val rentalId = json.parseToJsonElement(createRental.bodyAsText())
+            .jsonObject["rental_id"]
+            ?.jsonPrimitive
+            ?.content
+            ?: error("No rental_id")
+
+        paySingleWeek(login = "soon.rounded", password = "soonRounded123", externalId = "provider-soon-rounded-1")
+
+        val markSoonReturn = client.post("/api/v1/admin/rentals/$rentalId/pipeline-status") {
+            bearerAuth(adminToken)
+            contentType(ContentType.Application.Json)
+            setBody("""{"pipeline_status":"soon_return"}""")
+        }
+        assertEquals(HttpStatusCode.OK, markSoonReturn.status)
+
+        val rents = client.get("/api/v1/admin/rents") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, rents.status)
+        val soonReturnCard = json.parseToJsonElement(rents.bodyAsText()).jsonArray.first {
+            it.jsonObject["rental_id"]?.jsonPrimitive?.content == rentalId
+        }.jsonObject
+        assertEquals("soon_return", soonReturnCard["rental_pipeline_status"]?.jsonPrimitive?.content)
+        assertEquals(
+            1290,
+            soonReturnCard["debt_rub"]?.jsonPrimitive?.content?.toInt(),
+            "soon_return must use common day amount after one paid week: 3 overdue days * 430 = 1290"
+        )
+
+        val rentalDetails = client.get("/api/v1/admin/rentals/$rentalId") {
+            bearerAuth(adminToken)
+        }
+        assertEquals(HttpStatusCode.OK, rentalDetails.status)
+        val rentalDetailsJson = json.parseToJsonElement(rentalDetails.bodyAsText()).jsonObject
+        assertEquals(1290, rentalDetailsJson["debt_rub"]?.jsonPrimitive?.content?.toInt())
+    }
+
     // ---------------------------------------------------------------------------
     // Удаление lifecycle-аренды: перенос долга на клиента
     // Покрывает docs/14_rental_lifecycle.md §7 и docs/02_money_and_debt_rules.md §7

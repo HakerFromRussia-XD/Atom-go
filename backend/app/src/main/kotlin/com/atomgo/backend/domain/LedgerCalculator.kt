@@ -2,7 +2,6 @@ package com.atomgo.backend.domain
 
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
-import kotlin.math.roundToInt
 
 data class BillingProjection(
     val paidUntilDate: LocalDate,
@@ -39,7 +38,7 @@ object LedgerCalculator {
             return transitionCharge
         }
 
-        return dueWeeksCount(firstPaymentDate, asOf) * weeklyRateRub
+        return transitionCharge + dueWeeksCount(firstPaymentDate, asOf) * weeklyRateRub
     }
 
     private fun LedgerEntry.belongsTo(clientId: String, rentalId: String?): Boolean {
@@ -84,8 +83,7 @@ object LedgerCalculator {
     ): Int {
         val paid = totalPaidRub(entries, clientId, rentalId)
         val adjustment = totalAdjustmentRub(entries, clientId, rentalId)
-        val due = chargeDueRub(rentalStartDate, asOf, weeklyRateRub, paymentDay) +
-            transitionDebtExtraRub(rentalStartDate, asOf, weeklyRateRub, paymentDay, paid)
+        val due = chargeDueRub(rentalStartDate, asOf, weeklyRateRub, paymentDay)
         val raw = due - paid + adjustment
         return raw.coerceAtLeast(0)
     }
@@ -102,8 +100,18 @@ object LedgerCalculator {
         val paid = totalPaidRub(entries, clientId, rentalId)
         val adjustment = totalAdjustmentRub(entries, clientId, rentalId)
         val effectivePaid = (paid - adjustment).coerceAtLeast(0)
-        val coveredDays = rubToDays(effectivePaid, weeklyRateRub)
-        return rentalStartDate.plusDays(coveredDays.toLong())
+        val coveredWeeks = effectivePaid / weeklyRateRub
+        if (coveredWeeks <= 0) return rentalStartDate
+
+        val normalizedPaymentDay = normalizedPaymentDay(rentalStartDate, paymentDay)
+        val startDay = rentalStartDate.dayOfWeek.value
+        val daysUntilFirstPayment = (normalizedPaymentDay - startDay + 7) % 7
+        if (daysUntilFirstPayment == 0 || coveredWeeks == 1) {
+            return rentalStartDate.plusWeeks(coveredWeeks.toLong())
+        }
+
+        val firstPaymentDate = rentalStartDate.plusDays(daysUntilFirstPayment.toLong())
+        return firstPaymentDate.plusWeeks((coveredWeeks - 1).toLong())
     }
 
     fun billingProjection(
@@ -144,10 +152,11 @@ object LedgerCalculator {
         }
 
         val daysLeft = ChronoUnit.DAYS.between(asOf, paidUntil).toInt().coerceAtLeast(0)
+        val dayAmount = PricingRules.dayAmount(weeklyRateRub)
         return BillingProjection(
             paidUntilDate = paidUntil,
             debtRub = 0,
-            balanceRub = roundToTens(daysLeft * dailyRateRub(weeklyRateRub)),
+            balanceRub = daysLeft * dayAmount,
             statusText = "Оплачено еще на $daysLeft дн."
         )
     }
@@ -178,49 +187,80 @@ object LedgerCalculator {
         entries: List<LedgerEntry>,
         rentalId: String? = null
     ): Int {
-        if (rentalEndDate.isBefore(rentalStartDate)) return 0
-        val dailyRate = dailyRateRub(weeklyRateRub)
-        if (dailyRate <= 0.0) return 0
+        return finalProjectionOnClosure(
+            clientId = clientId,
+            rentalStartDate = rentalStartDate,
+            rentalEndDate = rentalEndDate,
+            weeklyRateRub = weeklyRateRub,
+            entries = entries,
+            rentalId = rentalId
+        ).debtRub
+    }
+
+    fun finalProjectionOnClosure(
+        clientId: String,
+        rentalStartDate: LocalDate,
+        rentalEndDate: LocalDate,
+        weeklyRateRub: Int,
+        entries: List<LedgerEntry>,
+        rentalId: String? = null
+    ): BillingProjection {
+        if (rentalEndDate.isBefore(rentalStartDate) || weeklyRateRub <= 0) {
+            return BillingProjection(rentalStartDate, 0, 0, "Оплачено еще на 0 дн.")
+        }
+        val dayAmount = PricingRules.dayAmount(weeklyRateRub)
+        if (dayAmount <= 0) {
+            return BillingProjection(rentalStartDate, 0, 0, "Оплачено еще на 0 дн.")
+        }
+
         val totalPaid = totalPaidRub(entries, clientId, rentalId)
         val adjustment = totalAdjustmentRub(entries, clientId, rentalId)
-        val usedDays = ChronoUnit.DAYS.between(rentalStartDate, rentalEndDate).toInt()
-        val usedCharge = (usedDays * dailyRate).roundToInt()
-        return (usedCharge - totalPaid + adjustment).coerceAtLeast(0)
+        val fullPaidWeeks = (totalPaid / weeklyRateRub).coerceAtLeast(0)
+        val remainderPaidRub = (totalPaid % weeklyRateRub).coerceAtLeast(0)
+        val fullWeekCoveredDays = fullPaidWeeks * 7
+        val usedDays = ChronoUnit.DAYS.between(rentalStartDate, rentalEndDate).toInt().coerceAtLeast(0)
+        val overdueDays = (usedDays - fullWeekCoveredDays).coerceAtLeast(0)
+        val rawDebt = overdueDays * dayAmount - remainderPaidRub + adjustment
+        val debt = rawDebt.coerceAtLeast(0)
+        val paidUntil = rentalStartDate.plusDays(fullWeekCoveredDays.toLong())
+
+        if (debt > 0) {
+            return BillingProjection(
+                paidUntilDate = paidUntil,
+                debtRub = debt,
+                balanceRub = 0,
+                statusText = "Долг за ${rubToDays(debt, weeklyRateRub)} дн."
+            )
+        }
+
+        val partialCoveredDays = if (fullPaidWeeks == 0 && remainderPaidRub > 0) {
+            ceilDays(remainderPaidRub, dayAmount)
+        } else {
+            0
+        }
+        val coveredDays = fullWeekCoveredDays + partialCoveredDays
+        val daysLeft = (coveredDays - usedDays).coerceAtLeast(0)
+        return BillingProjection(
+            paidUntilDate = rentalStartDate.plusDays(coveredDays.toLong()),
+            debtRub = 0,
+            balanceRub = daysLeft * dayAmount,
+            statusText = "Оплачено еще на $daysLeft дн."
+        )
     }
 
     private fun rubToDays(amountRub: Int, weeklyRateRub: Int): Int {
-        val dailyRate = dailyRateRub(weeklyRateRub)
-        if (dailyRate <= 0.0) return 0
-        return (amountRub / dailyRate).roundToInt().coerceAtLeast(0)
+        val dayAmount = PricingRules.dayAmount(weeklyRateRub)
+        if (dayAmount <= 0) return 0
+        return ((amountRub + dayAmount / 2) / dayAmount).coerceAtLeast(0)
+    }
+
+    private fun ceilDays(amountRub: Int, dayAmountRub: Int): Int {
+        if (amountRub <= 0 || dayAmountRub <= 0) return 0
+        return ((amountRub + dayAmountRub - 1) / dayAmountRub).coerceAtLeast(0)
     }
 
     private fun normalizedPaymentDay(startDate: LocalDate, paymentDay: Int): Int {
         return if (paymentDay in 1..7) paymentDay else startDate.dayOfWeek.value
     }
 
-    private fun transitionDebtExtraRub(
-        startDate: LocalDate,
-        asOf: LocalDate,
-        weeklyRateRub: Int,
-        paymentDay: Int,
-        paidRub: Int
-    ): Int {
-        if (asOf.isBefore(startDate) || weeklyRateRub <= 0 || paidRub < weeklyRateRub) return 0
-        val normalizedPaymentDay = normalizedPaymentDay(startDate, paymentDay)
-        val startDay = startDate.dayOfWeek.value
-        val daysUntilFirstPayment = (normalizedPaymentDay - startDay + 7) % 7
-        if (daysUntilFirstPayment == 0) return 0
-        val firstPaymentDate = startDate.plusDays(daysUntilFirstPayment.toLong())
-        if (asOf.isBefore(firstPaymentDate)) return 0
-        return daysUntilFirstPayment * PricingRules.dayAmount(weeklyRateRub)
-    }
-
-    private fun dailyRateRub(weeklyRateRub: Int): Double {
-        if (weeklyRateRub <= 0) return 0.0
-        return weeklyRateRub / 7.0
-    }
-
-    private fun roundToTens(value: Double): Int {
-        return (value / 10.0).roundToInt() * 10
-    }
 }

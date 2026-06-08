@@ -59,3 +59,16 @@
   - public health `https://atomgo.157.22.203.6.nip.io/health/ready` вернул `ready`;
   - YooKassa webhook route вернул `405 Method Not Allowed` на GET, то есть endpoint доступен и не 404/502;
   - в prod PostgreSQL подтверждены колонки `atomgo_rentals.payment_day` и `atomgo_client_rentals.payment_day`.
+- 2026-06-08: уточнена логика `soon_return` после смены дня оплаты:
+  - полная недельная оплата покрывает ровно 7 дней;
+  - общий `PricingRules.dayAmount(weekly_rate)` применяется к просрочке после оплаченных недель;
+  - добавлен unit test на сценарии 4/4.1: `27.05.2026`, смена дня оплаты на пятницу, `soon_return`, ставки `3500` и `3000`;
+  - `3500/нед`: 29.05..03.06 показывает долг `0` и остаток `5..0` дней, 04.06 долг `500`, 05.06 долг `1000`;
+  - `3000/нед`: 29.05..03.06 показывает долг `0` и остаток `5..0` дней, 04.06 долг `430`, 05.06 долг `860`;
+  - локально прошли `./gradlew :backend:app:test --tests com.atomgo.backend.LedgerCalculatorTest --console=plain`,
+    `./gradlew :backend:app:test --console=plain`, `./gradlew :mobile:androidApp:testDebugUnitTest --console=plain`;
+  - локальный backend перезапущен через `../stop_backend.sh && ../start_backend.sh`, `/health/ready` вернул `ready`,
+    admin login + `/api/v1/admin/rents` вернули 200;
+  - public prod health вернул `ready`, webhook GET вернул `405`;
+  - prod rollout из текущей сессии не выполнен: SSH к `157.22.203.6:22` закрывается до key exchange
+    (`kex_exchange_identification: Connection closed by remote host`).

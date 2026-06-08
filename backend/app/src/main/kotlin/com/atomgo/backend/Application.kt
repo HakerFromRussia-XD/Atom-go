@@ -9,6 +9,7 @@ import com.atomgo.backend.domain.PricingRules
 import com.atomgo.backend.domain.Role
 import com.atomgo.backend.domain.AppUser
 import com.atomgo.backend.domain.AdminTaxMode
+import com.atomgo.backend.domain.BillingProjection
 import com.atomgo.backend.domain.BikeAccount
 import com.atomgo.backend.domain.ClientAccount
 import com.atomgo.backend.domain.ClientPhone
@@ -1924,14 +1925,16 @@ private fun buildAdminClientSummary(
         includeInactiveFallback = false
     )
     val projection = if (snapshot?.isActive == true) {
-        LedgerCalculator.billingProjection(
+        clientRentalBillingProjection(
             clientId = client.id,
             rentalStartDate = snapshot.rentalStartDate,
             weeklyRateRub = snapshot.weeklyRateRub,
             entries = store.ledger,
             asOf = now,
             rentalId = snapshot.clientRentalId,
-            paymentDay = billingProjectionPaymentDay(snapshot)
+            paymentDay = billingProjectionPaymentDay(snapshot),
+            pipelineStatus = snapshot.pipelineStatus,
+            rentalEndDate = snapshot.rentalEndDate
         )
     } else {
         null
@@ -2010,6 +2013,40 @@ private fun clientRentalDisplayDebtRub(
             asOf = asOf,
             rentalId = rental.id,
             paymentDay = activeDebtPaymentDay(rental, pipelineStatus)
+        )
+    }
+}
+
+private fun clientRentalBillingProjection(
+    clientId: String,
+    rentalStartDate: LocalDate,
+    weeklyRateRub: Int,
+    entries: List<LedgerEntry>,
+    asOf: LocalDate,
+    rentalId: String?,
+    paymentDay: Int,
+    pipelineStatus: RentalPipelineStatus?,
+    rentalEndDate: LocalDate?
+): BillingProjection {
+    val shouldUsePerDayProjection = rentalEndDate != null || pipelineStatus == RentalPipelineStatus.SOON_RETURN
+    return if (shouldUsePerDayProjection) {
+        LedgerCalculator.finalProjectionOnClosure(
+            clientId = clientId,
+            rentalStartDate = rentalStartDate,
+            rentalEndDate = rentalEndDate ?: asOf,
+            weeklyRateRub = weeklyRateRub,
+            entries = entries,
+            rentalId = rentalId
+        )
+    } else {
+        LedgerCalculator.billingProjection(
+            clientId = clientId,
+            rentalStartDate = rentalStartDate,
+            weeklyRateRub = weeklyRateRub,
+            entries = entries,
+            asOf = asOf,
+            rentalId = rentalId,
+            paymentDay = paymentDay
         )
     }
 }
@@ -2122,14 +2159,16 @@ private fun buildAdminClientDetails(
         includeInactiveFallback = false
     )
     val projection = if (snapshot?.isActive == true) {
-        LedgerCalculator.billingProjection(
+        clientRentalBillingProjection(
             clientId = client.id,
             rentalStartDate = snapshot.rentalStartDate,
             weeklyRateRub = snapshot.weeklyRateRub,
             entries = store.ledger,
             asOf = now,
             rentalId = snapshot.clientRentalId,
-            paymentDay = billingProjectionPaymentDay(snapshot)
+            paymentDay = billingProjectionPaymentDay(snapshot),
+            pipelineStatus = snapshot.pipelineStatus,
+            rentalEndDate = snapshot.rentalEndDate
         )
     } else {
         null
@@ -3242,14 +3281,16 @@ fun Application.module() {
                     } else {
                         snapshot.rentalEndDate ?: now
                     }
-                    LedgerCalculator.billingProjection(
+                    clientRentalBillingProjection(
                         clientId = client.id,
                         rentalStartDate = snapshot.rentalStartDate,
                         weeklyRateRub = snapshot.weeklyRateRub,
                         entries = store.ledger,
                         asOf = chargeAsOf,
                         rentalId = snapshot.clientRentalId,
-                        paymentDay = billingProjectionPaymentDay(snapshot)
+                        paymentDay = billingProjectionPaymentDay(snapshot),
+                        pipelineStatus = snapshot.pipelineStatus,
+                        rentalEndDate = snapshot.rentalEndDate
                     )
                 } else {
                     null
@@ -3504,14 +3545,16 @@ fun Application.module() {
                     // Долг для отображения деталей: обычная активная аренда — per-week,
                     // soon_return и закрытая client_rental — per-day как при закрытии.
                     val projection = if (targetClientRental != null && rentalIsActive) {
-                        LedgerCalculator.billingProjection(
+                        clientRentalBillingProjection(
                             clientId = targetClientRental.clientId,
                             rentalStartDate = targetClientRental.startDate,
                             weeklyRateRub = bike.weeklyRateRub,
                             entries = store.ledger,
                             asOf = now,
                             rentalId = targetClientRental.id,
-                            paymentDay = activeDebtPaymentDay(targetClientRental, rental?.pipelineStatus)
+                            paymentDay = activeDebtPaymentDay(targetClientRental, rental?.pipelineStatus),
+                            pipelineStatus = rental?.pipelineStatus,
+                            rentalEndDate = targetClientRental.endDate
                         )
                     } else {
                         null
