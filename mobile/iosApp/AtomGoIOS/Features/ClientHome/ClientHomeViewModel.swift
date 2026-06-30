@@ -40,11 +40,15 @@ final class ClientHomeViewModel: ObservableObject {
         }
     }
 
-    func createPayment(type: ClientPaymentType, receiptEmail: String? = nil) {
+    func createPayment(type: ClientPaymentType, amountRub: Int? = nil, receiptEmail: String? = nil) {
         guard !isCreatingPayment else { return }
         guard case let .loaded(dashboard) = state else { return }
         if type == .debtExact && dashboard.presets.debtExactRub <= 0 {
             paymentErrorMessage = "Долг отсутствует, оплата ровно долга недоступна."
+            return
+        }
+        if type == .custom && (amountRub ?? 0) <= 0 {
+            paymentErrorMessage = "Введите сумму больше 0 ₽."
             return
         }
 
@@ -63,7 +67,8 @@ final class ClientHomeViewModel: ObservableObject {
                 }
                 let result = try await apiService.createPayment(
                     accessToken: session.accessToken,
-                    paymentType: type
+                    paymentType: type,
+                    amountRub: amountRub
                 )
                 paymentResult = result
                 if result.taxMode == "individual_entrepreneur" {

@@ -38,6 +38,43 @@ class PaymentServiceTest {
     }
 
     @Test
+    fun `custom payment should use provided amount`() {
+        val provider = FakePaymentProvider()
+        val store = InMemoryStore.seed()
+        val service = PaymentService(store, provider)
+
+        val payment = service.createPayment(
+            clientId = "client-001",
+            paymentType = PaymentType.CUSTOM,
+            customAmountRub = 1290,
+            now = LocalDate.now()
+        )
+
+        assertEquals(PaymentType.CUSTOM, payment.paymentType)
+        assertEquals(1290, payment.amountRub)
+        assertEquals(PaymentType.CUSTOM, provider.lastRequest?.paymentType)
+        assertEquals(1290, provider.lastRequest?.amountRub)
+    }
+
+    @Test
+    fun `custom payment should require positive amount`() {
+        val provider = FakePaymentProvider()
+        val store = InMemoryStore.seed()
+        val service = PaymentService(store, provider)
+
+        val error = kotlin.runCatching {
+            service.createPayment(
+                clientId = "client-001",
+                paymentType = PaymentType.CUSTOM,
+                now = LocalDate.now()
+            )
+        }.exceptionOrNull()
+
+        assertNotNull(error)
+        assertEquals("amount_rub must be positive", error.message)
+    }
+
+    @Test
     fun `individual entrepreneur payment should pass receipt to provider`() {
         val provider = FakePaymentProvider()
         val store = InMemoryStore.seed()

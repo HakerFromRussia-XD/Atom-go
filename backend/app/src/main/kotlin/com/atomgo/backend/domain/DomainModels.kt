@@ -10,7 +10,8 @@ enum class PaymentType {
     WEEK,
     TWO_WEEKS,
     MONTH,
-    DEBT_EXACT;
+    DEBT_EXACT,
+    CUSTOM;
 
     companion object {
         fun fromApi(value: String): PaymentType? = when (value) {
@@ -19,6 +20,7 @@ enum class PaymentType {
             "two_weeks" -> TWO_WEEKS
             "month" -> MONTH
             "debt_exact" -> DEBT_EXACT
+            "custom" -> CUSTOM
             else -> null
         }
 
@@ -28,6 +30,7 @@ enum class PaymentType {
             TWO_WEEKS -> "two_weeks"
             MONTH -> "month"
             DEBT_EXACT -> "debt_exact"
+            CUSTOM -> "custom"
         }
     }
 }

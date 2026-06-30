@@ -124,7 +124,7 @@ create table payment (
   id uuid primary key,
   client_id uuid not null references client_profile(id),
   client_rental_id uuid not null references client_rental(id),
-  payment_type text not null check (payment_type in ('day', 'week', 'two_weeks', 'month', 'debt_exact')),
+  payment_type text not null check (payment_type in ('day', 'week', 'two_weeks', 'month', 'debt_exact', 'custom')),
   amount_rub integer not null check (amount_rub > 0),
   status text not null check (status in ('new', 'pending', 'succeeded', 'canceled', 'failed')),
   provider text not null default 'yookassa',

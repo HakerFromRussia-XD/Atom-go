@@ -118,6 +118,33 @@ class ApiIntegrationTest {
     }
 
     @Test
+    fun `custom payment should create requested amount`() = testApplication {
+        application { module() }
+
+        val login = client.post("/api/v1/auth/login") {
+            contentType(ContentType.Application.Json)
+            setBody("""{"login":"client1","password":"client123"}""")
+        }
+
+        val token = json.parseToJsonElement(login.bodyAsText())
+            .jsonObject["access_token"]
+            ?.jsonPrimitive
+            ?.content
+            ?: error("No token")
+
+        val createPayment = client.post("/api/v1/payments/create") {
+            bearerAuth(token)
+            contentType(ContentType.Application.Json)
+            setBody("""{"payment_type":"custom","amount_rub":1290}""")
+        }
+        assertEquals(HttpStatusCode.OK, createPayment.status)
+
+        val body = json.parseToJsonElement(createPayment.bodyAsText()).jsonObject
+        assertEquals(1290, body["amount_rub"]?.jsonPrimitive?.content?.toInt())
+        assertTrue(body["confirmation_url"]?.jsonPrimitive?.content?.isNotBlank() == true)
+    }
+
+    @Test
     fun `payment return should apply provider success when webhook did not arrive`() {
         val propertyName = "atomgo.yookassa.mock.fetchStatus"
         val previousStatus = System.getProperty(propertyName)

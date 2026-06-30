@@ -243,6 +243,7 @@ enum ClientPaymentType: String, CaseIterable, Identifiable {
     case twoWeeks
     case month
     case debtExact
+    case custom
 
     var id: String { rawValue }
 
@@ -258,6 +259,8 @@ enum ClientPaymentType: String, CaseIterable, Identifiable {
             return "1 месяц"
         case .debtExact:
             return "Ровно долг"
+        case .custom:
+            return "Другая сумма"
         }
     }
 
@@ -273,6 +276,8 @@ enum ClientPaymentType: String, CaseIterable, Identifiable {
             return "month"
         case .debtExact:
             return "debt_exact"
+        case .custom:
+            return "custom"
         }
     }
 }

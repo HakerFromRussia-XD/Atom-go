@@ -111,9 +111,11 @@ private struct NativeLoginRequest: Encodable {
 
 private struct NativeCreatePaymentRequest: Encodable {
     let paymentType: String
+    let amountRub: Int?
 
     enum CodingKeys: String, CodingKey {
         case paymentType = "payment_type"
+        case amountRub = "amount_rub"
     }
 }
 
@@ -477,7 +479,7 @@ protocol BackendServicing {
     func fetchAdminBikes(accessToken: String) async throws -> [AdminBikeResponse]
     func fetchAdminRentalDetails(accessToken: String, rentalId: String) async throws -> AdminRentalDetailsResponse
     func updateClientReceiptEmail(accessToken: String, email: String) async throws
-    func createPayment(accessToken: String, paymentType: ClientPaymentType) async throws -> PaymentCreationResponse
+    func createPayment(accessToken: String, paymentType: ClientPaymentType, amountRub: Int?) async throws -> PaymentCreationResponse
     func fetchPaymentStatus(accessToken: String, paymentId: String) async throws -> PaymentStatusResponse
     func fetchAdminClientDetails(accessToken: String, clientId: String) async throws -> AdminClientDetailsResponse
     func createAdminClient(accessToken: String, payload: CreateClientPayload) async throws -> AdminClientDetailsResponse
@@ -648,6 +650,7 @@ private enum BackendErrorMessageParser {
         "client email is required for yookassa receipt": "Укажите email для чека перед оплатой.",
         "payment not found": "Платеж не найден.",
         "unknown payment_type": "Неизвестный тип платежа.",
+        "amount_rub is only allowed for custom payment_type": "Сумма вручную доступна только для платежа «Другая сумма».",
         "amount is zero. nothing to pay.": "Сейчас нечего оплачивать."
     ]
 
@@ -1273,12 +1276,12 @@ final class BackendService: BackendServicing {
         )
     }
 
-    func createPayment(accessToken: String, paymentType: ClientPaymentType) async throws -> PaymentCreationResponse {
+    func createPayment(accessToken: String, paymentType: ClientPaymentType, amountRub: Int?) async throws -> PaymentCreationResponse {
         try await sendNativeRequest(
             path: "/payments/create",
             method: "POST",
             accessToken: accessToken,
-            body: NativeCreatePaymentRequest(paymentType: paymentType.apiValue)
+            body: NativeCreatePaymentRequest(paymentType: paymentType.apiValue, amountRub: amountRub)
         )
     }
 
@@ -1562,9 +1565,9 @@ final class LazyBackendService: BackendServicing {
         }
     }
 
-    func createPayment(accessToken: String, paymentType: ClientPaymentType) async throws -> PaymentCreationResponse {
+    func createPayment(accessToken: String, paymentType: ClientPaymentType, amountRub: Int?) async throws -> PaymentCreationResponse {
         try await withFallback { service in
-            try await service.createPayment(accessToken: accessToken, paymentType: paymentType)
+            try await service.createPayment(accessToken: accessToken, paymentType: paymentType, amountRub: amountRub)
         }
     }
 

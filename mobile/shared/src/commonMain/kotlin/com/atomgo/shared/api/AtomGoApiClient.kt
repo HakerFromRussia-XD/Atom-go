@@ -424,12 +424,12 @@ class AtomGoApiClient private constructor(
     }
 
     @Throws(AtomGoApiException::class, CancellationException::class)
-    suspend fun createPayment(accessToken: String, paymentType: String): CreatePaymentResponse {
+    suspend fun createPayment(accessToken: String, paymentType: String, amountRub: Int? = null): CreatePaymentResponse {
         val response = executeRequest {
             httpClient.post("$apiBaseUrl/payments/create") {
                 header(HttpHeaders.Authorization, "Bearer $accessToken")
                 header(HttpHeaders.ContentType, ContentType.Application.Json.toString())
-                setBody(CreatePaymentRequest(paymentType = paymentType))
+                setBody(CreatePaymentRequest(paymentType = paymentType, amountRub = amountRub))
             }
         }
         return decodeResponse(response)

@@ -181,7 +181,8 @@ Header:
 Request:
 ```json
 {
-  "payment_type": "day"
+  "payment_type": "custom",
+  "amount_rub": 1500
 }
 ```
 
@@ -198,7 +199,8 @@ Response 200:
 ```
 
 Notes:
-- `payment_type`: `day`, `week`, `two_weeks`, `month`, `debt_exact`.
+- `payment_type`: `day`, `week`, `two_weeks`, `month`, `debt_exact`, `custom`.
+- `amount_rub`: required only for `payment_type = custom`; amount in rubles.
 - Backend берет `client_rental_id` из токена клиента.
 - Для завершенной `client_rental` разрешается оплачивать только долг.
 - Деньги в ledger не попадают в момент создания платежа.

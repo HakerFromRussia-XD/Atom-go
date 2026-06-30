@@ -78,8 +78,16 @@ class PaymentService(
         clientId: String,
         paymentType: PaymentType,
         rentalId: String? = null,
+        customAmountRub: Int? = null,
         now: LocalDate = LocalDate.now()
     ): PaymentRecord {
+        if (paymentType == PaymentType.CUSTOM && (customAmountRub == null || customAmountRub <= 0)) {
+            throw IllegalArgumentException("amount_rub must be positive")
+        }
+        if (paymentType != PaymentType.CUSTOM && customAmountRub != null) {
+            throw IllegalArgumentException("amount_rub is only allowed for custom payment_type")
+        }
+
         val client = store.clients.firstOrNull { it.id == clientId }
             ?: throw IllegalArgumentException("Client not found")
 
@@ -110,7 +118,12 @@ class PaymentService(
                 paymentDay = terms.paymentDay
             )
         }
-        val rawAmount = PricingRules.amountForType(paymentType, terms.weeklyRateRub, debt)
+        val rawAmount = PricingRules.amountForType(
+            type = paymentType,
+            weeklyRateRub = terms.weeklyRateRub,
+            debtRub = debt,
+            customAmountRub = customAmountRub
+        )
         // Для закрытой аренды клиент может только погашать долг: кнопка,
         // чья сумма больше остаточного долга, обнуляется (см. dashboard presets
         // в Application.kt). Здесь та же логика на бэкенде — если клиент всё

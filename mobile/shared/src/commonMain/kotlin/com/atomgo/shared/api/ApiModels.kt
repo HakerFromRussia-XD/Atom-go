@@ -508,7 +508,9 @@ data class AdminRentalLinksUpdateResponse(
 @Serializable
 data class CreatePaymentRequest(
     @SerialName("payment_type")
-    val paymentType: String
+    val paymentType: String,
+    @SerialName("amount_rub")
+    val amountRub: Int? = null
 )
 
 @Serializable

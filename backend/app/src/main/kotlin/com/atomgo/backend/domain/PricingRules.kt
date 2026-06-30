@@ -17,11 +17,17 @@ object PricingRules {
 
     fun monthAmount(weeklyRateRub: Int): Int = weeklyRateRub * 4
 
-    fun amountForType(type: PaymentType, weeklyRateRub: Int, debtRub: Int): Int = when (type) {
+    fun amountForType(
+        type: PaymentType,
+        weeklyRateRub: Int,
+        debtRub: Int,
+        customAmountRub: Int? = null
+    ): Int = when (type) {
         PaymentType.DAY -> dayAmount(weeklyRateRub)
         PaymentType.WEEK -> weekAmount(weeklyRateRub)
         PaymentType.TWO_WEEKS -> twoWeeksAmount(weeklyRateRub)
         PaymentType.MONTH -> monthAmount(weeklyRateRub)
         PaymentType.DEBT_EXACT -> debtRub
+        PaymentType.CUSTOM -> customAmountRub ?: 0
     }
 }

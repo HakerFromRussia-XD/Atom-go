@@ -131,8 +131,9 @@ API должен поддерживать модель из `docs/14_rental_life
 ## Payments
 
 - `POST /payments/create`
-  - request: `{ payment_type }`
-  - `payment_type`: `day|week|two_weeks|month|debt_exact`
+  - request: `{ payment_type, amount_rub? }`
+  - `payment_type`: `day|week|two_weeks|month|debt_exact|custom`
+  - `amount_rub`: positive amount in rubles, required for `custom`.
   - action: backend привязывает платеж к `client_rental_id` из клиентского токена.
   - completed rental: разрешен только платеж долга, если долг > 0.
 

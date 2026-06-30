@@ -60,7 +60,11 @@ paths:
               properties:
                 payment_type:
                   type: string
-                  enum: [day, week, two_weeks, month, debt_exact]
+                  enum: [day, week, two_weeks, month, debt_exact, custom]
+                amount_rub:
+                  type: integer
+                  minimum: 1
+                  description: Required when payment_type is custom.
       responses:
         '200':
           description: OK

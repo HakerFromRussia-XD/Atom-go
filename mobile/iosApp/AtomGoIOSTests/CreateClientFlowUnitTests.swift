@@ -700,6 +700,35 @@ final class CreateClientFlowUnitTests: XCTestCase {
     }
 
     @MainActor
+    func testClientCustomPaymentPassesAmountToBackend() async {
+        let service = MockAdminBackendService()
+        service.fetchClientDashboardResult = .success(service.sampleDashboard)
+        service.createPaymentResult = .success(
+            PaymentCreationResponse(
+                paymentId: "payment-custom-001",
+                amountRub: 1290,
+                confirmationUrl: "https://example.test/pay/payment-custom-001",
+                idempotenceKey: "idem-custom-001",
+                status: "pending"
+            )
+        )
+        let viewModel = ClientHomeViewModel(
+            session: AuthSession(accessToken: "token", role: .client, userId: "user-client-001"),
+            apiService: service
+        )
+
+        viewModel.load()
+        await waitUntilClientDashboardLoads(viewModel)
+        viewModel.createPayment(type: .custom, amountRub: 1290)
+        await waitUntilPaymentCreateCompletes(viewModel)
+
+        XCTAssertEqual(service.lastPaymentType, .custom)
+        XCTAssertEqual(service.lastPaymentAmountRub, 1290)
+        XCTAssertEqual(viewModel.paymentResult?.amountRub, 1290)
+        XCTAssertNil(viewModel.paymentErrorMessage)
+    }
+
+    @MainActor
     func testIpPaymentWithYooKassaReceiptPendingShowsSuccessMessage() async {
         let service = MockAdminBackendService()
         service.fetchClientDashboardResult = .success(service.sampleDashboard)
@@ -943,6 +972,8 @@ private final class MockAdminBackendService: BackendServicing {
     var paymentStatusResult: Result<PaymentStatusResponse, Error> = .failure(BackendError.invalidResponse)
     var updateReceiptEmailCallsCount = 0
     var lastUpdatedReceiptEmail: String?
+    var lastPaymentType: ClientPaymentType?
+    var lastPaymentAmountRub: Int?
     var fetchAdminRentsCallsCount = 0
     var createRentalCallsCount = 0
     var updateRentalCallsCount = 0
@@ -1082,8 +1113,10 @@ private final class MockAdminBackendService: BackendServicing {
         lastUpdatedReceiptEmail = email
     }
 
-    func createPayment(accessToken _: String, paymentType _: ClientPaymentType) async throws -> PaymentCreationResponse {
-        try createPaymentResult.get()
+    func createPayment(accessToken _: String, paymentType: ClientPaymentType, amountRub: Int?) async throws -> PaymentCreationResponse {
+        lastPaymentType = paymentType
+        lastPaymentAmountRub = amountRub
+        return try createPaymentResult.get()
     }
 
     func fetchPaymentStatus(accessToken _: String, paymentId _: String) async throws -> PaymentStatusResponse {

@@ -668,14 +668,18 @@ private data class ApiPaymentStatusResponse(
 @Serializable
 private data class ApiPaymentCreateRequest(
     @SerialName("payment_type")
-    val paymentType: String
+    val paymentType: String,
+    @SerialName("amount_rub")
+    val amountRub: Int? = null
 )
 
 @Serializable
 private data class ApiPublicTestPaymentRequest(
     val phone: String,
     @SerialName("payment_type")
-    val paymentType: String
+    val paymentType: String,
+    @SerialName("amount_rub")
+    val amountRub: Int? = null
 )
 
 @Serializable
@@ -3194,7 +3198,8 @@ fun Application.module() {
                         val createdPayment = paymentService.createPayment(
                             clientId = clientRental.clientId,
                             paymentType = type,
-                            rentalId = clientRental.id
+                            rentalId = clientRental.id,
+                            customAmountRub = request.amountRub
                         )
                         persistState()
                         createdPayment
@@ -5059,7 +5064,8 @@ fun Application.module() {
                         val createdPayment = paymentService.createPayment(
                             clientId = session.clientId,
                             paymentType = type,
-                            rentalId = session.rentalId
+                            rentalId = session.rentalId,
+                            customAmountRub = request.amountRub
                         )
                         persistState()
                         createdPayment

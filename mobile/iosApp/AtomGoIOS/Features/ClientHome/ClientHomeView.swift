@@ -22,8 +22,11 @@ struct ClientHomeView: View {
     @State private var activePaymentId: String?
     @State private var isSafariPresented = false
     @State private var isReceiptEmailDialogPresented = false
+    @State private var isCustomAmountDialogPresented = false
     @State private var pendingPaymentType: ClientPaymentType?
+    @State private var pendingCustomAmountRub: Int?
     @State private var receiptEmail = ""
+    @State private var customAmountText = ""
     @State private var toastMessage: String?
     @State private var toastDismissTask: Task<Void, Never>?
 
@@ -116,10 +119,27 @@ struct ClientHomeView: View {
 
             Button("Отмена", role: .cancel) {
                 pendingPaymentType = nil
+                pendingCustomAmountRub = nil
                 receiptEmail = ""
             }
         } message: {
             Text("Укажите email, куда ЮKassa отправит чек.")
+        }
+        .alert("Другая сумма", isPresented: $isCustomAmountDialogPresented) {
+            TextField("Сумма, ₽", text: $customAmountText)
+                .keyboardType(.numberPad)
+                .accessibilityIdentifier("client.customAmountField")
+
+            Button("Продолжить") {
+                submitCustomAmount()
+            }
+            .accessibilityIdentifier("client.customAmountSubmitButton")
+
+            Button("Отмена", role: .cancel) {
+                customAmountText = ""
+            }
+        } message: {
+            Text("Введите сумму в рублях. После подтверждения откроется страница оплаты ЮKassa на указанную сумму.")
         }
         .appToast(message: $toastMessage, bottomPadding: 86)
     }
@@ -179,7 +199,7 @@ struct ClientHomeView: View {
         safeTop: CGFloat,
         totalHeight: CGFloat
     ) -> some View {
-        let bottomPadding = isTariffSheetPresented ? min(390 * scale, totalHeight * 0.48) + 16 * scale : 0
+        let bottomPadding = isTariffSheetPresented ? min(502 * scale, totalHeight * 0.60) + 16 * scale : 0
 
         return VStack(spacing: 0) {
             ScrollView(showsIndicators: false) {
@@ -554,41 +574,40 @@ struct ClientHomeView: View {
             .padding(.top, 14 * scale)
 
             Button {
+                openCustomAmountDialog()
+            } label: {
+                tariffActionLabel(
+                    title: "Другая сумма",
+                    isLoading: false,
+                    scale: scale
+                )
+            }
+            .buttonStyle(.plain)
+            .disabled(viewModel.isCreatingPayment)
+            .accessibilityIdentifier("client.customAmountButton")
+            .padding(.horizontal, 23 * scale)
+            .padding(.top, 12 * scale)
+
+            Button {
                 withAnimation(.spring(response: 0.24, dampingFraction: 0.9)) {
                     isTariffSheetPresented = false
                 }
                 startPayment(type: selectedPaymentType)
             } label: {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 16 * scale, style: .continuous)
-                        .fill(AppDesign.surfaceBackground)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16 * scale, style: .continuous)
-                                .stroke(ClientColors.mainText, lineWidth: 1)
-                        )
-
-                    if viewModel.isCreatingPayment {
-                        ProgressView()
-                            .tint(ClientColors.mainText)
-                    } else {
-                        Text("Оплатить выбранный · \(moneyText(amountFor(selectedPaymentType, presets: dashboard.presets)))")
-                            .font(.system(size: 14 * scale, weight: .bold))
-                            .tracking(0.28 * scale)
-                            .foregroundStyle(ClientColors.mainText)
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: 63 * scale)
-                .contentShape(RoundedRectangle(cornerRadius: 16 * scale, style: .continuous))
+                tariffActionLabel(
+                    title: "Оплатить выбранный · \(moneyText(amountFor(selectedPaymentType, presets: dashboard.presets)))",
+                    isLoading: viewModel.isCreatingPayment,
+                    scale: scale
+                )
             }
             .buttonStyle(.plain)
             .padding(.horizontal, 23 * scale)
-            .padding(.top, 16 * scale)
-            .padding(.bottom, 24 * scale)
+            .padding(.top, 10 * scale)
+            .padding(.bottom, 18 * scale)
             .disabled(viewModel.isCreatingPayment)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 429 * scale, alignment: .top)
+        .frame(height: 502 * scale, alignment: .top)
         .background(AppDesign.surfaceBackground)
         .overlay(alignment: .top) {
             Rectangle()
@@ -649,21 +668,73 @@ struct ClientHomeView: View {
         .contentShape(RoundedRectangle(cornerRadius: 14 * scale, style: .continuous))
     }
 
-    private func startPayment(type: ClientPaymentType) {
+    private func tariffActionLabel(title: String, isLoading: Bool, scale: CGFloat) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 16 * scale, style: .continuous)
+                .fill(AppDesign.surfaceBackground)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16 * scale, style: .continuous)
+                        .stroke(ClientColors.mainText, lineWidth: 1)
+                )
+
+            if isLoading {
+                ProgressView()
+                    .tint(ClientColors.mainText)
+            } else {
+                Text(title)
+                    .font(.system(size: 14 * scale, weight: .bold))
+                    .tracking(0.28 * scale)
+                    .foregroundStyle(ClientColors.mainText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+                    .padding(.horizontal, 12 * scale)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 63 * scale)
+        .contentShape(RoundedRectangle(cornerRadius: 16 * scale, style: .continuous))
+    }
+
+    private func startPayment(type: ClientPaymentType, amountRub: Int? = nil) {
         guard case let .loaded(dashboard) = viewModel.state else { return }
 
         if type == .debtExact, dashboard.presets.debtExactRub <= 0 {
             return
         }
+        if type == .custom, (amountRub ?? 0) <= 0 {
+            viewModel.paymentErrorMessage = "Введите сумму больше 0 ₽."
+            return
+        }
 
         if dashboard.requiresReceiptEmail {
             pendingPaymentType = type
+            pendingCustomAmountRub = amountRub
             receiptEmail = dashboard.receiptEmail ?? ""
             isReceiptEmailDialogPresented = true
             return
         }
 
-        viewModel.createPayment(type: type)
+        viewModel.createPayment(type: type, amountRub: amountRub)
+    }
+
+    private func openCustomAmountDialog() {
+        customAmountText = ""
+        isCustomAmountDialogPresented = true
+    }
+
+    private func submitCustomAmount() {
+        let digits = customAmountText.filter(\.isNumber)
+        guard let amount = Int(digits), amount > 0 else {
+            viewModel.paymentErrorMessage = "Введите сумму больше 0 ₽."
+            customAmountText = ""
+            return
+        }
+
+        customAmountText = ""
+        withAnimation(.spring(response: 0.24, dampingFraction: 0.9)) {
+            isTariffSheetPresented = false
+        }
+        startPayment(type: .custom, amountRub: amount)
     }
 
     private func submitReceiptEmail() {
@@ -674,17 +745,23 @@ struct ClientHomeView: View {
         }
 
         if let pendingPaymentType {
-            viewModel.createPayment(type: pendingPaymentType, receiptEmail: trimmedEmail)
+            viewModel.createPayment(
+                type: pendingPaymentType,
+                amountRub: pendingCustomAmountRub,
+                receiptEmail: trimmedEmail
+            )
         } else {
             viewModel.updateReceiptEmail(trimmedEmail)
         }
 
         self.pendingPaymentType = nil
+        pendingCustomAmountRub = nil
         receiptEmail = ""
     }
 
     private func openReceiptEmailEditor(dashboard: ClientDashboardResponse) {
         pendingPaymentType = nil
+        pendingCustomAmountRub = nil
         receiptEmail = dashboard.receiptEmail ?? ""
         isReceiptEmailDialogPresented = true
     }
@@ -715,6 +792,8 @@ struct ClientHomeView: View {
             return presets.monthRub
         case .debtExact:
             return presets.debtExactRub
+        case .custom:
+            return 0
         }
     }
 
@@ -909,6 +988,8 @@ private struct TariffIllustrationView: View {
                 .frame(width: 86 * scale, height: 86 * scale)
 
         case .debtExact:
+            EmptyView()
+        case .custom:
             EmptyView()
         }
     }
